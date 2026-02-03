@@ -1,90 +1,156 @@
-import { useState, useEffect, useRef } from "react";
-import Peer from "peerjs";
-import "./App.css";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Peer from 'peerjs';
+import { useChatStore } from './store/useChatStore';
+import { generateShortPeerId } from './utils/peerId';
+import ChatPanel from './components/ChatPanel';
+import RecordPanel from './components/RecordPanel';
+import './App.css';
 
 /**
- * PeerJS 기반 화상 채팅 (클라이언트 전용 테스트용)
- *
- * 동작 방식:
- * 1. "미디어 시작"으로 카메라/마이크 스트림 획득
- * 2. Peer 서버 연결 후 내 Peer ID가 표시됨
- * 3. 다른 탭에서 동일 페이지를 열고 각각의 Peer ID를 복사해 서로 입력 후 "통화 걸기"
- * 4. 수신 측은 "통화 받기" 없이 자동 응답 (call 이벤트에서 answer)
+ * PeerJS 기반 1:1 화상 채팅
+ * - Peer ID: 5자리 난수 (10000~99999)
+ * - 상태: Zustand, 채팅 내역: localStorage 저장
+ * - 채팅: PeerJS DataConnection (peer.connect)로 텍스트 전송
  */
 function App() {
-  const [myId, setMyId] = useState("");
-  const [remoteIdInput, setRemoteIdInput] = useState("");
+  const [remoteIdInput, setRemoteIdInput] = useState('');
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [status, setStatus] = useState("idle"); // idle | connecting | connected | error
-  const [errorMessage, setErrorMessage] = useState("");
+
+  const {
+    myId,
+    connectedRemoteId,
+    status,
+    errorMessage,
+    setMyId,
+    setStatus,
+    setErrorMessage,
+    setConnectedRemoteId,
+    addMessage,
+    resetCallState,
+  } = useChatStore();
 
   const peerRef = useRef(null);
   const currentCallRef = useRef(null);
+  const dataConnRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  // 미디어 스트림 획득 (getUserMedia)
+  const isConnected = status === 'connected';
+
+  // DataConnection으로 메시지 전송 (채팅 패널에서 호출)
+  const sendChatMessage = useCallback(
+    (text) => {
+      const conn = dataConnRef.current;
+      if (!conn || conn.open !== true) return;
+      const time = Date.now();
+      conn.send(JSON.stringify({ text, time }));
+      addMessage({ from: 'me', text, time });
+    },
+    [addMessage],
+  );
+
+  // DataConnection 수신 처리 공통
+  const wireDataConnection = useCallback(
+    (conn) => {
+      conn.on('data', (data) => {
+        try {
+          const obj = typeof data === 'string' ? JSON.parse(data) : data;
+          if (obj && typeof obj.text === 'string') {
+            addMessage({
+              from: 'remote',
+              text: obj.text,
+              time: obj.time || Date.now(),
+            });
+          }
+        } catch (e) {
+          console.warn('Invalid chat data', e);
+        }
+      });
+      conn.on('close', () => {
+        if (dataConnRef.current === conn) dataConnRef.current = null;
+      });
+      conn.on('error', (err) => {
+        console.warn('DataConnection error', err);
+      });
+    },
+    [addMessage],
+  );
+
   const startMedia = async () => {
-    setErrorMessage("");
+    setErrorMessage('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
       });
       setLocalStream(stream);
-      setStatus("idle");
+      setStatus('idle');
     } catch (err) {
-      setErrorMessage("카메라/마이크 접근 실패: " + (err.message || err.name));
-      setStatus("error");
+      setErrorMessage('카메라/마이크 접근 실패: ' + (err.message || err.name));
+      setStatus('error');
     }
   };
 
-  // Peer 초기화 및 미디어 시작 시에만 연결
   useEffect(() => {
     if (!localStream) return;
 
-    const peer = new Peer({
-      debug: 2,
+    const peerId = generateShortPeerId();
+    const peer = new Peer(peerId, {
+      debug: 1,
       config: {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       },
     });
 
-    peer.on("open", (id) => {
+    peer.on('open', (id) => {
       setMyId(id);
-      setStatus("idle");
+      setStatus('idle');
     });
 
-    peer.on("call", (call) => {
-      // 수신: 상대 스트림을 받아서 remoteStream으로 설정
+    peer.on('call', (call) => {
       call.answer(localStream);
       currentCallRef.current = call;
-      call.on("stream", (stream) => {
+      call.on('stream', (stream) => {
         setRemoteStream(stream);
-        setStatus("connected");
+        setStatus('connected');
+        setConnectedRemoteId(call.peer);
       });
-      call.on("close", () => {
+      call.on('close', () => {
+        if (dataConnRef.current) {
+          dataConnRef.current.close();
+          dataConnRef.current = null;
+        }
         setRemoteStream(null);
-        setStatus("idle");
+        resetCallState();
         currentCallRef.current = null;
       });
-      call.on("error", (err) => {
-        setErrorMessage("수신 통화 오류: " + (err?.message || err));
-        setStatus("error");
+      call.on('error', (err) => {
+        setErrorMessage('수신 통화 오류: ' + (err?.message || err));
+        setStatus('error');
       });
     });
 
-    peer.on("error", (err) => {
-      setErrorMessage("Peer 오류: " + (err?.message || err.type || err));
-      setStatus("error");
+    // 상대(발신자)가 peer.connect()로 열어준 데이터 연결 수락
+    peer.on('connection', (conn) => {
+      dataConnRef.current = conn;
+      conn.on('open', () => wireDataConnection(conn));
     });
 
-    peer.on("disconnected", () => setStatus("idle"));
+    peer.on('error', (err) => {
+      setErrorMessage('Peer 오류: ' + (err?.message || err.type || err));
+      setStatus('error');
+    });
+
+    peer.on('disconnected', () => setStatus('idle'));
 
     peerRef.current = peer;
 
     return () => {
+      if (dataConnRef.current) {
+        dataConnRef.current.close();
+        dataConnRef.current = null;
+      }
       if (currentCallRef.current) {
         currentCallRef.current.close();
         currentCallRef.current = null;
@@ -92,51 +158,69 @@ function App() {
       peer.destroy();
       peerRef.current = null;
     };
-  }, [localStream]);
+  }, [
+    localStream,
+    setMyId,
+    setStatus,
+    setErrorMessage,
+    setConnectedRemoteId,
+    resetCallState,
+    wireDataConnection,
+  ]);
 
-  // 통화 걸기
   const startCall = () => {
     const peer = peerRef.current;
     const remoteId = remoteIdInput.trim();
     if (!peer || !remoteId || !localStream) {
-      setErrorMessage("Peer ID를 입력하고 미디어를 먼저 시작하세요.");
+      setErrorMessage('Peer ID를 입력하고 미디어를 먼저 시작하세요.');
       return;
     }
-    setErrorMessage("");
-    setStatus("connecting");
+    setErrorMessage('');
+    setStatus('connecting');
     try {
       const call = peer.call(remoteId, localStream);
       currentCallRef.current = call;
-      call.on("stream", (stream) => {
+      call.on('stream', (stream) => {
         setRemoteStream(stream);
-        setStatus("connected");
+        setStatus('connected');
+        setConnectedRemoteId(remoteId);
+        // 발신자: 채팅용 데이터 연결 생성
+        const conn = peer.connect(remoteId);
+        dataConnRef.current = conn;
+        conn.on('open', () => wireDataConnection(conn));
       });
-      call.on("close", () => {
+      call.on('close', () => {
+        if (dataConnRef.current) {
+          dataConnRef.current.close();
+          dataConnRef.current = null;
+        }
         setRemoteStream(null);
-        setStatus("idle");
+        resetCallState();
         currentCallRef.current = null;
       });
-      call.on("error", (err) => {
-        setErrorMessage("통화 오류: " + (err?.message || err));
-        setStatus("error");
+      call.on('error', (err) => {
+        setErrorMessage('통화 오류: ' + (err?.message || err));
+        setStatus('error');
       });
     } catch (err) {
-      setErrorMessage("통화 실패: " + (err?.message || err));
-      setStatus("error");
+      setErrorMessage('통화 실패: ' + (err?.message || err));
+      setStatus('error');
     }
   };
 
-  // 통화 종료
   const endCall = () => {
+    if (dataConnRef.current) {
+      dataConnRef.current.close();
+      dataConnRef.current = null;
+    }
     if (currentCallRef.current) {
       currentCallRef.current.close();
       currentCallRef.current = null;
     }
     setRemoteStream(null);
-    setStatus("idle");
+    resetCallState();
   };
 
-  // 비디오 엘리먼트에 스트림 바인딩
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
@@ -148,7 +232,6 @@ function App() {
     }
   }, [remoteStream]);
 
-  // 언마운트 시 로컬 스트림 트랙 정리
   useEffect(() => {
     return () => {
       if (localStream) {
@@ -159,17 +242,17 @@ function App() {
 
   return (
     <div className="app">
-      <h1>PeerJS 화상 채팅 (테스트)</h1>
+      <h1>PeerJS 1:1 화상 채팅</h1>
 
       <section className="controls">
         <div className="control-row">
           <button onClick={startMedia} disabled={!!localStream}>
-            {localStream ? "미디어 사용 중" : "미디어 시작"}
+            {localStream ? '미디어 사용 중' : '미디어 시작'}
           </button>
           {localStream && (
             <>
               <span className="my-id">
-                내 Peer ID: <code>{myId || "연결 중..."}</code>
+                내 Peer ID: <code>{myId || '연결 중...'}</code> (5자리)
               </span>
               <button
                 className="copy-btn"
@@ -185,7 +268,7 @@ function App() {
         <div className="control-row call-row">
           <input
             type="text"
-            placeholder="상대 Peer ID 입력"
+            placeholder="상대 Peer ID (5자리) 입력"
             value={remoteIdInput}
             onChange={(e) => setRemoteIdInput(e.target.value)}
             disabled={!localStream}
@@ -204,7 +287,10 @@ function App() {
         {status && (
           <p className="status">
             상태: <strong>{status}</strong>
-            {status === "connecting" && " (상대가 수락할 때까지 대기)"}
+            {status === 'connecting' && ' (상대가 수락할 때까지 대기)'}
+            {isConnected &&
+              connectedRemoteId &&
+              ` · 상대: ${connectedRemoteId}`}
           </p>
         )}
         {errorMessage && <p className="error">{errorMessage}</p>}
@@ -229,10 +315,14 @@ function App() {
         </div>
       </section>
 
+      <ChatPanel sendMessage={sendChatMessage} disabled={!isConnected} />
+
+      <RecordPanel remoteStream={remoteStream} disabled={!isConnected} />
+
       <p className="hint">
-        테스트: 이 페이지를 두 개의 브라우저 탭(또는 시크릿 창)에서 열고, 각
-        탭에서 &quot;미디어 시작&quot; 후 한 탭의 Peer ID를 다른 탭에 입력해
-        &quot;통화 걸기&quot;하세요.
+        테스트: 두 탭에서 각각 &quot;미디어 시작&quot; 후, 한 탭의 5자리 ID를
+        다른 탭에 입력해 &quot;통화 걸기&quot;하세요. 채팅 내역은 브라우저에
+        저장됩니다.
       </p>
     </div>
   );
