@@ -77,17 +77,71 @@ function App() {
     [addMessage],
   );
 
+  /**
+   * 데스크톱에서 "Requested device not found" 방지:
+   * - 먼저 기본 요청, 실패 시 facingMode: 'user'로 재시도 (특정 장치 ID 의존 감소)
+   * - 그래도 실패 시 영상만 / 음성만 따로 요청 후 스트림 합치기
+   */
   const startMedia = async () => {
     setErrorMessage('');
+
+    const tryGetUserMedia = async (constraints) => {
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+        return null;
+      }
+    };
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      // 1) 동시 요청 (일부 환경에서만 기본 장치가 유효한 경우 대비)
+      let stream = await tryGetUserMedia({ video: true, audio: true });
+
+      // 2) 실패 시 영상은 'user' 카메라로만 요청 (저장된 잘못된 장치 ID 회피)
+      if (!stream) {
+        stream = await tryGetUserMedia({
+          video: { facingMode: 'user' },
+          audio: true,
+        });
+      }
+
+      // 3) 그래도 실패 시 영상/음성 분리 요청 후 합치기 (데스크톱 기본 장치 오류 회피)
+      if (!stream) {
+        const videoStream = await tryGetUserMedia({
+          video: { facingMode: 'user' },
+          audio: false,
+        });
+        const audioStream = await tryGetUserMedia({
+          video: false,
+          audio: true,
+        });
+        if (videoStream || audioStream) {
+          stream = new MediaStream([
+            ...(videoStream?.getVideoTracks() ?? []),
+            ...(audioStream?.getAudioTracks() ?? []),
+          ]);
+        }
+      }
+
+      if (
+        !stream ||
+        (stream.getVideoTracks().length === 0 &&
+          stream.getAudioTracks().length === 0)
+      ) {
+        throw new Error('Requested device not found');
+      }
+
       setLocalStream(stream);
       setStatus('idle');
     } catch (err) {
-      setErrorMessage('카메라/마이크 접근 실패: ' + (err.message || err.name));
+      const msg = err?.message || err?.name || '알 수 없음';
+      setErrorMessage(
+        '카메라/마이크 접근 실패: ' +
+          msg +
+          (msg.includes('not found') || msg.includes('NotFound')
+            ? ' — 브라우저 설정에서 카메라/마이크 권한을 확인하고, 다른 프로그램이 사용 중이면 해제한 뒤 다시 시도하세요.'
+            : ''),
+      );
       setStatus('error');
     }
   };
