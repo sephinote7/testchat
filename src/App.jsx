@@ -57,13 +57,17 @@ function App() {
     const fetchProfile = async (session) => {
       if (!session?.user) return;
       const { data, error } = await supabase
-        .from('profiles')
-        .select('role, member_id, cnsler_id')
+        .from('member')
+        .select('role, email')
         .eq('id', session.user.id)
         .single();
 
       if (data) {
-        setProfile({ id: session.user.id, ...data });
+        setProfile({
+          id: session.user.id,
+          role: data.role,
+          member_id: data.email,
+        });
       } else if (error) {
         console.error('프로필 로드 실패:', error.message);
       }
