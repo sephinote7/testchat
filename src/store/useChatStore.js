@@ -45,14 +45,16 @@ export const useChatStore = create(
     (set, get) => ({
       // Peer / 통화 상태
       myId: '',
-      connectedRemoteId: null, // 통화/데이터 연결된 상대 ID
-      status: 'idle', // idle | connecting | connected | error
+      connectedRemoteId: null,
+      cnslId: null, // 상담 ID (통화 종료 시 Supabase 저장용)
+      status: 'idle',
       errorMessage: '',
 
       // 채팅 메시지 (현재 대화)
       messages: [],
 
       setMyId: (myId) => set({ myId }),
+      setCnslId: (cnslId) => set({ cnslId }),
 
       setConnectedRemoteId: (connectedRemoteId) => {
         const { myId } = get();
@@ -107,10 +109,11 @@ export const useChatStore = create(
           status: 'idle',
           errorMessage: '',
         }),
+      getMessagesForApi: () => get().messages,
     }),
     {
       name: 'visualchat_ui',
       partialize: (state) => ({}), // 메시지는 위에서 직접 localStorage에 저장
-    },
-  ),
+    }
+  )
 );

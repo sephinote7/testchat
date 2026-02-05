@@ -1,15 +1,26 @@
-import { useState, useRef, useCallback } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  useImperativeHandle,
+  forwardRef,
+  useEffect,
+} from 'react';
 import './RecordPanel.css';
 
 /**
  * 화상 통화 중 상대 영상(원격 스트림)을 로컬에 녹화 저장하고,
- * 선택 시 testchatpy API로 음성 요약 요청
+ * 선택 시 testchatpy API로 음성 요약 요청.
+ * ref로 stopRecordingAndGetBlob() 노출 — 통화 종료 시 Blob 수집용.
  */
-export default function RecordPanel({ remoteStream, disabled }) {
+const RecordPanel = forwardRef(function RecordPanel(
+  { remoteStream, disabled, autoStart = false },
+  ref
+) {
   const [isRecording, setIsRecording] = useState(false);
   const [lastBlob, setLastBlob] = useState(null);
   const [summaryApiUrl, setSummaryApiUrl] = useState(
-    () => import.meta.env.VITE_SUMMARY_API_URL || '',
+    () => import.meta.env.VITE_SUMMARY_API_URL || ''
   );
   const [summaryResult, setSummaryResult] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -95,6 +106,36 @@ export default function RecordPanel({ remoteStream, disabled }) {
     setSummaryResult(null);
   }, []);
 
+  const stopRecordingAndGetBlob = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      return new Promise((resolve) => {
+        const onStop = () => {
+          recorder.removeEventListener('stop', onStop);
+          if (chunksRef.current.length) {
+            resolve(new Blob(chunksRef.current, { type: 'video/webm' }));
+          } else {
+            resolve(null);
+          }
+        };
+        recorder.addEventListener('stop', onStop);
+        recorder.stop();
+        setIsRecording(false);
+      });
+    }
+    return Promise.resolve(lastBlob);
+  }, [lastBlob]);
+
+  useImperativeHandle(ref, () => ({ stopRecordingAndGetBlob }), [
+    stopRecordingAndGetBlob,
+  ]);
+
+  useEffect(() => {
+    if (autoStart && canRecord && !isRecording && !lastBlob) {
+      startRecording();
+    }
+  }, [autoStart, canRecord, isRecording, lastBlob, startRecording]);
+
   return (
     <section className="record-panel">
       <h3>녹화 / 요약</h3>
@@ -168,4 +209,6 @@ export default function RecordPanel({ remoteStream, disabled }) {
       )}
     </section>
   );
-}
+});
+
+export default RecordPanel;

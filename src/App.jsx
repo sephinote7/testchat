@@ -2,32 +2,39 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Peer from 'peerjs';
 import { useChatStore } from './store/useChatStore';
 import { generateShortPeerId } from './utils/peerId';
+import { supabase } from './lib/supabase';
+import Auth from './components/Auth';
 import ChatPanel from './components/ChatPanel';
 import RecordPanel from './components/RecordPanel';
 import './App.css';
 
+const SUMMARY_API_URL = import.meta.env.VITE_SUMMARY_API_URL || '';
+
 /**
- * PeerJS 기반 1:1 화상 채팅
- * - Peer ID: 5자리 난수 (10000~99999)
- * - 상태: Zustand, 채팅 내역: localStorage 저장
- * - 채팅: PeerJS DataConnection (peer.connect)로 텍스트 전송
+ * 요구사항: Supabase Auth, member_id/cnsler_id를 Peer ID로 사용, cnsl_id로 매칭,
+ * 통화 종료 시 녹음+채팅 → FastAPI 요약 → Supabase chat_msg 저장
  */
 function App() {
-  const [remoteIdInput, setRemoteIdInput] = useState('');
+  const [profile, setProfile] = useState(null);
+  const [cnslIdInput, setCnslIdInput] = useState('');
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [saveStatus, setSaveStatus] = useState('');
 
   const {
     myId,
     connectedRemoteId,
+    cnslId,
     status,
     errorMessage,
     setMyId,
     setStatus,
     setErrorMessage,
     setConnectedRemoteId,
+    setCnslId,
     addMessage,
     resetCallState,
+    getMessagesForApi,
   } = useChatStore();
 
   const peerRef = useRef(null);
@@ -35,8 +42,32 @@ function App() {
   const dataConnRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const recordPanelRef = useRef(null);
 
   const isConnected = status === 'connected';
+  const peerId = profile ? profile.member_id || profile.cnsler_id : null;
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        supabase
+          .from('profiles')
+          .select('role, member_id, cnsler_id')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data) setProfile({ id: session.user.id, ...data });
+          });
+      }
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session?.user) setProfile(null);
+    });
+    return () => subscription?.unsubscribe();
+  }, []);
 
   // DataConnection으로 메시지 전송 (채팅 패널에서 호출)
   const sendChatMessage = useCallback(
@@ -47,7 +78,7 @@ function App() {
       conn.send(JSON.stringify({ text, time }));
       addMessage({ from: 'me', text, time });
     },
-    [addMessage],
+    [addMessage]
   );
 
   // DataConnection 수신 처리 공통
@@ -74,7 +105,7 @@ function App() {
         console.warn('DataConnection error', err);
       });
     },
-    [addMessage],
+    [addMessage]
   );
 
   /**
@@ -140,17 +171,18 @@ function App() {
           msg +
           (msg.includes('not found') || msg.includes('NotFound')
             ? ' — 브라우저 설정에서 카메라/마이크 권한을 확인하고, 다른 프로그램이 사용 중이면 해제한 뒤 다시 시도하세요.'
-            : ''),
+            : '')
       );
       setStatus('error');
     }
   };
 
   useEffect(() => {
-    if (!localStream) return;
+    if (!localStream || !profile) return;
 
-    const peerId = generateShortPeerId();
-    const peer = new Peer(peerId, {
+    const idToUse =
+      profile.member_id || profile.cnsler_id || generateShortPeerId();
+    const peer = new Peer(idToUse, {
       debug: 1,
       config: {
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -214,6 +246,7 @@ function App() {
     };
   }, [
     localStream,
+    profile,
     setMyId,
     setStatus,
     setErrorMessage,
@@ -222,15 +255,47 @@ function App() {
     wireDataConnection,
   ]);
 
-  const startCall = () => {
+  const startCall = async () => {
     const peer = peerRef.current;
-    const remoteId = remoteIdInput.trim();
-    if (!peer || !remoteId || !localStream) {
-      setErrorMessage('Peer ID를 입력하고 미디어를 먼저 시작하세요.');
+    const cnslIdVal = cnslIdInput.trim();
+    if (!peer || !cnslIdVal || !localStream) {
+      setErrorMessage('상담 ID(cnsl_id)를 입력하고 미디어를 먼저 시작하세요.');
       return;
     }
     setErrorMessage('');
     setStatus('connecting');
+    setCnslId(cnslIdVal);
+    let remoteId = cnslIdVal;
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('consultations')
+          .select('member_id, cnsler_id')
+          .eq('cnsl_id', parseInt(cnslIdVal, 10) || cnslIdVal)
+          .single();
+        if (error || !data) {
+          setErrorMessage(
+            '해당 상담 ID를 찾을 수 없습니다. Supabase consultations 테이블을 확인하세요.'
+          );
+          setCnslId(null);
+          return;
+        }
+        const other =
+          peerId === data.member_id ? data.cnsler_id : data.member_id;
+        if (!other) {
+          setErrorMessage('상담 상대 정보가 없습니다.');
+          setCnslId(null);
+          return;
+        }
+        remoteId = other;
+      } catch (e) {
+        setErrorMessage('상담 정보 조회 실패: ' + (e?.message || e));
+        setCnslId(null);
+        return;
+      }
+    } else {
+      remoteId = cnslIdVal;
+    }
     try {
       const call = peer.call(remoteId, localStream);
       currentCallRef.current = call;
@@ -262,7 +327,15 @@ function App() {
     }
   };
 
-  const endCall = () => {
+  const endCall = async () => {
+    const blob = recordPanelRef.current?.stopRecordingAndGetBlob
+      ? await recordPanelRef.current.stopRecordingAndGetBlob()
+      : null;
+    const messages = getMessagesForApi?.() ?? [];
+    const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
+    const cnslIdNum = cnslId ? parseInt(cnslId, 10) || cnslId : null;
+    const remoteIdForSave = connectedRemoteId;
+
     if (dataConnRef.current) {
       dataConnRef.current.close();
       dataConnRef.current = null;
@@ -273,6 +346,54 @@ function App() {
     }
     setRemoteStream(null);
     resetCallState();
+
+    const doSave = async (msgData, summary) => {
+      if (!supabase || cnslIdNum == null || !profile) return;
+      const member_id = profile.role === 'member' ? peerId : remoteIdForSave;
+      const cnsler_id =
+        profile.role === 'counsellor' ? peerId : remoteIdForSave;
+      const { error } = await supabase.from('chat_msg').insert({
+        cnsl_id: cnslIdNum,
+        member_id: member_id ?? '',
+        cnsler_id: cnsler_id ?? '',
+        role: profile.role === 'member' ? 'user' : 'assistant',
+        msg_data: msgData ?? messages,
+        summery: summary ?? '(요약 없음)',
+      });
+      if (error) setSaveStatus('저장 실패: ' + error.message);
+      else setSaveStatus('저장 완료');
+    };
+
+    if (apiUrl && (blob || messages.length > 0)) {
+      setSaveStatus('요약 생성 중…');
+      try {
+        const form = new FormData();
+        if (blob) form.append('audio', blob, 'recording.webm');
+        form.append('msg_data', JSON.stringify(messages));
+        const res = await fetch(`${apiUrl}/api/summarize`, {
+          method: 'POST',
+          body: form,
+        });
+        const data = res.ok ? await res.json() : null;
+        const summary = data?.summary ?? '(요약 생성 실패)';
+        const msgData = data?.msg_data ?? messages;
+        await doSave(msgData, summary);
+        if (!res.ok) setSaveStatus('요약 실패, 채팅만 저장됨');
+      } catch (e) {
+        await doSave(messages, '(요약 실패)');
+        setSaveStatus('요약 실패, 채팅만 저장됨: ' + (e?.message || e));
+      }
+      setTimeout(() => setSaveStatus(''), 4000);
+    } else if (
+      supabase &&
+      cnslIdNum != null &&
+      profile &&
+      messages.length > 0
+    ) {
+      await doSave(messages, '(요약 없음)');
+      setSaveStatus('채팅만 저장됨');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
   };
 
   useEffect(() => {
@@ -294,9 +415,34 @@ function App() {
     };
   }, [localStream]);
 
+  if (!profile) {
+    return (
+      <div className="app">
+        <h1>AI 화상 채팅 (Supabase)</h1>
+        <Auth onSuccess={setProfile} />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <h1>PeerJS 1:1 화상 채팅</h1>
+      <p className="profile-info">
+        {profile.role === 'member' ? '일반 사용자' : '상담사'} · Peer ID:{' '}
+        <code>{peerId}</code>
+        {supabase && (
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={() => {
+              supabase.auth.signOut();
+              setProfile(null);
+            }}
+          >
+            로그아웃
+          </button>
+        )}
+      </p>
 
       <section className="controls">
         <div className="control-row">
@@ -306,7 +452,7 @@ function App() {
           {localStream && (
             <>
               <span className="my-id">
-                내 Peer ID: <code>{myId || '연결 중...'}</code> (5자리)
+                내 Peer ID: <code>{myId || '연결 중...'}</code>
               </span>
               <button
                 className="copy-btn"
@@ -322,14 +468,18 @@ function App() {
         <div className="control-row call-row">
           <input
             type="text"
-            placeholder="상대 Peer ID (5자리) 입력"
-            value={remoteIdInput}
-            onChange={(e) => setRemoteIdInput(e.target.value)}
+            placeholder={
+              supabase
+                ? '상담 ID (cnsl_id) 입력'
+                : '상대 Peer ID 또는 cnsl_id 입력'
+            }
+            value={cnslIdInput}
+            onChange={(e) => setCnslIdInput(e.target.value)}
             disabled={!localStream}
           />
           <button
             onClick={startCall}
-            disabled={!localStream || !remoteIdInput.trim()}
+            disabled={!localStream || !cnslIdInput.trim()}
           >
             통화 걸기
           </button>
@@ -338,6 +488,7 @@ function App() {
           </button>
         </div>
 
+        {saveStatus && <p className="status save-status">{saveStatus}</p>}
         {status && (
           <p className="status">
             상태: <strong>{status}</strong>
@@ -371,12 +522,17 @@ function App() {
 
       <ChatPanel sendMessage={sendChatMessage} disabled={!isConnected} />
 
-      <RecordPanel remoteStream={remoteStream} disabled={!isConnected} />
+      <RecordPanel
+        ref={recordPanelRef}
+        remoteStream={remoteStream}
+        disabled={!isConnected}
+        autoStart={true}
+      />
 
       <p className="hint">
-        테스트: 두 탭에서 각각 &quot;미디어 시작&quot; 후, 한 탭의 5자리 ID를
-        다른 탭에 입력해 &quot;통화 걸기&quot;하세요. 채팅 내역은 브라우저에
-        저장됩니다.
+        {supabase
+          ? '상담 ID(cnsl_id)로 매칭됩니다. 통화 종료 시 녹음+채팅이 요약되어 Supabase chat_msg에 저장됩니다.'
+          : '데모: 상대 Peer ID를 입력해 통화 걸기. 통화 종료 시 요약 API가 있으면 전송됩니다.'}
       </p>
     </div>
   );
