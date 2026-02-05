@@ -4,8 +4,8 @@ import './Auth.css';
 
 /**
  * Supabase Auth 기반 로그인/회원가입
- * - role: member(일반 사용자) / counsellor(상담사)
- * - 가입 시 profiles에 member_id 또는 cnsler_id 생성
+ * - 테이블명: member (profiles에서 수정됨)
+ * - 컬럼: id, email, role
  */
 export default function Auth({ onSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,8 +19,7 @@ export default function Auth({ onSuccess }) {
     return (
       <div className="auth-box">
         <p className="auth-error">
-          Supabase가 설정되지 않았습니다. .env에 VITE_SUPABASE_URL,
-          VITE_SUPABASE_ANON_KEY를 넣어 주세요.
+          Supabase가 설정되지 않았습니다. .env 파일을 확인해주세요.
         </p>
         <button
           type="button"
@@ -28,8 +27,7 @@ export default function Auth({ onSuccess }) {
             onSuccess?.({
               id: 'demo',
               role: 'member',
-              member_id: `demo_${Date.now().toString(36)}`,
-              cnsler_id: null,
+              email: 'demo@test.com',
             })
           }
         >
@@ -45,17 +43,23 @@ export default function Auth({ onSuccess }) {
     setLoading(true);
     try {
       if (isLogin) {
+        // 1. 로그인 시도
         const { data, error: signError } =
           await supabase.auth.signInWithPassword({ email, password });
         if (signError) throw signError;
+
+        // 2. member 테이블에서 프로필 확인
         const profile = await getOrCreateProfile(data.user, role);
         onSuccess?.(profile);
       } else {
+        // 1. 회원가입 시도
         const { data, error: signError } = await supabase.auth.signUp({
           email,
           password,
         });
         if (signError) throw signError;
+
+        // 2. member 테이블에 프로필 생성
         const profile = await getOrCreateProfile(data.user, role);
         onSuccess?.(profile);
       }
@@ -66,31 +70,44 @@ export default function Auth({ onSuccess }) {
     }
   };
 
+  /**
+   * member 테이블에서 데이터를 읽거나 새로 생성하는 함수
+   */
   async function getOrCreateProfile(user, selectedRole) {
-    const { data: existing } = await supabase
-      .from('profiles')
+    // [수정] 테이블명을 'profiles'에서 'member'로 변경
+    const { data: existing, error: fetchError } = await supabase
+      .from('member')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle(); // single() 대신 maybeSingle()이 더 안전합니다.
+
     if (existing) {
       return {
         id: user.id,
         role: existing.role || 'member',
-        member_id: existing.member_id ?? null,
-        cnsler_id: existing.cnsler_id ?? null,
+        email: existing.email,
       };
     }
-    const member_id =
-      selectedRole === 'member' ? `m_${Date.now().toString(36)}` : null;
-    const cnsler_id =
-      selectedRole === 'counsellor' ? `c_${Date.now().toString(36)}` : null;
-    await supabase.from('profiles').insert({
+
+    // [수정] 신규 가입 시 member 테이블에 삽입
+    // 이제 난수 ID 대신 실제 이메일을 저장하여 Peer ID로 사용합니다.
+    const newProfile = {
       id: user.id,
+      email: user.email,
       role: selectedRole,
-      member_id,
-      cnsler_id,
-    });
-    return { id: user.id, role: selectedRole, member_id, cnsler_id };
+    };
+
+    const { error: insertError } = await supabase
+      .from('member')
+      .insert(newProfile);
+
+    if (insertError) {
+      console.error('프로필 생성 실패:', insertError.message);
+      // 에러가 나더라도 인증은 성공했으므로 최소 정보를 반환
+      return { id: user.id, role: selectedRole, email: user.email };
+    }
+
+    return newProfile;
   }
 
   return (
@@ -114,6 +131,7 @@ export default function Auth({ onSuccess }) {
         />
         {!isLogin && (
           <div className="auth-role">
+            <p style={{ fontSize: '14px', marginBottom: '5px' }}>역할 선택:</p>
             <label>
               <input
                 type="radio"
@@ -121,16 +139,16 @@ export default function Auth({ onSuccess }) {
                 checked={role === 'member'}
                 onChange={() => setRole('member')}
               />
-              일반 사용자 (member_id)
+              일반 사용자
             </label>
             <label>
               <input
                 type="radio"
                 name="role"
-                checked={role === 'counsellor'}
-                onChange={() => setRole('counsellor')}
+                checked={role === 'cnsler'} // DB 값과 일치하도록 'cnsler'로 수정
+                onChange={() => setRole('cnsler')}
               />
-              상담사 (cnsler_id)
+              상담사
             </label>
           </div>
         )}
@@ -147,7 +165,7 @@ export default function Auth({ onSuccess }) {
           setError('');
         }}
       >
-        {isLogin ? '회원가입' : '로그인'} 화면으로
+        {isLogin ? '계정이 없으신가요? 회원가입' : '이미 계정이 있나요? 로그인'}
       </button>
     </div>
   );
