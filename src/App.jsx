@@ -104,6 +104,7 @@ function App() {
   const startMedia = async () => {
     setErrorMessage('');
     try {
+      // 1. 먼저 비디오와 오디오를 모두 시도
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -111,8 +112,28 @@ function App() {
       setLocalStream(stream);
       setStatus('idle');
     } catch (err) {
-      setErrorMessage('카메라/마이크 접근 실패: ' + err.message);
-      setStatus('error');
+      console.warn(
+        '비디오+오디오 동시 접근 실패, 비디오만 재시도합니다:',
+        err.name
+      );
+
+      try {
+        // 2. 오디오(마이크)가 없어서 실패했을 가능성이 크므로 비디오만 다시 시도
+        const videoOnlyStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false, // 마이크 요청을 끔
+        });
+        setLocalStream(videoOnlyStream);
+        setErrorMessage('마이크를 찾을 수 없어 비디오 전용으로 시작합니다.');
+        setStatus('idle');
+      } catch (videoErr) {
+        // 3. 카메라조차 없는 경우 (완전 실패)
+        console.error('카메라 접근 실패:', videoErr.name);
+        setErrorMessage(
+          '카메라를 찾을 수 없습니다. (에러: ' + videoErr.name + ')'
+        );
+        setStatus('error');
+      }
     }
   };
 
