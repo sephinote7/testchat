@@ -46,7 +46,7 @@ export const useChatStore = create(
       // Peer / 통화 상태
       myId: '',
       connectedRemoteId: null,
-      cnslId: null, // 상담 ID (통화 종료 시 Supabase 저장용)
+      chatId: null, // chat_msg.chat_id (세션 식별)
       status: 'idle',
       errorMessage: '',
 
@@ -54,7 +54,7 @@ export const useChatStore = create(
       messages: [],
 
       setMyId: (myId) => set({ myId }),
-      setCnslId: (cnslId) => set({ cnslId }),
+      setChatId: (chatId) => set({ chatId }),
 
       setConnectedRemoteId: (connectedRemoteId) => {
         const { myId } = get();

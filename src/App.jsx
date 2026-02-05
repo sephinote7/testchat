@@ -16,22 +16,23 @@ const SUMMARY_API_URL = import.meta.env.VITE_SUMMARY_API_URL || '';
  */
 function App() {
   const [profile, setProfile] = useState(null);
-  const [cnslIdInput, setCnslIdInput] = useState('');
+  const [chatIdInput, setChatIdInput] = useState('');
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [saveStatus, setSaveStatus] = useState('');
+  const sessionInfoRef = useRef(null); // chat_msg row info for matching
 
   const {
     myId,
     connectedRemoteId,
-    cnslId,
+    chatId,
     status,
     errorMessage,
     setMyId,
     setStatus,
     setErrorMessage,
     setConnectedRemoteId,
-    setCnslId,
+    setChatId,
     addMessage,
     resetCallState,
     getMessagesForApi,
@@ -257,44 +258,49 @@ function App() {
 
   const startCall = async () => {
     const peer = peerRef.current;
-    const cnslIdVal = cnslIdInput.trim();
-    if (!peer || !cnslIdVal || !localStream) {
-      setErrorMessage('상담 ID(cnsl_id)를 입력하고 미디어를 먼저 시작하세요.');
+    const chatIdVal = chatIdInput.trim();
+    if (!peer || !chatIdVal || !localStream) {
+      setErrorMessage('chat_msg.chat_id를 입력하고 미디어를 먼저 시작하세요.');
       return;
     }
     setErrorMessage('');
     setStatus('connecting');
-    setCnslId(cnslIdVal);
-    let remoteId = cnslIdVal;
+    setChatId(chatIdVal);
+    sessionInfoRef.current = null;
+
+    let remoteId = chatIdVal;
     if (supabase) {
       try {
         const { data, error } = await supabase
-          .from('consultations')
-          .select('member_id, cnsler_id')
-          .eq('cnsl_id', parseInt(cnslIdVal, 10) || cnslIdVal)
+          .from('chat_msg')
+          .select('chat_id, cnsl_id, member_id, cnsler_id')
+          .eq('chat_id', parseInt(chatIdVal, 10) || chatIdVal)
           .single();
         if (error || !data) {
           setErrorMessage(
-            '해당 상담 ID를 찾을 수 없습니다. Supabase consultations 테이블을 확인하세요.'
+            '해당 chat_id를 찾을 수 없습니다. Supabase chat_msg 테이블을 확인하세요.'
           );
-          setCnslId(null);
+          setChatId(null);
           return;
         }
+        sessionInfoRef.current = data;
         const other =
           peerId === data.member_id ? data.cnsler_id : data.member_id;
         if (!other) {
-          setErrorMessage('상담 상대 정보가 없습니다.');
-          setCnslId(null);
+          setErrorMessage(
+            '상대 Peer ID가 없습니다. chat_msg에 member_id/cnsler_id를 채워주세요.'
+          );
+          setChatId(null);
           return;
         }
         remoteId = other;
       } catch (e) {
-        setErrorMessage('상담 정보 조회 실패: ' + (e?.message || e));
-        setCnslId(null);
+        setErrorMessage('chat_msg 조회 실패: ' + (e?.message || e));
+        setChatId(null);
         return;
       }
     } else {
-      remoteId = cnslIdVal;
+      remoteId = chatIdVal; // 데모: 입력값을 직접 Peer ID로 사용
     }
     try {
       const call = peer.call(remoteId, localStream);
@@ -333,7 +339,7 @@ function App() {
       : null;
     const messages = getMessagesForApi?.() ?? [];
     const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
-    const cnslIdNum = cnslId ? parseInt(cnslId, 10) || cnslId : null;
+    const chatIdNum = chatId ? parseInt(chatId, 10) || chatId : null;
     const remoteIdForSave = connectedRemoteId;
 
     if (dataConnRef.current) {
@@ -348,12 +354,14 @@ function App() {
     resetCallState();
 
     const doSave = async (msgData, summary) => {
-      if (!supabase || cnslIdNum == null || !profile) return;
+      if (!supabase || chatIdNum == null || !profile) return;
       const member_id = profile.role === 'member' ? peerId : remoteIdForSave;
       const cnsler_id =
         profile.role === 'counsellor' ? peerId : remoteIdForSave;
-      const { error } = await supabase.from('chat_msg').insert({
-        cnsl_id: cnslIdNum,
+      const baseRow = sessionInfoRef.current || {};
+      const { error } = await supabase.from('chat_msg').upsert({
+        chat_id: chatIdNum,
+        cnsl_id: baseRow.cnsl_id ?? null,
         member_id: member_id ?? '',
         cnsler_id: cnsler_id ?? '',
         role: profile.role === 'member' ? 'user' : 'assistant',
@@ -386,7 +394,7 @@ function App() {
       setTimeout(() => setSaveStatus(''), 4000);
     } else if (
       supabase &&
-      cnslIdNum != null &&
+      chatIdNum != null &&
       profile &&
       messages.length > 0
     ) {
@@ -470,16 +478,16 @@ function App() {
             type="text"
             placeholder={
               supabase
-                ? '상담 ID (cnsl_id) 입력'
-                : '상대 Peer ID 또는 cnsl_id 입력'
+                ? 'chat_id 입력 (chat_msg)'
+                : '상대 Peer ID 또는 chat_id 입력'
             }
-            value={cnslIdInput}
-            onChange={(e) => setCnslIdInput(e.target.value)}
+            value={chatIdInput}
+            onChange={(e) => setChatIdInput(e.target.value)}
             disabled={!localStream}
           />
           <button
             onClick={startCall}
-            disabled={!localStream || !cnslIdInput.trim()}
+            disabled={!localStream || !chatIdInput.trim()}
           >
             통화 걸기
           </button>
@@ -531,8 +539,8 @@ function App() {
 
       <p className="hint">
         {supabase
-          ? '상담 ID(cnsl_id)로 매칭됩니다. 통화 종료 시 녹음+채팅이 요약되어 Supabase chat_msg에 저장됩니다.'
-          : '데모: 상대 Peer ID를 입력해 통화 걸기. 통화 종료 시 요약 API가 있으면 전송됩니다.'}
+          ? 'chat_id(chat_msg)로 매칭합니다. 통화 종료 시 녹음+채팅을 요약해 chat_msg에 upsert 합니다.'
+          : '데모: 상대 Peer ID를 입력해 통화. 요약 API가 있으면 전송합니다.'}
       </p>
     </div>
   );
