@@ -10,11 +10,11 @@ import './App.css';
 const SUMMARY_API_URL = import.meta.env.VITE_SUMMARY_API_URL || '';
 
 /**
- * Peer ID 안전 변환 함수 (이메일 특수문자 제거)
+ * Peer ID 안전 변환 함수 (이메일의 @, . 을 PeerJS 허용 문자로 변경)
  */
-const getSafePeerId = (emailOrId) => {
-  if (!emailOrId) return null;
-  return emailOrId.toString().replace(/[@]/g, '_at_').replace(/[.]/g, '_');
+const getSafePeerId = (email) => {
+  if (!email) return null;
+  return email.toString().replace(/[@]/g, '_at_').replace(/[.]/g, '_');
 };
 
 function App() {
@@ -50,26 +50,39 @@ function App() {
 
   const isConnected = status === 'connected';
 
-  // 1. Supabase 세션 및 프로필 가져오기
+  // 1. Supabase 세션 확인 및 'member' 테이블 프로필 조회
   useEffect(() => {
     if (!supabase) return;
 
     const fetchProfile = async (session) => {
       if (!session?.user) return;
+
+      console.log('프로필 조회 시작 (ID):', session.user.id);
+
       const { data, error } = await supabase
-        .from('member')
-        .select('role, email')
+        .from('member') // 이미지에서 확인된 테이블명
+        .select('role, email') // 이미지에서 확인된 컬럼명
         .eq('id', session.user.id)
         .single();
 
+      if (error) {
+        console.error('프로필 로드 실패:', error.message);
+        // 만약 테이블 조회가 안 되면 세션에 있는 기본 이메일이라도 사용
+        setProfile({
+          id: session.user.id,
+          role: 'member',
+          email: session.user.email,
+        });
+        return;
+      }
+
       if (data) {
+        console.log('프로필 로드 성공:', data);
         setProfile({
           id: session.user.id,
           role: data.role,
-          member_id: data.email,
+          email: data.email, // peerId로 사용될 값
         });
-      } else if (error) {
-        console.error('프로필 로드 실패:', error.message);
       }
     };
 
@@ -87,7 +100,7 @@ function App() {
     return () => subscription?.unsubscribe();
   }, []);
 
-  // 2. 미디어 장치 시작
+  // 2. 카메라/마이크 시작
   const startMedia = async () => {
     setErrorMessage('');
     try {
@@ -103,21 +116,19 @@ function App() {
     }
   };
 
-  // 3. Peer 초기화 (프로필과 스트림이 모두 준비되었을 때만 실행)
+  // 3. Peer 초기화 (이메일 정보가 로드된 후에만 실행)
   useEffect(() => {
-    // profile 내부의 이메일 값 중 하나라도 있어야 함
-    const rawEmailId = profile?.member_id || profile?.cnsler_id;
-
-    if (!localStream || !rawEmailId) {
-      console.log('Peer 대기 중: 스트림 또는 이메일 정보 없음', {
+    // profile.email이 로드될 때까지 기다림
+    if (!localStream || !profile?.email) {
+      console.log('Peer 대기 중: 스트림 또는 이메일 없음', {
         localStream: !!localStream,
-        rawEmailId,
+        email: profile?.email,
       });
       return;
     }
 
-    const safeId = getSafePeerId(rawEmailId);
-    console.log('Peer 생성 시도 ID:', safeId);
+    const safeId = getSafePeerId(profile.email);
+    console.log('Peer 접속 시도 ID:', safeId);
 
     const peer = new Peer(safeId, {
       debug: 1,
@@ -125,6 +136,7 @@ function App() {
     });
 
     peer.on('open', (id) => {
+      console.log('Peer 서버 연결 성공! ID:', id);
       setMyId(id);
       setStatus('idle');
     });
@@ -150,18 +162,21 @@ function App() {
     });
 
     peer.on('error', (err) => {
+      console.error('PeerJS 에러 발생:', err);
       setErrorMessage('Peer 오류: ' + err.type);
       setStatus('error');
     });
 
     peerRef.current = peer;
     return () => {
-      peer.destroy();
-      peerRef.current = null;
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
     };
   }, [
     localStream,
-    profile,
+    profile?.email,
     setMyId,
     setStatus,
     setErrorMessage,
@@ -169,7 +184,7 @@ function App() {
     addMessage,
   ]);
 
-  // 4. 통화 시작
+  // 4. 통화 시작 로직
   const startCall = async () => {
     const peer = peerRef.current;
     const inputVal = chatIdInput.trim();
@@ -178,6 +193,7 @@ function App() {
     setStatus('connecting');
     setChatId(inputVal);
 
+    // chat_msg 테이블에서 통화할 상대방 정보를 가져옴
     const { data, error } = await supabase
       .from('chat_msg')
       .select('*')
@@ -185,21 +201,23 @@ function App() {
       .single();
 
     if (error || !data) {
-      setErrorMessage('해당 채팅 정보를 찾을 수 없습니다.');
+      setErrorMessage('채팅방 정보를 찾을 수 없습니다.');
       setStatus('error');
       return;
     }
 
     sessionInfoRef.current = data;
-    // 상대방 역할에 따른 이메일 추출
+
+    // 내 역할에 따라 상대방의 이메일 결정
     const rawOtherEmail =
       profile.role === 'member' ? data.cnsler_id : data.member_id;
     const remoteId = getSafePeerId(rawOtherEmail);
 
-    console.log('통화 시도 상대:', remoteId);
+    console.log('전화 거는 대상 (변환된 ID):', remoteId);
 
     const call = peer.call(remoteId, localStream);
     currentCallRef.current = call;
+
     call.on('stream', (stream) => {
       setRemoteStream(stream);
       setStatus('connected');
@@ -207,14 +225,18 @@ function App() {
       const conn = peer.connect(remoteId);
       dataConnRef.current = conn;
     });
+
+    call.on('error', (err) => {
+      setErrorMessage('통화 연결 중 오류 발생');
+      console.error(err);
+    });
   };
 
-  // 5. 통화 종료
   const endCall = async () => {
     if (currentCallRef.current) currentCallRef.current.close();
+    if (dataConnRef.current) dataConnRef.current.close();
     setRemoteStream(null);
     resetCallState();
-    // (이후 요약 및 저장 로직은 이전과 동일)
   };
 
   useEffect(() => {
@@ -226,10 +248,11 @@ function App() {
       remoteVideoRef.current.srcObject = remoteStream;
   }, [remoteStream]);
 
+  // 프로필 로드 전까지는 아무것도 렌더링하지 않거나 Auth 컴포넌트 표시
   if (!profile)
     return (
       <div className="app">
-        <h1>로그인이 필요합니다</h1>
+        <h1>화상 채팅 서비스</h1>
         <Auth onSuccess={setProfile} />
       </div>
     );
@@ -237,26 +260,45 @@ function App() {
   return (
     <div className="app">
       <h1>AI 화상 채팅</h1>
-      <p>
-        역할: {profile.role} | 내 접속 ID: <code>{myId || '준비 중...'}</code>
+      <p className="status-bar">
+        <strong>{profile.role === 'member' ? '사용자' : '상담사'} 모드</strong>{' '}
+        | 내 접속 ID: <code>{myId || 'PeerJS 연결 대기 중...'}</code>
       </p>
 
       <div className="controls">
-        <button onClick={startMedia}>1. 미디어 시작</button>
-        <input
-          placeholder="chat_id 입력"
-          value={chatIdInput}
-          onChange={(e) => setChatIdInput(e.target.value)}
-        />
-        <button onClick={startCall} disabled={!myId || !chatIdInput}>
-          2. 통화 걸기
+        <button onClick={startMedia} className="btn-media">
+          1. 미디어(카메라/마이크) 시작
         </button>
-        <button onClick={endCall}>통화 종료</button>
+        <div className="call-box">
+          <input
+            placeholder="chat_id 입력 (예: 1)"
+            value={chatIdInput}
+            onChange={(e) => setChatIdInput(e.target.value)}
+          />
+          <button
+            onClick={startCall}
+            disabled={!myId || !chatIdInput}
+            className="btn-call"
+          >
+            2. 통화 걸기
+          </button>
+          <button onClick={endCall} className="btn-end">
+            통화 종료
+          </button>
+        </div>
       </div>
 
+      {errorMessage && <p className="error-msg">{errorMessage}</p>}
+
       <div className="videos">
-        <video ref={localVideoRef} autoPlay muted playsInline />
-        <video ref={remoteVideoRef} autoPlay playsInline />
+        <div className="video-container">
+          <p>내 화면</p>
+          <video ref={localVideoRef} autoPlay muted playsInline />
+        </div>
+        <div className="video-container">
+          <p>상대방 화면</p>
+          <video ref={remoteVideoRef} autoPlay playsInline />
+        </div>
       </div>
 
       <ChatPanel
