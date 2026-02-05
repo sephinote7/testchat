@@ -58,13 +58,14 @@ function App() {
       if (!session?.user) return;
       const { data, error } = await supabase
         .from('member')
-        .select('email')
+        .select('role, email')
         .eq('id', session.user.id)
         .single();
 
       if (data) {
         setProfile({
           id: session.user.id,
+          role: data.role,
           member_id: data.email,
         });
       } else if (error) {
