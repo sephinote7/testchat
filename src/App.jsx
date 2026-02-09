@@ -109,8 +109,15 @@ function App() {
 
     const safeId = getSafePeerId(profile.email);
     const peer = new Peer(safeId, {
-      debug: 1,
-      config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+      debug: 2, // 1보다 2가 더 자세한 로그를 보여줍니다.
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          // 여기에 TURN 서버 정보를 넣어야 진정한 '기기 간 통신'이 됩니다.
+        ],
+      },
     });
 
     peer.on('open', (id) => setMyId(id));
