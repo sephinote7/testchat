@@ -173,53 +173,56 @@ function App() {
 
   // 4. 통화 시작 (핵심 수정 부분)
   const startCall = async () => {
-    setErrorMessage(''); // 에러 메시지 초기화
-
     const peer = peerRef.current;
-    if (!peer) return setErrorMessage('Peer가 초기화되지 않았습니다.');
-    if (!chatIdInput.trim()) return setErrorMessage('채팅 ID를 입력해주세요.');
-    if (!localStream) return setErrorMessage('미디어 시작을 먼저 눌러주세요.');
+    const inputId = chatIdInput.trim();
+
+    // 1. 입력값 검증
+    if (!inputId) return setErrorMessage('방 번호를 입력해주세요.');
 
     try {
       setStatus('connecting');
-
-      // A. Supabase에서 채팅방 정보 조회
       const { data, error } = await supabase
         .from('chat_msg')
-        .select('*')
-        .eq('chat_id', chatIdInput.trim())
+        .select('cnsler_id, member_id')
+        .eq('chat_id', inputId)
         .single();
 
-      if (error || !data) {
-        throw new Error('채팅방 정보를 찾을 수 없습니다. ID를 확인하세요.');
-      }
+      if (error || !data)
+        throw new Error('방 번호가 잘못되었거나 존재하지 않습니다.');
 
-      sessionInfoRef.current = data;
+      // 2. 상대방 ID 결정 (내 이메일과 비교하여 내가 아닌 쪽을 선택)
+      const myEmail = profile.email.toLowerCase();
+      const cnslerEmail = data.cnsler_id.toLowerCase();
+      const memberEmail = data.member_id.toLowerCase();
 
-      // B. 상대방 ID 계산 (소문자 변환 추가로 일치율 향상)
-      const remoteEmail =
-        profile.role === 'member' ? data.cnsler_id : data.member_id;
-      if (!remoteEmail) throw new Error('상대방 이메일 정보가 없습니다.');
+      // 내가 상담사라면 상대는 멤버, 내가 멤버라면 상대는 상담사
+      const targetEmail = myEmail === cnslerEmail ? memberEmail : cnslerEmail;
+      const remoteId = getSafePeerId(targetEmail);
 
-      const remoteId = getSafePeerId(remoteEmail);
-      console.log('Calling to:', remoteId);
+      console.log(
+        '매칭 시도 -> 내 ID:',
+        getSafePeerId(myEmail),
+        '상대 ID:',
+        remoteId,
+      );
 
-      // C. Media Call 시도
+      // 3. 통화 시도
       const call = peer.call(remoteId, localStream);
-      if (!call) throw new Error('Call 생성에 실패했습니다.');
 
-      currentCallRef.current = call;
+      // 타임아웃 설정 (10초 동안 응답 없으면 실패 처리)
+      const timeout = setTimeout(() => {
+        if (status !== 'connected') {
+          setErrorMessage('상대방이 응답하지 않거나 네트워크가 불안정합니다.');
+          setStatus('idle');
+        }
+      }, 10000);
 
-      call.on('stream', (incomingStream) => {
-        setRemoteStream(incomingStream);
+      call.on('stream', (s) => {
+        clearTimeout(timeout);
+        setRemoteStream(s);
         setStatus('connected');
-        setConnectedRemoteId(remoteId);
       });
-
-      // D. Data Connection 시도 (채팅용)
-      dataConnRef.current = peer.connect(remoteId);
     } catch (err) {
-      console.error(err);
       setErrorMessage(err.message);
       setStatus('idle');
     }
