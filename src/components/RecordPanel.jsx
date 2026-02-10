@@ -71,6 +71,23 @@ const RecordPanel = forwardRef(function RecordPanel(
       return;
     }
 
+    const analyzer = audioContext.createAnalyser();
+    dest.connect(analyzer);
+    const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+    const checkVolume = () => {
+      if (!isRecording) return;
+      analyzer.getByteFrequencyData(dataArray);
+      const volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      if (volume > 0) {
+        // 소리가 감지되면 로그 출력 (너무 많이 찍히니 가끔씩만)
+        if (Math.random() > 0.95)
+          console.log('실시간 음성 데이터 유입 중... 레벨:', volume);
+      }
+      requestAnimationFrame(checkVolume);
+    };
+    checkVolume();
+
     try {
       console.log('녹화 프로세스 시작...');
       chunksRef.current = [];
@@ -122,9 +139,29 @@ const RecordPanel = forwardRef(function RecordPanel(
 
         const dest = audioContext.createMediaStreamDestination();
 
-        [localStream, remoteStream].forEach((stream) => {
-          if (stream.getAudioTracks().length > 0) {
-            audioContext.createMediaStreamSource(stream).connect(dest);
+        [localStream, remoteStream].forEach((stream, index) => {
+          const audioTracks = stream.getAudioTracks();
+          if (audioTracks.length > 0) {
+            console.log(
+              `${index === 0 ? '내' : '상대'} 오디오 트랙 발견:`,
+              audioTracks[0].label,
+            );
+
+            // 스트림 전체가 아닌 트랙에서 소스를 생성하여 더 확실하게 연결
+            const source = audioContext.createMediaStreamSource(
+              new MediaStream([audioTracks[0]]),
+            );
+
+            // 소리가 너무 작을 수 있으므로 GainNode(볼륨 조절) 추가 (옵션)
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = 1.0; // 1.0은 원본 크기, 필요 시 1.5로 증폭 가능
+
+            source.connect(gainNode);
+            gainNode.connect(dest);
+          } else {
+            console.warn(
+              `${index === 0 ? '내' : '상대'} 오디오 트랙이 없습니다.`,
+            );
           }
         });
 
