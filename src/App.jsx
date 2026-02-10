@@ -377,7 +377,11 @@ function App() {
         </div>
       )}
 
-      <RecordPanel remoteStream={remoteStream} />
+      <RecordPanel
+        localStream={localStream}
+        remoteStream={remoteStream}
+        disabled={!isConnected}
+      />
     </div>
   );
 }
