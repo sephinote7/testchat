@@ -121,22 +121,56 @@ const RecordPanel = forwardRef(function RecordPanel(
       checkVolume();
 
       // 6. 비디오 합성 및 Canvas 설정 (기존과 동일)
+      // 4. 비디오 합성 설정 보완
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 1280;
       canvas.height = 480;
+
       const localVideo = document.createElement('video');
       const remoteVideo = document.createElement('video');
+
+      // [중요] 브라우저 정책 대응 속성 추가
+      [localVideo, remoteVideo].forEach((v) => {
+        v.muted = true;
+        v.autoplay = true;
+        v.playsInline = true; // 모바일 및 일부 환경 필수
+      });
+
       localVideo.srcObject = localStream;
       remoteVideo.srcObject = remoteStream;
-      localVideo.muted = true;
-      await Promise.all([localVideo.play(), remoteVideo.play()]);
+
+      // 비디오가 실제로 재생될 때까지 대기하는 로직 강화
+      const playVideo = (video) => {
+        return new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            video
+              .play()
+              .then(resolve)
+              .catch((e) => console.error('재생 실패:', e));
+          };
+        });
+      };
+
+      await Promise.all([playVideo(localVideo), playVideo(remoteVideo)]);
+
+      console.log('비디오 재생 시작됨, 캔버스 드로잉 개시');
 
       const draw = () => {
+        if (!isRecording && mediaRecorderRef.current?.state === 'inactive')
+          return;
+
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(localVideo, 0, 0, 640, 480);
-        ctx.drawImage(remoteVideo, 640, 0, 640, 480);
+
+        // 영상이 실제로 출력 가능한 상태인지 체크 후 그리기
+        if (localVideo.readyState >= 2) {
+          ctx.drawImage(localVideo, 0, 0, 640, 480);
+        }
+        if (remoteVideo.readyState >= 2) {
+          ctx.drawImage(remoteVideo, 640, 0, 640, 480);
+        }
+
         requestRef.current = requestAnimationFrame(draw);
       };
       draw();
