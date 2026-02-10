@@ -69,54 +69,58 @@ const RecordPanel = forwardRef(function RecordPanel(
       chunksRef.current = [];
       audioChunksRef.current = [];
 
-      // 1. AudioContext 및 Destination 먼저 생성
+      // 1. AudioContext 생성
       const audioContext = new (
         window.AudioContext || window.webkitAudioContext
       )();
       if (audioContext.state === 'suspended') await audioContext.resume();
       audioContextRef.current = audioContext;
 
+      // 2. 중간 다리(GainNode)와 목적지(Destination) 생성
+      // GainNode는 입력이 없어도 출력을 형성하므로 IndexSizeError를 방지합니다.
+      const mixer = audioContext.createGain();
       const dest = audioContext.createMediaStreamDestination();
+      mixer.connect(dest);
 
-      // 2. 오디오 소스 연결 (에러 방지 로직 포함)
+      // 3. 분석기(Analyzer)를 mixer에 연결 (이제 매우 안전함)
+      const analyzer = audioContext.createAnalyser();
+      mixer.connect(analyzer);
+
+      // 4. 실제 오디오 소스들을 mixer에 연결
       let hasAudio = false;
       [localStream, remoteStream].forEach((stream, index) => {
         const tracks = stream.getAudioTracks();
         if (tracks.length > 0 && tracks[0].readyState === 'live') {
-          console.log(
-            `${index === 0 ? '내' : '상대'} 마이크 트랙 연결 시도:`,
-            tracks[0].label,
-          );
           try {
-            // 트랙이 있는 경우에만 Source 생성 및 연결
             const source = audioContext.createMediaStreamSource(
               new MediaStream([tracks[0]]),
             );
-            source.connect(dest);
+            source.connect(mixer); // dest 대신 mixer에 연결
             hasAudio = true;
+            console.log(`${index === 0 ? '내' : '상대'} 마이크 노드 연결 성공`);
           } catch (e) {
-            console.warn(`${index === 0 ? '내' : '상대'} 오디오 연결 실패:`, e);
+            console.warn(
+              `${index === 0 ? '내' : '상대'} 오디오 노드 생성 실패:`,
+              e,
+            );
           }
         }
       });
 
-      // 3. 분석기(Analyzer) 설정 (소스가 연결된 dest에 연결)
-      const analyzer = audioContext.createAnalyser();
-      dest.connect(analyzer); // 이제 dest는 최소한의 출력을 가지므로 안전합니다.
-
+      // 5. 볼륨 체크 로직 (기존과 동일)
       const dataArray = new Uint8Array(analyzer.frequencyBinCount);
       const checkVolume = () => {
         if (!audioContext || audioContext.state === 'closed') return;
         analyzer.getByteFrequencyData(dataArray);
         const volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
         if (volume > 0 && Math.random() > 0.98) {
-          console.log('🎤 실시간 오디오 신호 감지됨:', volume.toFixed(2));
+          console.log('🎤 오디오 신호 레벨:', volume.toFixed(2));
         }
         requestRef.current = requestAnimationFrame(checkVolume);
       };
       checkVolume();
 
-      // 4. 비디오 합성 설정
+      // 6. 비디오 합성 및 Canvas 설정 (기존과 동일)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 1280;
@@ -137,8 +141,9 @@ const RecordPanel = forwardRef(function RecordPanel(
       };
       draw();
 
-      // 5. 최종 스트림 및 레코더 설정
+      // 7. 최종 레코더 설정
       const canvasStream = canvas.captureStream(30);
+      // 비디오 트랙 + 믹서에서 나온 오디오 트랙 합치기
       const finalStream = new MediaStream([
         ...canvasStream.getVideoTracks(),
         ...dest.stream.getAudioTracks(),
@@ -155,7 +160,6 @@ const RecordPanel = forwardRef(function RecordPanel(
           setLastBlob(new Blob(chunksRef.current, { type: 'video/webm' }));
       };
 
-      // 오디오 전용 레코더 (있는 경우만)
       if (hasAudio) {
         const audioRecorder = new MediaRecorder(dest.stream, {
           mimeType: 'audio/webm',
@@ -177,7 +181,7 @@ const RecordPanel = forwardRef(function RecordPanel(
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
-      console.error('녹화 시작 오류:', err);
+      console.error('녹화 시작 치명적 오류:', err);
     }
   }, [localStream, remoteStream, isRecording]);
 
