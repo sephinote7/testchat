@@ -71,29 +71,36 @@ const RecordPanel = forwardRef(function RecordPanel(
       return;
     }
 
-    const analyzer = audioContext.createAnalyser();
-    dest.connect(analyzer);
-    const dataArray = new Uint8Array(analyzer.frequencyBinCount);
-
-    const checkVolume = () => {
-      if (!isRecording) return;
-      analyzer.getByteFrequencyData(dataArray);
-      const volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
-      if (volume > 0) {
-        // 소리가 감지되면 로그 출력 (너무 많이 찍히니 가끔씩만)
-        if (Math.random() > 0.95)
-          console.log('실시간 음성 데이터 유입 중... 레벨:', volume);
-      }
-      requestAnimationFrame(checkVolume);
-    };
-    checkVolume();
-
     try {
       console.log('녹화 프로세스 시작...');
       chunksRef.current = [];
       audioChunksRef.current = [];
 
-      // 1. Canvas 합성 설정 (비디오)
+      // 1. AudioContext 먼저 생성 (ReferenceError 방지)
+      const audioContext = new (
+        window.AudioContext || window.webkitAudioContext
+      )();
+      if (audioContext.state === 'suspended') await audioContext.resume();
+      audioContextRef.current = audioContext;
+
+      const dest = audioContext.createMediaStreamDestination();
+
+      // [추가] 실시간 볼륨 체크 (이제 audioContext가 위에 있어서 에러가 안 납니다)
+      const analyzer = audioContext.createAnalyser();
+      dest.connect(analyzer);
+      const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+      const checkVolume = () => {
+        if (audioContext.state === 'closed') return;
+        analyzer.getByteFrequencyData(dataArray);
+        const volume = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        if (volume > 0 && Math.random() > 0.98) {
+          console.log('🎤 음성 유입 확인 - 레벨:', volume.toFixed(2));
+        }
+        requestRef.current = requestAnimationFrame(checkVolume);
+      };
+      checkVolume();
+
+      // 2. Canvas 합성 설정 (비디오)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 1280;
@@ -105,7 +112,6 @@ const RecordPanel = forwardRef(function RecordPanel(
       remoteVideo.srcObject = remoteStream;
       localVideo.muted = true;
 
-      // 비디오 재생 보장
       await Promise.all([localVideo.play(), remoteVideo.play()]);
 
       const draw = () => {
@@ -119,135 +125,78 @@ const RecordPanel = forwardRef(function RecordPanel(
 
       const canvasStream = canvas.captureStream(30);
 
-      // 2. 오디오 트랙 존재 확인 및 합성
+      // 3. 오디오 트랙 연결 (각 스트림에서 트랙을 직접 추출)
       let finalCombinedStream;
       let finalAudioStream = null;
 
-      // 두 스트림의 오디오 트랙을 모두 합침
-      const allAudioTracks = [
-        ...localStream.getAudioTracks(),
-        ...remoteStream.getAudioTracks(),
-      ];
+      [localStream, remoteStream].forEach((stream, index) => {
+        const tracks = stream.getAudioTracks();
+        if (tracks.length > 0) {
+          console.log(
+            `${index === 0 ? '내' : '상대'} 마이크 연결됨:`,
+            tracks[0].label,
+          );
+          const source = audioContext.createMediaStreamSource(
+            new MediaStream([tracks[0]]),
+          );
+          source.connect(dest);
+        }
+      });
 
-      if (allAudioTracks.length > 0) {
-        // 마이크나 상대방 소리가 있을 때만 AudioContext 생성
-        const audioContext = new (
-          window.AudioContext || window.webkitAudioContext
-        )();
-        if (audioContext.state === 'suspended') await audioContext.resume();
-        audioContextRef.current = audioContext;
+      finalAudioStream = dest.stream;
+      finalCombinedStream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...finalAudioStream.getAudioTracks(),
+      ]);
 
-        const dest = audioContext.createMediaStreamDestination();
-
-        [localStream, remoteStream].forEach((stream, index) => {
-          const audioTracks = stream.getAudioTracks();
-          if (audioTracks.length > 0) {
-            console.log(
-              `${index === 0 ? '내' : '상대'} 오디오 트랙 발견:`,
-              audioTracks[0].label,
-            );
-
-            // 스트림 전체가 아닌 트랙에서 소스를 생성하여 더 확실하게 연결
-            const source = audioContext.createMediaStreamSource(
-              new MediaStream([audioTracks[0]]),
-            );
-
-            // 소리가 너무 작을 수 있으므로 GainNode(볼륨 조절) 추가 (옵션)
-            const gainNode = audioContext.createGain();
-            gainNode.gain.value = 1.0; // 1.0은 원본 크기, 필요 시 1.5로 증폭 가능
-
-            source.connect(gainNode);
-            gainNode.connect(dest);
-          } else {
-            console.warn(
-              `${index === 0 ? '내' : '상대'} 오디오 트랙이 없습니다.`,
-            );
-          }
-        });
-
-        finalAudioStream = dest.stream;
-        // 영상 + 합성된 음성 스트림 생성
-        finalCombinedStream = new MediaStream([
-          ...canvasStream.getVideoTracks(),
-          ...finalAudioStream.getAudioTracks(),
-        ]);
-      } else {
-        // 마이크가 아예 없는 경우: 영상 트랙만 사용
-        console.log('감지된 오디오 트랙 없음: 영상만 녹화합니다.');
-        finalCombinedStream = canvasStream;
-        finalAudioStream = null;
-      }
-
-      // 3. 고화질 레코더 설정 (로컬 저장용)
+      // 4. 레코더 설정
       const videoMime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
         : 'video/webm';
+
       const recorder = new MediaRecorder(finalCombinedStream, {
         mimeType: videoMime,
         videoBitsPerSecond: 2500000,
       });
 
       recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
-        cancelAnimationFrame(requestRef.current); // 드로잉 중지
-        console.log('영상 녹화 중지됨. 총 청크:', chunksRef.current.length);
+        console.log('영상 저장 완료. 청크 수:', chunksRef.current.length);
         if (chunksRef.current.length > 0) {
-          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-          setLastBlob(blob);
+          setLastBlob(new Blob(chunksRef.current, { type: 'video/webm' }));
         }
       };
 
-      // 4. 저용량 레코더 설정 (AI 요약용 - 오디오가 있을 때만 실행)
-      let audioRecorder = null;
-      if (finalAudioStream) {
-        const audioMime = MediaRecorder.isTypeSupported(
-          'audio/webm;codecs=opus',
-        )
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm';
+      const audioRecorder = new MediaRecorder(finalAudioStream, {
+        mimeType: 'audio/webm',
+        audioBitsPerSecond: 32000,
+      });
 
-        audioRecorder = new MediaRecorder(finalAudioStream, {
-          mimeType: audioMime,
-          audioBitsPerSecond: 32000,
-        });
+      audioRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
 
-        audioRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
-        };
-
-        audioRecorder.onstop = () => {
-          console.log(
-            '음성 녹화 중지됨. 총 청크:',
-            audioChunksRef.current.length,
+      audioRecorder.onstop = () => {
+        if (audioChunksRef.current.length > 0) {
+          setLastAudioBlob(
+            new Blob(audioChunksRef.current, { type: 'audio/webm' }),
           );
-          if (audioChunksRef.current.length > 0) {
-            const blob = new Blob(audioChunksRef.current, { type: audioMime });
-            setLastAudioBlob(blob);
-          }
-          // 오디오 컨텍스트 종료
-          if (audioContextRef.current) {
-            audioContextRef.current.close();
-            audioContextRef.current = null;
-          }
-        };
-      }
+        }
+      };
 
-      // 녹화 시작
+      // 5. 실행
       recorder.start(1000);
-      if (audioRecorder) audioRecorder.start(1000);
-
+      audioRecorder.start(1000);
       mediaRecorderRef.current = recorder;
-      audioRecorderRef.current = audioRecorder; // 오디오가 없으면 null 저장됨
+      audioRecorderRef.current = audioRecorder;
       setIsRecording(true);
       setSummaryResult(null);
     } catch (err) {
-      console.error('녹화 시작 중 오류 발생:', err);
-      alert('녹화를 시작할 수 없습니다. 장치 상태를 확인해주세요.');
+      console.error('녹화 시작 오류:', err);
+      alert('녹화 시작에 실패했습니다.');
     }
   }, [localStream, remoteStream, isRecording]);
 
