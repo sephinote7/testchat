@@ -232,16 +232,21 @@ const RecordPanel = forwardRef(function RecordPanel(
 
   const sendForSummary = useCallback(async () => {
     const blobToSend = lastAudioBlob || lastBlob;
-    if (!blobToSend || !summaryApiUrl.trim()) return;
+    if (!blobToSend) {
+      alert('녹화된 데이터가 없습니다.');
+      return;
+    }
+
+    console.log(
+      '서버로 전송 시도... 크기:',
+      (blobToSend.size / 1024).toFixed(1),
+      'KB',
+    );
 
     setSummaryLoading(true);
     try {
       const formData = new FormData();
-      formData.append(
-        'audio',
-        blobToSend,
-        lastAudioBlob ? 'audio.webm' : 'video.webm',
-      );
+      formData.append('audio', blobToSend, 'audio.webm');
 
       const res = await fetch(
         `${summaryApiUrl.replace(/\/$/, '')}/api/summarize`,
@@ -251,10 +256,18 @@ const RecordPanel = forwardRef(function RecordPanel(
         },
       );
 
-      if (!res.ok) throw new Error('서버 응답 오류');
       const data = await res.json();
-      setSummaryResult(data);
+      console.log('서버 응답 결과:', data); // 서버가 왜 분석 내용이 없다고 했는지 힌트가 있을 수 있음
+
+      if (data.summary) {
+        setSummaryResult(data);
+      } else {
+        setSummaryResult({
+          summary: '분석할 내용이 없습니다. (서버 응답 빈값)',
+        });
+      }
     } catch (err) {
+      console.error('전송 에러:', err);
       setSummaryResult({ summary: `요약 실패: ${err.message}` });
     } finally {
       setSummaryLoading(false);
