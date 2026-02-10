@@ -76,7 +76,7 @@ const RecordPanel = forwardRef(function RecordPanel(
       chunksRef.current = [];
       audioChunksRef.current = [];
 
-      // 1. Canvas 합성 설정
+      // 1. Canvas 합성 설정 (비디오)
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 1280;
@@ -100,33 +100,52 @@ const RecordPanel = forwardRef(function RecordPanel(
       };
       draw();
 
-      // 2. 오디오 합성 (Web Audio API)
-      const audioContext = new (
-        window.AudioContext || window.webkitAudioContext
-      )();
-      if (audioContext.state === 'suspended') await audioContext.resume();
-      audioContextRef.current = audioContext;
-
-      const dest = audioContext.createMediaStreamDestination();
-
-      // 내 마이크 + 상대방 마이크 연결
-      [localStream, remoteStream].forEach((stream) => {
-        if (stream.getAudioTracks().length > 0) {
-          audioContext.createMediaStreamSource(stream).connect(dest);
-        }
-      });
-
-      // 3. 고화질 레코더 설정 (영상 + 음성)
       const canvasStream = canvas.captureStream(30);
-      const combinedStream = new MediaStream([
-        ...canvasStream.getVideoTracks(),
-        ...dest.stream.getAudioTracks(),
-      ]);
 
+      // 2. 오디오 트랙 존재 확인 및 합성
+      let finalCombinedStream;
+      let finalAudioStream = null;
+
+      // 두 스트림의 오디오 트랙을 모두 합침
+      const allAudioTracks = [
+        ...localStream.getAudioTracks(),
+        ...remoteStream.getAudioTracks(),
+      ];
+
+      if (allAudioTracks.length > 0) {
+        // 마이크나 상대방 소리가 있을 때만 AudioContext 생성
+        const audioContext = new (
+          window.AudioContext || window.webkitAudioContext
+        )();
+        if (audioContext.state === 'suspended') await audioContext.resume();
+        audioContextRef.current = audioContext;
+
+        const dest = audioContext.createMediaStreamDestination();
+
+        [localStream, remoteStream].forEach((stream) => {
+          if (stream.getAudioTracks().length > 0) {
+            audioContext.createMediaStreamSource(stream).connect(dest);
+          }
+        });
+
+        finalAudioStream = dest.stream;
+        // 영상 + 합성된 음성 스트림 생성
+        finalCombinedStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...finalAudioStream.getAudioTracks(),
+        ]);
+      } else {
+        // 마이크가 아예 없는 경우: 영상 트랙만 사용
+        console.log('감지된 오디오 트랙 없음: 영상만 녹화합니다.');
+        finalCombinedStream = canvasStream;
+        finalAudioStream = null;
+      }
+
+      // 3. 고화질 레코더 설정 (로컬 저장용)
       const videoMime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
         : 'video/webm';
-      const recorder = new MediaRecorder(combinedStream, {
+      const recorder = new MediaRecorder(finalCombinedStream, {
         mimeType: videoMime,
         videoBitsPerSecond: 2500000,
       });
@@ -134,11 +153,11 @@ const RecordPanel = forwardRef(function RecordPanel(
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           chunksRef.current.push(e.data);
-          console.log('Video chunk received:', e.data.size);
         }
       };
 
       recorder.onstop = () => {
+        cancelAnimationFrame(requestRef.current); // 드로잉 중지
         console.log('영상 녹화 중지됨. 총 청크:', chunksRef.current.length);
         if (chunksRef.current.length > 0) {
           const blob = new Blob(chunksRef.current, { type: 'video/webm' });
@@ -146,46 +165,52 @@ const RecordPanel = forwardRef(function RecordPanel(
         }
       };
 
-      // 4. 저용량 레코더 설정 (음성 전용)
-      const audioMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm';
-      const audioRecorder = new MediaRecorder(dest.stream, {
-        mimeType: audioMime,
-        audioBitsPerSecond: 32000,
-      });
+      // 4. 저용량 레코더 설정 (AI 요약용 - 오디오가 있을 때만 실행)
+      let audioRecorder = null;
+      if (finalAudioStream) {
+        const audioMime = MediaRecorder.isTypeSupported(
+          'audio/webm;codecs=opus',
+        )
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm';
 
-      audioRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
+        audioRecorder = new MediaRecorder(finalAudioStream, {
+          mimeType: audioMime,
+          audioBitsPerSecond: 32000,
+        });
 
-      audioRecorder.onstop = () => {
-        console.log(
-          '음성 녹화 중지됨. 총 청크:',
-          audioChunksRef.current.length,
-        );
-        if (audioChunksRef.current.length > 0) {
-          const blob = new Blob(audioChunksRef.current, { type: audioMime });
-          setLastAudioBlob(blob);
-        }
-        // 모든 녹화가 완전히 멈춘 후 오디오 컨텍스트 종료
-        if (audioContextRef.current) {
-          audioContextRef.current.close();
-          audioContextRef.current = null;
-        }
-      };
+        audioRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+        };
+
+        audioRecorder.onstop = () => {
+          console.log(
+            '음성 녹화 중지됨. 총 청크:',
+            audioChunksRef.current.length,
+          );
+          if (audioChunksRef.current.length > 0) {
+            const blob = new Blob(audioChunksRef.current, { type: audioMime });
+            setLastAudioBlob(blob);
+          }
+          // 오디오 컨텍스트 종료
+          if (audioContextRef.current) {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+          }
+        };
+      }
 
       // 녹화 시작
-      recorder.start(1000); // 1초 단위로 데이터 수집
-      audioRecorder.start(1000);
+      recorder.start(1000);
+      if (audioRecorder) audioRecorder.start(1000);
 
       mediaRecorderRef.current = recorder;
-      audioRecorderRef.current = audioRecorder;
+      audioRecorderRef.current = audioRecorder; // 오디오가 없으면 null 저장됨
       setIsRecording(true);
       setSummaryResult(null);
     } catch (err) {
       console.error('녹화 시작 중 오류 발생:', err);
-      alert('녹화를 시작할 수 없습니다. 마이크/카메라 권한을 확인해주세요.');
+      alert('녹화를 시작할 수 없습니다. 장치 상태를 확인해주세요.');
     }
   }, [localStream, remoteStream, isRecording]);
 
