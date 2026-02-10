@@ -93,7 +93,7 @@ const RecordPanel = forwardRef(function RecordPanel(
     };
     const recorder = new MediaRecorder(finalStream, highBitrateOptions);
     recorder.ondataavailable = (e) => {
-      if (e.data.size) chunksRef.current.push(e.data);
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
     };
     recorder.onstop = () => {
       cancelAnimationFrame(requestRef.current);
@@ -102,7 +102,8 @@ const RecordPanel = forwardRef(function RecordPanel(
       }
       mediaRecorderRef.current = null;
     };
-    recorder.start(1000);
+    // 100ms마다 청크 수집 → 짧게 중지해도 데이터 확보 (1초면 데이터 없음 현상 방지)
+    recorder.start(100);
     mediaRecorderRef.current = recorder;
 
     // 2) 저용량: AI 요약용 (음성만, 낮은 비트레이트)
@@ -114,7 +115,7 @@ const RecordPanel = forwardRef(function RecordPanel(
       audioBitsPerSecond: 32000,
     });
     audioRecorder.ondataavailable = (e) => {
-      if (e.data.size) audioChunksRef.current.push(e.data);
+      if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
     };
     audioRecorder.onstop = () => {
       if (audioChunksRef.current.length) {
@@ -127,7 +128,7 @@ const RecordPanel = forwardRef(function RecordPanel(
       audioRecorderRef.current = null;
       audioContext.close();
     };
-    audioRecorder.start(1000);
+    audioRecorder.start(100);
     audioRecorderRef.current = audioRecorder;
 
     setIsRecording(true);
@@ -137,9 +138,10 @@ const RecordPanel = forwardRef(function RecordPanel(
   const stopRecording = useCallback(() => {
     const rec = mediaRecorderRef.current;
     const audioRec = audioRecorderRef.current;
+    setIsRecording(false);
+    // 영상 먼저 중지 → 음성 중지 (AudioContext는 음성 onstop에서 close)
     if (rec && rec.state !== 'inactive') rec.stop();
     if (audioRec && audioRec.state !== 'inactive') audioRec.stop();
-    setIsRecording(false);
   }, []);
 
   const downloadRecording = useCallback(() => {
