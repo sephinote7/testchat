@@ -114,13 +114,14 @@ function App() {
     }
   };
 
-  // 3. PeerJS 초기화
+  // 3. PeerJS 초기화 (PeerJS는 ID에 .trim() 호출하므로 반드시 문자열)
   useEffect(() => {
     if (!profile?.email || !localStream) return;
     if (peerRef.current) return;
 
     const safeId = getSafePeerId(profile.email);
-    const peer = new Peer(safeId, {
+    if (!safeId) return;
+    const peer = new Peer(String(safeId), {
       debug: 2, // 로그 수준 강화
       config: {
         iceServers: [
@@ -142,6 +143,17 @@ function App() {
       call.on('stream', (s) => {
         setRemoteStream(s);
         setStatus('connected');
+        setConnectedRemoteId(String(call.peer ?? ''));
+      });
+      call.on('close', () => {
+        if (dataConnRef.current) dataConnRef.current.close();
+        dataConnRef.current = null;
+        setRemoteStream(null);
+        resetCallState();
+        currentCallRef.current = null;
+      });
+      call.on('error', (err) => {
+        setErrorMessage('수신 통화 오류: ' + (err?.message || err?.type));
       });
     });
 
@@ -168,13 +180,15 @@ function App() {
     setMyId,
     setStatus,
     setErrorMessage,
+    setConnectedRemoteId,
+    resetCallState,
     addMessage,
   ]);
 
   // 4. 통화 시작 (핵심 수정 부분)
   const startCall = async () => {
     const peer = peerRef.current;
-    const inputId = chatIdInput.trim();
+    const inputId = (chatIdInput != null ? String(chatIdInput) : '').trim();
 
     // 1. 입력값 검증
     if (!inputId) return setErrorMessage('방 번호를 입력해주세요.');
@@ -191,13 +205,15 @@ function App() {
         throw new Error('방 번호가 잘못되었거나 존재하지 않습니다.');
 
       // 2. 상대방 ID 결정 (내 이메일과 비교하여 내가 아닌 쪽을 선택)
-      const myEmail = profile.email.toLowerCase();
-      const cnslerEmail = data.cnsler_id.toLowerCase();
-      const memberEmail = data.member_id.toLowerCase();
+      // Supabase에서 숫자로 올 수 있으므로 항상 문자열로 변환
+      const myEmail = String(profile.email || '').toLowerCase();
+      const cnslerEmail = String(data.cnsler_id ?? '').toLowerCase();
+      const memberEmail = String(data.member_id ?? '').toLowerCase();
 
       // 내가 상담사라면 상대는 멤버, 내가 멤버라면 상대는 상담사
       const targetEmail = myEmail === cnslerEmail ? memberEmail : cnslerEmail;
       const remoteId = getSafePeerId(targetEmail);
+      if (!remoteId) throw new Error('상대방 ID를 생성할 수 없습니다.');
 
       console.log(
         '매칭 시도 -> 내 ID:',
@@ -206,12 +222,13 @@ function App() {
         remoteId,
       );
 
-      // 3. 통화 시도
-      const call = peer.call(remoteId, localStream);
+      // 3. 통화 시도 (PeerJS는 ID에 .trim()을 호출하므로 반드시 문자열 전달)
+      const call = peer.call(String(remoteId), localStream);
+      currentCallRef.current = call;
 
       // 타임아웃 설정 (10초 동안 응답 없으면 실패 처리)
       const timeout = setTimeout(() => {
-        if (status !== 'connected') {
+        if (currentCallRef.current === call) {
           setErrorMessage('상대방이 응답하지 않거나 네트워크가 불안정합니다.');
           setStatus('idle');
         }
@@ -221,6 +238,27 @@ function App() {
         clearTimeout(timeout);
         setRemoteStream(s);
         setStatus('connected');
+        setConnectedRemoteId(String(remoteId));
+        // 발신자: 채팅용 DataConnection 열기
+        const conn = peer.connect(String(remoteId));
+        dataConnRef.current = conn;
+        conn.on('open', () => {
+          conn.on('data', (data) => {
+            const obj = typeof data === 'string' ? JSON.parse(data) : data;
+            addMessage({ from: 'remote', text: obj?.text ?? '', time: obj?.time ?? Date.now() });
+          });
+        });
+      });
+      call.on('close', () => {
+        if (dataConnRef.current) dataConnRef.current.close();
+        dataConnRef.current = null;
+        setRemoteStream(null);
+        resetCallState();
+        currentCallRef.current = null;
+      });
+      call.on('error', (err) => {
+        setErrorMessage('통화 오류: ' + (err?.message || err?.type));
+        setStatus('idle');
       });
     } catch (err) {
       setErrorMessage(err.message);
@@ -233,10 +271,14 @@ function App() {
     if (currentCallRef.current) currentCallRef.current.close();
     if (dataConnRef.current) dataConnRef.current.close();
 
-    const fullText = getMessagesForApi();
+    const messages = getMessagesForApi();
     setRemoteStream(null);
     resetCallState();
 
+    // getMessagesForApi()는 배열 반환 — 문자열로 합쳐서 요약 API에 전달
+    const fullText = Array.isArray(messages)
+      ? messages.map((m) => (m && m.text) || '').join('\n')
+      : '';
     if (fullText.trim()) {
       setStatus('summarizing');
       try {
