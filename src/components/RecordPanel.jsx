@@ -14,7 +14,13 @@ import './RecordPanel.css';
  * - 저용량: AI 요약용 (합성 음성 전용)
  */
 const RecordPanel = forwardRef(function RecordPanel(
-  { localStream, remoteStream, disabled, autoStart = false, showDownload = true },
+  {
+    localStream,
+    remoteStream,
+    disabled,
+    autoStart = false,
+    showDownload = true,
+  },
   ref,
 ) {
   const [isRecording, setIsRecording] = useState(false);
@@ -43,36 +49,27 @@ const RecordPanel = forwardRef(function RecordPanel(
     console.log('녹화 중지 시도...');
     setIsRecording(false);
 
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== 'inactive'
-    ) {
-      mediaRecorderRef.current.stop();
-    }
-    if (
-      audioRecorderRef.current &&
-      audioRecorderRef.current.state !== 'inactive'
-    ) {
-      audioRecorderRef.current.stop();
-    }
-    if (
-      localAudioRecorderRef.current &&
-      localAudioRecorderRef.current.state !== 'inactive'
-    ) {
-      localAudioRecorderRef.current.stop();
-    }
-    if (
-      remoteAudioRecorderRef.current &&
-      remoteAudioRecorderRef.current.state !== 'inactive'
-    ) {
-      remoteAudioRecorderRef.current.stop();
-    }
+    // 1. 모든 레코더 정지
+    [
+      mediaRecorderRef,
+      audioRecorderRef,
+      localAudioRecorderRef,
+      remoteAudioRecorderRef,
+    ].forEach((ref) => {
+      if (ref.current && ref.current.state !== 'inactive') {
+        ref.current.stop();
+      }
+    });
 
-    // 애니메이션 프레임 중단
+    // 2. 애니메이션 프레임 중단
     if (requestRef.current) {
       cancelAnimationFrame(requestRef.current);
     }
-  }, []);
+
+    // 3. [추가] 실제 미디어 스트림 트랙 중지 (버퍼 비우기 강제)
+    if (localStream) localStream.getTracks().forEach((track) => track.stop());
+    if (remoteStream) remoteStream.getTracks().forEach((track) => track.stop());
+  }, [localStream, remoteStream]);
 
   // 통화가 끊기면 자동으로 녹화 중지
   useEffect(() => {
@@ -232,7 +229,9 @@ const RecordPanel = forwardRef(function RecordPanel(
         };
         audioRecorder.onstop = () => {
           if (audioChunksRef.current.length > 0) {
-            const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            const blob = new Blob(audioChunksRef.current, {
+              type: 'audio/webm',
+            });
             setLastAudioBlob(blob);
             blobForApiRef.current = blob;
           }
@@ -245,7 +244,9 @@ const RecordPanel = forwardRef(function RecordPanel(
       const localTrack = localStream.getAudioTracks?.()[0];
       if (localTrack && localTrack.readyState === 'live') {
         const localOnlyStream = new MediaStream([localTrack]);
-        const lr = new MediaRecorder(localOnlyStream, { mimeType: 'audio/webm' });
+        const lr = new MediaRecorder(localOnlyStream, {
+          mimeType: 'audio/webm',
+        });
         lr.ondataavailable = (e) => {
           if (e.data.size > 0) localAudioChunksRef.current.push(e.data);
         };
@@ -265,15 +266,20 @@ const RecordPanel = forwardRef(function RecordPanel(
       const remoteTrack = remoteStream.getAudioTracks?.()[0];
       if (remoteTrack && remoteTrack.readyState === 'live') {
         const remoteOnlyStream = new MediaStream([remoteTrack]);
-        const rr = new MediaRecorder(remoteOnlyStream, { mimeType: 'audio/webm' });
+        const rr = new MediaRecorder(remoteOnlyStream, {
+          mimeType: 'audio/webm',
+        });
         rr.ondataavailable = (e) => {
           if (e.data.size > 0) remoteAudioChunksRef.current.push(e.data);
         };
         rr.onstop = () => {
           if (remoteAudioChunksRef.current.length > 0) {
-            remoteAudioBlobRef.current = new Blob(remoteAudioChunksRef.current, {
-              type: 'audio/webm',
-            });
+            remoteAudioBlobRef.current = new Blob(
+              remoteAudioChunksRef.current,
+              {
+                type: 'audio/webm',
+              },
+            );
           } else {
             remoteAudioBlobRef.current = null;
           }

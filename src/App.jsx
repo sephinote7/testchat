@@ -102,222 +102,71 @@ function App() {
     const session = sessionInfoRef.current;
     const messages = getMessagesForApi() ?? [];
 
-    // 요약/DB 저장은 상담사 화면에서만 수행
     if (!isCnsler) {
       setSummaryResult('');
       return;
     }
 
-    let blobs = null;
-    if (recordPanelRef.current?.stopRecordingAndGetBlobs) {
-      blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
-    } else if (recordPanelRef.current?.stopRecordingAndGetBlob) {
-      const single = await recordPanelRef.current.stopRecordingAndGetBlob();
-      blobs = {
-        mixedAudioBlob: single,
-        localAudioBlob: null,
-        remoteAudioBlob: null,
-        videoBlob: null,
-      };
-    }
-    const hadAudioOrVideoBlob = Boolean(
-      blobs?.mixedAudioBlob ||
-      blobs?.localAudioBlob ||
-      blobs?.remoteAudioBlob ||
-      blobs?.videoBlob,
-    );
-
-    const buildMsgDataMessages = (chatList, sttList, transcriptFallback) => {
-      const list = [];
-
-      // 1. 채팅 메시지 처리 (실시간 발생 데이터)
-      for (const m of chatList) {
-        if (!m?.text) continue;
-        // 상담사 화면에서 저장하므로: me는 cnsler, remote는 user
-        const speaker = m.from === 'me' ? 'cnsler' : 'user';
-        list.push({
-          type: 'chat',
-          speaker,
-          text: m.text,
-          timestamp: new Date(m.time || Date.now()).toISOString(),
-        });
-      }
-
-      // 2. STT 데이터 처리 (사후 분석 데이터)
-      if (Array.isArray(sttList) && sttList.length > 0) {
-        sttList.forEach((s) => {
-          // 파이썬 서버가 'cnsler', 'user'라고 명시적으로 라벨링해서 준다고 가정
-          // 만약 서버가 0, 1로 준다면 해당 값을 매핑하는 로직이 필요함
-          list.push({
-            type: 'stt',
-            speaker: s.speaker, // 서버에서 받은 화자 정보 그대로 사용
-            text: s.text || '',
-            // 서버에서 준 시작 시간(offset)이 있다면 상담 시작 시간에 더해서 계산
-            timestamp: s.timestamp || new Date().toISOString(),
-          });
-        });
-      } else if (transcriptFallback) {
-        // 화자 분리가 안 된 통문장 결과가 왔을 경우의 폴백
-        list.push({
-          type: 'stt',
-          speaker: 'unknown', // 구분 불가 시 unknown 처리
-          text: transcriptFallback,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // 3. 전체 데이터를 시간순으로 정렬 (채팅과 STT가 자연스럽게 섞임)
-      return list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    };
-
     setStatus('summarizing');
+
     try {
       const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
-      let transcript = '';
       let summary = '';
-      let stt = null;
+      let final_messages_payload = null;
 
-      // 1) 요약 API 호출 (실패해도 DB 저장은 계속 진행)
-      if (apiUrl && (hadAudioOrVideoBlob || messages.length > 0)) {
-        try {
-          const form = new FormData();
-          // STT 분리 업로드: 상담사 화면(local=cnsler, remote=user)
-          if (blobs?.remoteAudioBlob)
-            form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
-          if (blobs?.localAudioBlob)
-            form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
-          // 폴백: 둘 다 없으면 혼합/단일 음성으로 업로드
-          if (
-            !blobs?.remoteAudioBlob &&
-            !blobs?.localAudioBlob &&
-            blobs?.mixedAudioBlob
-          ) {
-            const b = blobs.mixedAudioBlob;
-            form.append(
-              'audio',
-              b,
-              b.type?.includes('audio') ? 'audio.webm' : 'recording.webm',
-            );
-          }
-          form.append('msg_data', JSON.stringify(messages));
-          const res = await fetch(`${apiUrl}/api/summarize`, {
-            method: 'POST',
-            body: form,
-          });
-          if (res.ok) {
-            const data = await res.json();
-            // 백엔드가 준 '정렬된' 메시지 리스트를 그대로 Supabase에 저장
-            const msg_data = { messages: data.msg_data };
-          } else {
-            console.warn('요약 API 실패 상태코드:', res.status);
-            summary ||= '(요약 실패: 요약 서버 응답 오류)';
-          }
-        } catch (apiErr) {
-          console.warn('요약 API 호출 중 오류:', apiErr);
-          summary ||= '(요약 실패: 요약 서버 호출 오류)';
-        }
-      } else if (apiUrl && messages.length > 0) {
-        try {
-          const res = await fetch(`${apiUrl}/api/summarize-text`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: messages.map((m) => m?.text ?? '').join('\n'),
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            summary = data.summary ?? '';
-          } else {
-            console.warn('텍스트 요약 API 실패 상태코드:', res.status);
-            summary ||= '(요약 실패: 텍스트 요약 서버 응답 오류)';
-          }
-        } catch (apiErr) {
-          console.warn('텍스트 요약 API 호출 중 오류:', apiErr);
-          summary ||= '(요약 실패: 텍스트 요약 서버 호출 오류)';
+      // 1. RecordPanel로부터 녹화 파일(Blobs) 가져오기 (이미 대기 로직 포함됨)
+      let blobs = null;
+      if (recordPanelRef.current?.stopRecordingAndGetBlobs) {
+        blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
+      }
+
+      // 2. 요약 API 호출
+      if (apiUrl) {
+        const form = new FormData();
+        if (blobs?.remoteAudioBlob)
+          form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
+        if (blobs?.localAudioBlob)
+          form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+
+        // 채팅 데이터 추가
+        form.append('msg_data', JSON.stringify(messages));
+
+        const res = await fetch(`${apiUrl}/api/summarize`, {
+          method: 'POST',
+          body: form,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          // [수정] 백엔드가 정렬해서 보내준 데이터를 변수에 담습니다.
+          summary = data.summary;
+          final_messages_payload = { messages: data.msg_data };
+        } else {
+          summary = '(요약 실패: 서버 응답 오류)';
         }
       }
 
-      const msg_data = {
-        messages: buildMsgDataMessages(messages, stt, transcript),
-      };
-
-      // DB 저장: update 1건 반영 확인 → 필요 시 upsert 보강
+      // 3. DB 저장 (최종 정렬된 데이터 사용)
       if (supabase && session?.chat_id != null) {
-        const role = 'cnsler';
         const payload = {
-          role,
-          msg_data,
+          role: 'cnsler',
+          // 백엔드 데이터가 있으면 그것을 쓰고, 없으면 기존 buildMsgDataMessages 사용
+          msg_data: final_messages_payload || {
+            messages: buildMsgDataMessages(messages, null, ''),
+          },
           summary: summary || '(요약 없음)',
         };
 
-        let saved = false;
-
-        // 1) 정상 컬럼(summary) update
-        {
-          const { data, error } = await supabase
-            .from('chat_msg')
-            .update(payload)
-            .eq('chat_id', session.chat_id)
-            .select('chat_id');
-          if (error) {
-            // 2) 구 스키마 호환(summery) update
-            const isMissingSummaryColumn =
-              typeof error.message === 'string' &&
-              error.message.includes('column') &&
-              error.message.includes('summary') &&
-              error.message.includes('does not exist');
-            if (isMissingSummaryColumn) {
-              const { data: d2, error: e2 } = await supabase
-                .from('chat_msg')
-                .update({ role, msg_data, summery: summary || '(요약 없음)' })
-                .eq('chat_id', session.chat_id)
-                .select('chat_id');
-              if (e2) {
-                console.warn('chat_msg 저장 실패:', e2);
-                setErrorMessage(
-                  'DB 저장 실패(RLS/컬럼명 확인): ' + (e2?.message || e2),
-                );
-              } else {
-                saved = Array.isArray(d2) && d2.length > 0;
-              }
-            } else {
-              console.warn('chat_msg 저장 실패:', error);
-              setErrorMessage(
-                'DB 저장 실패(RLS/컬럼명 확인): ' + (error?.message || error),
-              );
-            }
-          } else {
-            saved = Array.isArray(data) && data.length > 0;
-          }
-        }
-
-        // 3) update가 0건이면 upsert로 보강(정합성 체크)
-        if (!saved) {
-          const { error } = await supabase.from('chat_msg').upsert(
-            {
-              chat_id: session.chat_id,
-              cnsl_id: session.cnsl_id ?? null,
-              member_id: session.member_id ?? '',
-              cnsler_id: session.cnsler_id ?? '',
-              role,
-              msg_data,
-              summary: summary || '(요약 없음)',
-            },
-            { onConflict: 'chat_id' },
-          );
-          if (error) {
-            console.warn('chat_msg upsert 실패:', error);
-            setErrorMessage(
-              'DB 저장 실패(RLS/필수컬럼 확인): ' + (error?.message || error),
-            );
-          }
-        }
+        await supabase
+          .from('chat_msg')
+          .update(payload)
+          .eq('chat_id', session.chat_id);
       }
 
       setSummaryResult(summary || '요약 결과가 없습니다.');
     } catch (err) {
-      setSummaryResult('요약/저장 실패: ' + (err?.message || err));
+      console.error('최종 저장 중 오류:', err);
+      setSummaryResult('저장 실패: ' + err.message);
     } finally {
       setStatus('idle');
     }
