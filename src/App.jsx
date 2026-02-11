@@ -111,60 +111,61 @@ function App() {
       blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
     } else if (recordPanelRef.current?.stopRecordingAndGetBlob) {
       const single = await recordPanelRef.current.stopRecordingAndGetBlob();
-      blobs = { mixedAudioBlob: single, localAudioBlob: null, remoteAudioBlob: null, videoBlob: null };
+      blobs = {
+        mixedAudioBlob: single,
+        localAudioBlob: null,
+        remoteAudioBlob: null,
+        videoBlob: null,
+      };
     }
     const hadAudioOrVideoBlob = Boolean(
-      blobs?.mixedAudioBlob || blobs?.localAudioBlob || blobs?.remoteAudioBlob || blobs?.videoBlob,
+      blobs?.mixedAudioBlob ||
+      blobs?.localAudioBlob ||
+      blobs?.remoteAudioBlob ||
+      blobs?.videoBlob,
     );
 
     const buildMsgDataMessages = (chatList, sttList, transcriptFallback) => {
       const list = [];
-      const lastTimeBySpeaker = { user: null, cnsler: null };
 
+      // 1. 채팅 메시지 처리 (실시간 발생 데이터)
       for (const m of chatList) {
         if (!m?.text) continue;
-        // 저장은 상담사 화면에서만 하므로: me=cnsler, remote=user
+        // 상담사 화면에서 저장하므로: me는 cnsler, remote는 user
         const speaker = m.from === 'me' ? 'cnsler' : 'user';
-        const t = typeof m.time === 'number' ? m.time : Date.now();
-        lastTimeBySpeaker[speaker] =
-          lastTimeBySpeaker[speaker] == null
-            ? t
-            : Math.max(lastTimeBySpeaker[speaker], t);
         list.push({
           type: 'chat',
           speaker,
           text: m.text,
-          timestamp: new Date(t).toISOString(),
+          timestamp: new Date(m.time || Date.now()).toISOString(),
         });
       }
-      // 요구사항: chat + 음성(STT) 둘 다 msg_data.messages에 포함
-      const base = Date.now();
+
+      // 2. STT 데이터 처리 (사후 분석 데이터)
       if (Array.isArray(sttList) && sttList.length > 0) {
-        let seq = 0;
         sttList.forEach((s) => {
-          const sp = s?.speaker === 'cnsler' ? 'cnsler' : 'user';
-          const anchor = lastTimeBySpeaker[sp] ?? base;
-          const ts = anchor + (++seq);
+          // 파이썬 서버가 'cnsler', 'user'라고 명시적으로 라벨링해서 준다고 가정
+          // 만약 서버가 0, 1로 준다면 해당 값을 매핑하는 로직이 필요함
           list.push({
             type: 'stt',
-            speaker: sp,
-            text: (s?.text && String(s.text).trim()) || '(음성 인식 결과 없음)',
-            // 각 화자의 마지막 채팅 직후로 배치해 타임라인에 자연스럽게 끼워 넣기
-            timestamp: new Date(ts).toISOString(),
+            speaker: s.speaker, // 서버에서 받은 화자 정보 그대로 사용
+            text: s.text || '',
+            // 서버에서 준 시작 시간(offset)이 있다면 상담 시작 시간에 더해서 계산
+            timestamp: s.timestamp || new Date().toISOString(),
           });
         });
-      } else if (hadAudioOrVideoBlob) {
-        // 백엔드 구버전/단일 STT 호환
-        const anchor = lastTimeBySpeaker.user ?? base;
+      } else if (transcriptFallback) {
+        // 화자 분리가 안 된 통문장 결과가 왔을 경우의 폴백
         list.push({
           type: 'stt',
-          speaker: 'user',
-          text: (transcriptFallback && transcriptFallback.trim()) || '(음성 인식 결과 없음)',
-          timestamp: new Date(anchor + 1).toISOString(),
+          speaker: 'unknown', // 구분 불가 시 unknown 처리
+          text: transcriptFallback,
+          timestamp: new Date().toISOString(),
         });
       }
-      list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      return list;
+
+      // 3. 전체 데이터를 시간순으로 정렬 (채팅과 STT가 자연스럽게 섞임)
+      return list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     };
 
     setStatus('summarizing');
@@ -178,12 +179,22 @@ function App() {
       if (apiUrl && (hadAudioOrVideoBlob || messages.length > 0)) {
         const form = new FormData();
         // STT 분리 업로드: 상담사 화면(local=cnsler, remote=user)
-        if (blobs?.remoteAudioBlob) form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
-        if (blobs?.localAudioBlob) form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+        if (blobs?.remoteAudioBlob)
+          form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
+        if (blobs?.localAudioBlob)
+          form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
         // 폴백: 하나라도 없으면 혼합/단일 음성으로 업로드
-        if (!blobs?.remoteAudioBlob && !blobs?.localAudioBlob && blobs?.mixedAudioBlob) {
+        if (
+          !blobs?.remoteAudioBlob &&
+          !blobs?.localAudioBlob &&
+          blobs?.mixedAudioBlob
+        ) {
           const b = blobs.mixedAudioBlob;
-          form.append('audio', b, b.type?.includes('audio') ? 'audio.webm' : 'recording.webm');
+          form.append(
+            'audio',
+            b,
+            b.type?.includes('audio') ? 'audio.webm' : 'recording.webm',
+          );
         }
         form.append('msg_data', JSON.stringify(messages));
         const res = await fetch(`${apiUrl}/api/summarize`, {
@@ -210,7 +221,9 @@ function App() {
         }
       }
 
-      const msg_data = { messages: buildMsgDataMessages(messages, stt, transcript) };
+      const msg_data = {
+        messages: buildMsgDataMessages(messages, stt, transcript),
+      };
 
       // DB 저장: update 1건 반영 확인 → 필요 시 upsert 보강
       if (supabase && session?.chat_id != null) {
@@ -264,20 +277,18 @@ function App() {
 
         // 3) update가 0건이면 upsert로 보강(정합성 체크)
         if (!saved) {
-          const { error } = await supabase
-            .from('chat_msg')
-            .upsert(
-              {
-                chat_id: session.chat_id,
-                cnsl_id: session.cnsl_id ?? null,
-                member_id: session.member_id ?? '',
-                cnsler_id: session.cnsler_id ?? '',
-                role,
-                msg_data,
-                summary: summary || '(요약 없음)',
-              },
-              { onConflict: 'chat_id' },
-            );
+          const { error } = await supabase.from('chat_msg').upsert(
+            {
+              chat_id: session.chat_id,
+              cnsl_id: session.cnsl_id ?? null,
+              member_id: session.member_id ?? '',
+              cnsler_id: session.cnsler_id ?? '',
+              role,
+              msg_data,
+              summary: summary || '(요약 없음)',
+            },
+            { onConflict: 'chat_id' },
+          );
           if (error) {
             console.warn('chat_msg upsert 실패:', error);
             setErrorMessage(
@@ -414,7 +425,11 @@ function App() {
           endCall({ sendSignal: false });
           return;
         }
-        addMessage({ from: 'remote', text: obj?.text ?? '', time: obj?.time ?? Date.now() });
+        addMessage({
+          from: 'remote',
+          text: obj?.text ?? '',
+          time: obj?.time ?? Date.now(),
+        });
       });
     });
 
@@ -515,7 +530,11 @@ function App() {
               endCall({ sendSignal: false });
               return;
             }
-            addMessage({ from: 'remote', text: obj?.text ?? '', time: obj?.time ?? Date.now() });
+            addMessage({
+              from: 'remote',
+              text: obj?.text ?? '',
+              time: obj?.time ?? Date.now(),
+            });
           });
         });
       });
