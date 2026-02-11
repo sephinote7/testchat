@@ -14,7 +14,7 @@ import './RecordPanel.css';
  * - 저용량: AI 요약용 (합성 음성 전용)
  */
 const RecordPanel = forwardRef(function RecordPanel(
-  { localStream, remoteStream, disabled, autoStart = false },
+  { localStream, remoteStream, disabled, autoStart = false, showDownload = true },
   ref,
 ) {
   const [isRecording, setIsRecording] = useState(false);
@@ -24,11 +24,17 @@ const RecordPanel = forwardRef(function RecordPanel(
   // 레코더 및 데이터 참조
   const mediaRecorderRef = useRef(null);
   const audioRecorderRef = useRef(null);
+  const localAudioRecorderRef = useRef(null);
+  const remoteAudioRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const audioChunksRef = useRef([]);
+  const localAudioChunksRef = useRef([]);
+  const remoteAudioChunksRef = useRef([]);
   const requestRef = useRef(null);
   const audioContextRef = useRef(null);
   const blobForApiRef = useRef(null);
+  const localAudioBlobRef = useRef(null);
+  const remoteAudioBlobRef = useRef(null);
 
   const canRecord = Boolean(localStream && remoteStream && !disabled);
 
@@ -48,6 +54,18 @@ const RecordPanel = forwardRef(function RecordPanel(
       audioRecorderRef.current.state !== 'inactive'
     ) {
       audioRecorderRef.current.stop();
+    }
+    if (
+      localAudioRecorderRef.current &&
+      localAudioRecorderRef.current.state !== 'inactive'
+    ) {
+      localAudioRecorderRef.current.stop();
+    }
+    if (
+      remoteAudioRecorderRef.current &&
+      remoteAudioRecorderRef.current.state !== 'inactive'
+    ) {
+      remoteAudioRecorderRef.current.stop();
     }
 
     // 애니메이션 프레임 중단
@@ -71,7 +89,11 @@ const RecordPanel = forwardRef(function RecordPanel(
       console.log('녹화 프로세스 시작...');
       chunksRef.current = [];
       audioChunksRef.current = [];
+      localAudioChunksRef.current = [];
+      remoteAudioChunksRef.current = [];
       blobForApiRef.current = null;
+      localAudioBlobRef.current = null;
+      remoteAudioBlobRef.current = null;
 
       // 1. AudioContext 생성
       const audioContext = new (
@@ -219,6 +241,47 @@ const RecordPanel = forwardRef(function RecordPanel(
         audioRecorderRef.current = audioRecorder;
       }
 
+      // 로컬/원격 오디오를 별도 녹음 (STT speaker 분리용)
+      const localTrack = localStream.getAudioTracks?.()[0];
+      if (localTrack && localTrack.readyState === 'live') {
+        const localOnlyStream = new MediaStream([localTrack]);
+        const lr = new MediaRecorder(localOnlyStream, { mimeType: 'audio/webm' });
+        lr.ondataavailable = (e) => {
+          if (e.data.size > 0) localAudioChunksRef.current.push(e.data);
+        };
+        lr.onstop = () => {
+          if (localAudioChunksRef.current.length > 0) {
+            localAudioBlobRef.current = new Blob(localAudioChunksRef.current, {
+              type: 'audio/webm',
+            });
+          } else {
+            localAudioBlobRef.current = null;
+          }
+        };
+        lr.start(1000);
+        localAudioRecorderRef.current = lr;
+      }
+
+      const remoteTrack = remoteStream.getAudioTracks?.()[0];
+      if (remoteTrack && remoteTrack.readyState === 'live') {
+        const remoteOnlyStream = new MediaStream([remoteTrack]);
+        const rr = new MediaRecorder(remoteOnlyStream, { mimeType: 'audio/webm' });
+        rr.ondataavailable = (e) => {
+          if (e.data.size > 0) remoteAudioChunksRef.current.push(e.data);
+        };
+        rr.onstop = () => {
+          if (remoteAudioChunksRef.current.length > 0) {
+            remoteAudioBlobRef.current = new Blob(remoteAudioChunksRef.current, {
+              type: 'audio/webm',
+            });
+          } else {
+            remoteAudioBlobRef.current = null;
+          }
+        };
+        rr.start(1000);
+        remoteAudioRecorderRef.current = rr;
+      }
+
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
@@ -262,6 +325,37 @@ const RecordPanel = forwardRef(function RecordPanel(
         setTimeout(tick, 200);
       });
     },
+    stopRecordingAndGetBlobs: async () => {
+      stopRecording();
+      return new Promise((resolve) => {
+        const deadline = Date.now() + 2500;
+        const tick = () => {
+          const any =
+            blobForApiRef.current ||
+            localAudioBlobRef.current ||
+            remoteAudioBlobRef.current ||
+            lastBlob;
+          if (any) {
+            resolve({
+              mixedAudioBlob: blobForApiRef.current || null,
+              localAudioBlob: localAudioBlobRef.current || null,
+              remoteAudioBlob: remoteAudioBlobRef.current || null,
+              videoBlob: lastBlob || null,
+            });
+            return;
+          }
+          if (Date.now() < deadline) setTimeout(tick, 150);
+          else
+            resolve({
+              mixedAudioBlob: blobForApiRef.current || null,
+              localAudioBlob: localAudioBlobRef.current || null,
+              remoteAudioBlob: remoteAudioBlobRef.current || null,
+              videoBlob: lastBlob || null,
+            });
+        };
+        setTimeout(tick, 200);
+      });
+    },
   }));
 
   return (
@@ -291,13 +385,15 @@ const RecordPanel = forwardRef(function RecordPanel(
           </div>
 
           <div className="record-result-actions">
-            <button
-              type="button"
-              onClick={downloadRecording}
-              className="btn-download"
-            >
-              PC에 고화질 저장
-            </button>
+            {showDownload && (
+              <button
+                type="button"
+                onClick={downloadRecording}
+                className="btn-download"
+              >
+                PC에 고화질 저장
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -52,6 +52,7 @@ function App() {
 
   const isConnected = status === 'connected';
   const isCnsler = profile?.role === 'cnsler' || profile?.role === 'counsellor';
+  const isMember = Boolean(profile) && !isCnsler;
 
   const finalizeAndSaveOnce = async () => {
     if (finalizeOnceRef.current) return;
@@ -66,23 +67,23 @@ function App() {
       return;
     }
 
-    let blob = null;
-    if (recordPanelRef.current?.stopRecordingAndGetBlob) {
-      blob = await recordPanelRef.current.stopRecordingAndGetBlob();
+    let blobs = null;
+    if (recordPanelRef.current?.stopRecordingAndGetBlobs) {
+      blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
+    } else if (recordPanelRef.current?.stopRecordingAndGetBlob) {
+      const single = await recordPanelRef.current.stopRecordingAndGetBlob();
+      blobs = { mixedAudioBlob: single, localAudioBlob: null, remoteAudioBlob: null, videoBlob: null };
     }
+    const hadAudioOrVideoBlob = Boolean(
+      blobs?.mixedAudioBlob || blobs?.localAudioBlob || blobs?.remoteAudioBlob || blobs?.videoBlob,
+    );
 
-    const buildMsgDataMessages = (chatList, transcript) => {
+    const buildMsgDataMessages = (chatList, sttList, transcriptFallback) => {
       const list = [];
       for (const m of chatList) {
         if (!m?.text) continue;
-        const speaker =
-          m.from === 'me'
-            ? isCnsler
-              ? 'assistant'
-              : 'user'
-            : isCnsler
-              ? 'user'
-              : 'assistant';
+        // 저장은 상담사 화면에서만 하므로: me=cnsler, remote=user
+        const speaker = m.from === 'me' ? 'cnsler' : 'user';
         list.push({
           type: 'chat',
           speaker,
@@ -90,12 +91,24 @@ function App() {
           timestamp: new Date(m.time ?? Date.now()).toISOString(),
         });
       }
-      if (transcript && transcript.trim()) {
+      // 요구사항: chat + 음성(STT) 둘 다 msg_data.messages에 포함
+      const base = Date.now();
+      if (Array.isArray(sttList) && sttList.length > 0) {
+        sttList.forEach((s, i) => {
+          list.push({
+            type: 'stt',
+            speaker: s?.speaker === 'cnsler' ? 'cnsler' : 'user',
+            text: (s?.text && String(s.text).trim()) || '(음성 인식 결과 없음)',
+            timestamp: new Date(base + i).toISOString(),
+          });
+        });
+      } else if (hadAudioOrVideoBlob) {
+        // 백엔드 구버전/단일 STT 호환
         list.push({
           type: 'stt',
           speaker: 'user',
-          text: transcript.trim(),
-          timestamp: new Date().toISOString(),
+          text: (transcriptFallback && transcriptFallback.trim()) || '(음성 인식 결과 없음)',
+          timestamp: new Date(base).toISOString(),
         });
       }
       list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -107,15 +120,18 @@ function App() {
       const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
       let transcript = '';
       let summary = '';
+      let stt = null;
 
       if (apiUrl && (blob || messages.length > 0)) {
         const form = new FormData();
-        if (blob)
-          form.append(
-            'audio',
-            blob,
-            blob.type?.includes('audio') ? 'audio.webm' : 'recording.webm',
-          );
+        // STT 분리 업로드: 상담사 화면(local=cnsler, remote=user)
+        if (blobs?.remoteAudioBlob) form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
+        if (blobs?.localAudioBlob) form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+        // 폴백: 하나라도 없으면 혼합/단일 음성으로 업로드
+        if (!blobs?.remoteAudioBlob && !blobs?.localAudioBlob && blobs?.mixedAudioBlob) {
+          const b = blobs.mixedAudioBlob;
+          form.append('audio', b, b.type?.includes('audio') ? 'audio.webm' : 'recording.webm');
+        }
         form.append('msg_data', JSON.stringify(messages));
         const res = await fetch(`${apiUrl}/api/summarize`, {
           method: 'POST',
@@ -125,6 +141,7 @@ function App() {
           const data = await res.json();
           transcript = data.transcript ?? '';
           summary = data.summary ?? '';
+          stt = data.stt ?? null;
         }
       } else if (apiUrl && messages.length > 0) {
         const res = await fetch(`${apiUrl}/api/summarize-text`, {
@@ -140,7 +157,7 @@ function App() {
         }
       }
 
-      const msg_data = { messages: buildMsgDataMessages(messages, transcript) };
+      const msg_data = { messages: buildMsgDataMessages(messages, stt, transcript) };
 
       // DB 저장: update 1건 반영 확인 → 필요 시 upsert 보강
       if (supabase && session?.chat_id != null) {
@@ -339,7 +356,12 @@ function App() {
       dataConnRef.current = conn;
       conn.on('data', (data) => {
         const obj = typeof data === 'string' ? JSON.parse(data) : data;
-        addMessage({ from: 'remote', text: obj.text, time: obj.time });
+        // 통화 종료 제어 메시지
+        if (obj?.type === 'control' && obj?.action === 'end_call') {
+          endCall({ sendSignal: false });
+          return;
+        }
+        addMessage({ from: 'remote', text: obj?.text ?? '', time: obj?.time ?? Date.now() });
       });
     });
 
@@ -435,6 +457,11 @@ function App() {
         conn.on('open', () => {
           conn.on('data', (data) => {
             const obj = typeof data === 'string' ? JSON.parse(data) : data;
+            // 통화 종료 제어 메시지
+            if (obj?.type === 'control' && obj?.action === 'end_call') {
+              endCall({ sendSignal: false });
+              return;
+            }
             addMessage({ from: 'remote', text: obj?.text ?? '', time: obj?.time ?? Date.now() });
           });
         });
@@ -458,8 +485,21 @@ function App() {
     }
   };
 
-  // 5. 통화 종료: 녹화 Blob + 채팅 → API 요약 → msg_data(채팅+STT) + summary Supabase 저장
-  const endCall = async () => {
+  // 5. 통화 종료: 한쪽 종료 시 양쪽 종료 + 상담사 요약/저장
+  const endCall = async ({ sendSignal } = { sendSignal: true }) => {
+    // 상대에게도 종료 신호 전송 (양쪽 동시 종료)
+    if (sendSignal) {
+      try {
+        dataConnRef.current?.send({
+          type: 'control',
+          action: 'end_call',
+          time: Date.now(),
+        });
+      } catch (e) {
+        // 무시: dataConn이 없을 수 있음
+      }
+    }
+
     // 먼저 finalize를 실행(버튼/상대 종료 모두 동일 처리)
     await finalizeAndSaveOnce();
 
@@ -558,6 +598,7 @@ function App() {
         remoteStream={remoteStream}
         disabled={!isConnected}
         autoStart={isConnected}
+        showDownload={isMember}
       />
     </div>
   );
