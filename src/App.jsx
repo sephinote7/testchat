@@ -107,46 +107,89 @@ function App() {
     setStatus('summarizing');
 
     try {
+      const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
+      let apiResult = null;
+
       // 1. 녹음 데이터 가져오기 (RecordPanel에서 제공하는 함수)
       let blobs = null;
       if (recordPanelRef.current?.stopRecordingAndGetBlobs) {
         blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
       }
 
-      // 2. FormData 구성 (백엔드 필드명과 일치시켜야 함!)
-      const form = new FormData();
-      if (blobs?.remoteAudioBlob) {
-        form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
-      }
-      if (blobs?.localAudioBlob) {
-        form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
-      }
-      form.append('msg_data', JSON.stringify(messages));
+      // 2. 요약 API 호출 (실패해도 DB 저장은 시도)
+      if (apiUrl) {
+        try {
+          const form = new FormData();
+          if (blobs?.remoteAudioBlob) {
+            form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
+          }
+          if (blobs?.localAudioBlob) {
+            form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+          }
+          form.append('msg_data', JSON.stringify(messages));
 
-      // 3. API 호출
-      const res = await fetch(`${API_URL}/api/summarize`, {
-        method: 'POST',
-        body: form,
-      });
+          const res = await fetch(`${apiUrl}/api/summarize`, {
+            method: 'POST',
+            body: form,
+          });
 
-      if (res.ok) {
-        const data = await res.json();
-
-        // 4. Supabase DB 업데이트 (백엔드가 준 msg_data와 summary 저장)
-        if (supabase && session?.chat_id) {
-          await supabase
-            .from('chat_msg')
-            .update({
-              role: 'cnsler',
-              msg_data: { messages: data.msg_data }, // 정렬된 데이터
-              summary: data.summary,
-            })
-            .eq('chat_id', session.chat_id);
+          if (res.ok) {
+            apiResult = await res.json();
+          } else {
+            console.warn('요약 API 실패 상태코드:', res.status);
+          }
+        } catch (e) {
+          console.warn('요약 API 호출 중 오류:', e);
         }
-        setSummaryResult(data.summary);
+      } else {
+        console.warn('SUMMARY_API_URL이 설정되어 있지 않습니다.');
       }
+
+      // 3. 최종 msg_data / summary 결정
+      const finalMessages = Array.isArray(apiResult?.msg_data)
+        ? apiResult.msg_data
+        : messages.map((m) => ({
+            type: 'chat',
+            speaker: m.from === 'me' ? 'cnsler' : 'user',
+            text: m.text,
+            timestamp: String(m.time || Date.now()),
+          }));
+
+      const finalSummary =
+        (apiResult?.summary && String(apiResult.summary)) ||
+        '(요약 없음 또는 생성 실패)';
+
+      // 4. Supabase DB 업데이트 (실패 시 콘솔에 이유 출력)
+      if (supabase && session?.chat_id) {
+        const payload = {
+          role: 'cnsler',
+          msg_data: { messages: finalMessages },
+          summary: finalSummary,
+        };
+
+        const { data: updated, error } = await supabase
+          .from('chat_msg')
+          .update(payload)
+          .eq('chat_id', session.chat_id)
+          .select('chat_id');
+
+        if (error) {
+          console.error('chat_msg 업데이트 실패:', error);
+          setErrorMessage(
+            'DB 저장 실패: ' + (error?.message || JSON.stringify(error)),
+          );
+        } else if (!updated || updated.length === 0) {
+          console.warn(
+            'chat_msg 업데이트 0건 — chat_id가 일치하는 행이 없습니다.',
+          );
+        }
+      }
+
+      // 5. 상담사 화면에 요약 표시
+      setSummaryResult(finalSummary);
     } catch (err) {
       console.error('최종 저장 실패:', err);
+      setSummaryResult('요약/저장 실패: ' + (err?.message || String(err)));
     } finally {
       setStatus('idle');
     }
