@@ -38,6 +38,7 @@ function App() {
     setErrorMessage,
     setConnectedRemoteId,
     addMessage,
+    clearMessages,
     resetCallState,
     getMessagesForApi,
   } = useChatStore();
@@ -79,6 +80,7 @@ function App() {
     setChatIdInput('');
     sessionInfoRef.current = null;
     finalizeOnceRef.current = false;
+    clearMessages();
 
     try {
       if (peerRef.current) {
@@ -175,49 +177,65 @@ function App() {
       let summary = '';
       let stt = null;
 
-      // NOTE: blob 변수는 사용하지 않음(Blobs 객체로 통합)
+      // 1) 요약 API 호출 (실패해도 DB 저장은 계속 진행)
       if (apiUrl && (hadAudioOrVideoBlob || messages.length > 0)) {
-        const form = new FormData();
-        // STT 분리 업로드: 상담사 화면(local=cnsler, remote=user)
-        if (blobs?.remoteAudioBlob)
-          form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
-        if (blobs?.localAudioBlob)
-          form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
-        // 폴백: 하나라도 없으면 혼합/단일 음성으로 업로드
-        if (
-          !blobs?.remoteAudioBlob &&
-          !blobs?.localAudioBlob &&
-          blobs?.mixedAudioBlob
-        ) {
-          const b = blobs.mixedAudioBlob;
-          form.append(
-            'audio',
-            b,
-            b.type?.includes('audio') ? 'audio.webm' : 'recording.webm',
-          );
-        }
-        form.append('msg_data', JSON.stringify(messages));
-        const res = await fetch(`${apiUrl}/api/summarize`, {
-          method: 'POST',
-          body: form,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          transcript = data.transcript ?? '';
-          summary = data.summary ?? '';
-          stt = data.stt ?? null;
+        try {
+          const form = new FormData();
+          // STT 분리 업로드: 상담사 화면(local=cnsler, remote=user)
+          if (blobs?.remoteAudioBlob)
+            form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
+          if (blobs?.localAudioBlob)
+            form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+          // 폴백: 둘 다 없으면 혼합/단일 음성으로 업로드
+          if (
+            !blobs?.remoteAudioBlob &&
+            !blobs?.localAudioBlob &&
+            blobs?.mixedAudioBlob
+          ) {
+            const b = blobs.mixedAudioBlob;
+            form.append(
+              'audio',
+              b,
+              b.type?.includes('audio') ? 'audio.webm' : 'recording.webm',
+            );
+          }
+          form.append('msg_data', JSON.stringify(messages));
+          const res = await fetch(`${apiUrl}/api/summarize`, {
+            method: 'POST',
+            body: form,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            transcript = data.transcript ?? '';
+            summary = data.summary ?? '';
+            stt = data.stt ?? null;
+          } else {
+            console.warn('요약 API 실패 상태코드:', res.status);
+            summary ||= '(요약 실패: 요약 서버 응답 오류)';
+          }
+        } catch (apiErr) {
+          console.warn('요약 API 호출 중 오류:', apiErr);
+          summary ||= '(요약 실패: 요약 서버 호출 오류)';
         }
       } else if (apiUrl && messages.length > 0) {
-        const res = await fetch(`${apiUrl}/api/summarize-text`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: messages.map((m) => m?.text ?? '').join('\n'),
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          summary = data.summary ?? '';
+        try {
+          const res = await fetch(`${apiUrl}/api/summarize-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: messages.map((m) => m?.text ?? '').join('\n'),
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            summary = data.summary ?? '';
+          } else {
+            console.warn('텍스트 요약 API 실패 상태코드:', res.status);
+            summary ||= '(요약 실패: 텍스트 요약 서버 응답 오류)';
+          }
+        } catch (apiErr) {
+          console.warn('텍스트 요약 API 호출 중 오류:', apiErr);
+          summary ||= '(요약 실패: 텍스트 요약 서버 호출 오류)';
         }
       }
 
