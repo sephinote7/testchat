@@ -37,14 +37,7 @@ const RecordPanel = forwardRef(function RecordPanel(
 
   const canRecord = Boolean(localStream && remoteStream && !disabled);
 
-  // 매칭(통화 연결) 시 자동 녹화 시작
-  useEffect(() => {
-    if (autoStart && canRecord && !isRecording) {
-      startRecording();
-    }
-  }, [autoStart, canRecord, isRecording, startRecording]);
-
-  // 녹화 중지 함수 (위치 이동: startRecording에서 참조하기 위함)
+  // 녹화 중지 함수 (startRecording보다 먼저 정의해 상호 참조 회피)
   const stopRecording = useCallback(() => {
     console.log('녹화 중지 시도...');
     setIsRecording(false);
@@ -231,6 +224,13 @@ const RecordPanel = forwardRef(function RecordPanel(
       console.error('녹화 시작 치명적 오류:', err);
     }
   }, [localStream, remoteStream, isRecording]);
+
+  // 매칭(통화 연결) 시 자동 녹화 시작 — startRecording 정의 이후에 배치해 TDZ 방지
+  useEffect(() => {
+    if (autoStart && canRecord && !isRecording && startRecording) {
+      startRecording();
+    }
+  }, [autoStart, canRecord, isRecording, startRecording]);
 
   // 나머지 기능들 (다운로드, 요약 전송 등)
   const downloadRecording = useCallback(() => {
