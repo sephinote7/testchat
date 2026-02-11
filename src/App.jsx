@@ -206,9 +206,8 @@ function App() {
           });
           if (res.ok) {
             const data = await res.json();
-            transcript = data.transcript ?? '';
-            summary = data.summary ?? '';
-            stt = data.stt ?? null;
+            // 백엔드가 준 '정렬된' 메시지 리스트를 그대로 Supabase에 저장
+            const msg_data = { messages: data.msg_data };
           } else {
             console.warn('요약 API 실패 상태코드:', res.status);
             summary ||= '(요약 실패: 요약 서버 응답 오류)';
