@@ -33,8 +33,16 @@ const RecordPanel = forwardRef(function RecordPanel(
   const audioChunksRef = useRef([]);
   const requestRef = useRef(null);
   const audioContextRef = useRef(null);
+  const blobForApiRef = useRef(null);
 
   const canRecord = Boolean(localStream && remoteStream && !disabled);
+
+  // 매칭(통화 연결) 시 자동 녹화 시작
+  useEffect(() => {
+    if (autoStart && canRecord && !isRecording) {
+      startRecording();
+    }
+  }, [autoStart, canRecord, isRecording, startRecording]);
 
   // 녹화 중지 함수 (위치 이동: startRecording에서 참조하기 위함)
   const stopRecording = useCallback(() => {
@@ -68,6 +76,7 @@ const RecordPanel = forwardRef(function RecordPanel(
       console.log('녹화 프로세스 시작...');
       chunksRef.current = [];
       audioChunksRef.current = [];
+      blobForApiRef.current = null;
 
       // 1. AudioContext 생성
       const audioContext = new (
@@ -190,8 +199,11 @@ const RecordPanel = forwardRef(function RecordPanel(
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
-        if (chunksRef.current.length > 0)
-          setLastBlob(new Blob(chunksRef.current, { type: 'video/webm' }));
+        if (chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+          setLastBlob(blob);
+          if (!blobForApiRef.current) blobForApiRef.current = blob;
+        }
       };
 
       if (hasAudio) {
@@ -202,10 +214,11 @@ const RecordPanel = forwardRef(function RecordPanel(
           if (e.data.size > 0) audioChunksRef.current.push(e.data);
         };
         audioRecorder.onstop = () => {
-          if (audioChunksRef.current.length > 0)
-            setLastAudioBlob(
-              new Blob(audioChunksRef.current, { type: 'audio/webm' }),
-            );
+          if (audioChunksRef.current.length > 0) {
+            const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            setLastAudioBlob(blob);
+            blobForApiRef.current = blob;
+          }
         };
         audioRecorder.start(1000);
         audioRecorderRef.current = audioRecorder;
@@ -284,9 +297,17 @@ const RecordPanel = forwardRef(function RecordPanel(
   useImperativeHandle(ref, () => ({
     stopRecordingAndGetBlob: async () => {
       stopRecording();
-      // 중지 후 Blob이 생성될 때까지 약간의 대기 시간을 가짐
       return new Promise((resolve) => {
-        setTimeout(() => resolve(lastAudioBlob || lastBlob), 500);
+        const deadline = Date.now() + 2000;
+        const tick = () => {
+          if (blobForApiRef.current) {
+            resolve(blobForApiRef.current);
+            return;
+          }
+          if (Date.now() < deadline) setTimeout(tick, 150);
+          else resolve(null);
+        };
+        setTimeout(tick, 200);
       });
     },
   }));

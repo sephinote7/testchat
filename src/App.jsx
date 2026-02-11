@@ -47,8 +47,10 @@ function App() {
   const dataConnRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const recordPanelRef = useRef(null);
 
   const isConnected = status === 'connected';
+  const isCnsler = profile?.role === 'cnsler' || profile?.role === 'counsellor';
 
   // 1. 프로필 및 세션 관리
   useEffect(() => {
@@ -197,12 +199,19 @@ function App() {
       setStatus('connecting');
       const { data, error } = await supabase
         .from('chat_msg')
-        .select('cnsler_id, member_id')
+        .select('chat_id, cnsl_id, cnsler_id, member_id')
         .eq('chat_id', inputId)
         .single();
 
       if (error || !data)
         throw new Error('방 번호가 잘못되었거나 존재하지 않습니다.');
+
+      sessionInfoRef.current = {
+        chat_id: data.chat_id,
+        cnsl_id: data.cnsl_id,
+        member_id: data.member_id,
+        cnsler_id: data.cnsler_id,
+      };
 
       // 2. 상대방 ID 결정 (내 이메일과 비교하여 내가 아닌 쪽을 선택)
       // Supabase에서 숫자로 올 수 있으므로 항상 문자열로 변환
@@ -266,34 +275,97 @@ function App() {
     }
   };
 
-  // 5. 통화 종료 및 요약
+  // 5. 통화 종료: 녹화 Blob + 채팅 → API 요약 → msg_data(채팅+STT) + summary(200자) Supabase 저장
   const endCall = async () => {
+    const session = sessionInfoRef.current;
+    const chatId = session?.chat_id ?? (chatIdInput ? parseInt(chatIdInput, 10) || chatIdInput : null);
+    const messages = getMessagesForApi() ?? [];
+
+    let blob = null;
+    if (recordPanelRef.current?.stopRecordingAndGetBlob) {
+      blob = await recordPanelRef.current.stopRecordingAndGetBlob();
+    }
+
     if (currentCallRef.current) currentCallRef.current.close();
     if (dataConnRef.current) dataConnRef.current.close();
-
-    const messages = getMessagesForApi();
     setRemoteStream(null);
     resetCallState();
 
-    // getMessagesForApi()는 배열 반환 — 문자열로 합쳐서 요약 API에 전달
-    const fullText = Array.isArray(messages)
-      ? messages.map((m) => (m && m.text) || '').join('\n')
-      : '';
-    if (fullText.trim()) {
-      setStatus('summarizing');
-      try {
-        const response = await fetch(`${SUMMARY_API_URL}/api/summarize-text`, {
+    const buildMsgDataMessages = (chatList, transcript) => {
+      const list = [];
+      for (const m of chatList) {
+        if (!m?.text) continue;
+        const speaker = m.from === 'me' ? (isCnsler ? 'assistant' : 'user') : (isCnsler ? 'user' : 'assistant');
+        list.push({
+          type: 'chat',
+          speaker,
+          text: m.text,
+          timestamp: new Date(m.time ?? Date.now()).toISOString(),
+        });
+      }
+      if (transcript && transcript.trim()) {
+        list.push({
+          type: 'stt',
+          speaker: 'user',
+          text: transcript.trim(),
+          timestamp: new Date().toISOString(),
+        });
+      }
+      list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      return list;
+    };
+
+    setStatus('summarizing');
+    try {
+      const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
+      let transcript = '';
+      let summary = '';
+
+      if (apiUrl && (blob || messages.length > 0)) {
+        const form = new FormData();
+        if (blob) form.append('audio', blob, blob.type?.includes('audio') ? 'audio.webm' : 'recording.webm');
+        form.append('msg_data', JSON.stringify(messages));
+        const res = await fetch(`${apiUrl}/api/summarize`, { method: 'POST', body: form });
+        if (res.ok) {
+          const data = await res.json();
+          transcript = data.transcript ?? '';
+          summary = (data.summary ?? '').slice(0, 200);
+        }
+      } else if (apiUrl && messages.length > 0) {
+        const res = await fetch(`${apiUrl}/api/summarize-text`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: fullText }),
+          body: JSON.stringify({ text: messages.map((m) => m?.text ?? '').join('\n') }),
         });
-        const result = await response.json();
-        setSummaryResult(result.summary || '요약 결과가 없습니다.');
-      } catch (err) {
-        setSummaryResult('요약 서버 연결 실패');
+        if (res.ok) {
+          const data = await res.json();
+          summary = (data.summary ?? '').slice(0, 200);
+        }
       }
-      setStatus('idle');
+
+      const msg_data = { messages: buildMsgDataMessages(messages, transcript) };
+      if (supabase && chatId != null && session) {
+        const role = isCnsler ? 'cnsler' : 'user';
+        const { error } = await supabase.from('chat_msg').upsert(
+          {
+            chat_id: session.chat_id,
+            cnsl_id: session.cnsl_id ?? null,
+            member_id: session.member_id ?? '',
+            cnsler_id: session.cnsler_id ?? '',
+            role,
+            msg_data,
+            summary: summary || '(요약 없음)',
+          },
+          { onConflict: 'chat_id' }
+        );
+        if (error) console.warn('chat_msg 저장 실패:', error);
+      }
+
+      setSummaryResult(summary || '요약 결과가 없습니다.');
+    } catch (err) {
+      setSummaryResult('요약/저장 실패: ' + (err?.message || err));
     }
+    setStatus('idle');
   };
 
   // 비디오 태그 연결
@@ -338,10 +410,11 @@ function App() {
         />
         <button
           onClick={startCall}
-          disabled={!myId || isConnected}
+          disabled={!myId || isConnected || !isCnsler}
           className="btn-call"
+          title={!isCnsler ? '상담사(cnsler)만 통화를 걸 수 있습니다.' : ''}
         >
-          2. 통화 걸기
+          2. 통화 걸기 {!isCnsler && '(상담사만 가능)'}
         </button>
         <button onClick={endCall} disabled={!isConnected} className="btn-end">
           통화 종료
@@ -378,9 +451,11 @@ function App() {
       )}
 
       <RecordPanel
+        ref={recordPanelRef}
         localStream={localStream}
         remoteStream={remoteStream}
         disabled={!isConnected}
+        autoStart={isConnected}
       />
     </div>
   );
