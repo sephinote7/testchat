@@ -54,6 +54,45 @@ function App() {
   const isCnsler = profile?.role === 'cnsler' || profile?.role === 'counsellor';
   const isMember = Boolean(profile) && !isCnsler;
 
+  const handleLogout = async () => {
+    try {
+      if (isConnected) {
+        await endCall({ sendSignal: true });
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      localStream?.getTracks?.().forEach((t) => t.stop());
+    } catch {
+      // ignore
+    }
+    try {
+      remoteStream?.getTracks?.().forEach((t) => t.stop());
+    } catch {
+      // ignore
+    }
+    setLocalStream(null);
+    setRemoteStream(null);
+    setSummaryResult('');
+    setChatIdInput('');
+    sessionInfoRef.current = null;
+    finalizeOnceRef.current = false;
+
+    try {
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
+    } catch {
+      // ignore
+    }
+
+    await supabase.auth.signOut();
+    setProfile(null);
+  };
+
   const finalizeAndSaveOnce = async () => {
     if (finalizeOnceRef.current) return;
     finalizeOnceRef.current = true;
@@ -80,35 +119,48 @@ function App() {
 
     const buildMsgDataMessages = (chatList, sttList, transcriptFallback) => {
       const list = [];
+      const lastTimeBySpeaker = { user: null, cnsler: null };
+
       for (const m of chatList) {
         if (!m?.text) continue;
         // 저장은 상담사 화면에서만 하므로: me=cnsler, remote=user
         const speaker = m.from === 'me' ? 'cnsler' : 'user';
+        const t = typeof m.time === 'number' ? m.time : Date.now();
+        lastTimeBySpeaker[speaker] =
+          lastTimeBySpeaker[speaker] == null
+            ? t
+            : Math.max(lastTimeBySpeaker[speaker], t);
         list.push({
           type: 'chat',
           speaker,
           text: m.text,
-          timestamp: new Date(m.time ?? Date.now()).toISOString(),
+          timestamp: new Date(t).toISOString(),
         });
       }
       // 요구사항: chat + 음성(STT) 둘 다 msg_data.messages에 포함
       const base = Date.now();
       if (Array.isArray(sttList) && sttList.length > 0) {
-        sttList.forEach((s, i) => {
+        let seq = 0;
+        sttList.forEach((s) => {
+          const sp = s?.speaker === 'cnsler' ? 'cnsler' : 'user';
+          const anchor = lastTimeBySpeaker[sp] ?? base;
+          const ts = anchor + (++seq);
           list.push({
             type: 'stt',
-            speaker: s?.speaker === 'cnsler' ? 'cnsler' : 'user',
+            speaker: sp,
             text: (s?.text && String(s.text).trim()) || '(음성 인식 결과 없음)',
-            timestamp: new Date(base + i).toISOString(),
+            // 각 화자의 마지막 채팅 직후로 배치해 타임라인에 자연스럽게 끼워 넣기
+            timestamp: new Date(ts).toISOString(),
           });
         });
       } else if (hadAudioOrVideoBlob) {
         // 백엔드 구버전/단일 STT 호환
+        const anchor = lastTimeBySpeaker.user ?? base;
         list.push({
           type: 'stt',
           speaker: 'user',
           text: (transcriptFallback && transcriptFallback.trim()) || '(음성 인식 결과 없음)',
-          timestamp: new Date(base).toISOString(),
+          timestamp: new Date(anchor + 1).toISOString(),
         });
       }
       list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -122,7 +174,8 @@ function App() {
       let summary = '';
       let stt = null;
 
-      if (apiUrl && (blob || messages.length > 0)) {
+      // NOTE: blob 변수는 사용하지 않음(Blobs 객체로 통합)
+      if (apiUrl && (hadAudioOrVideoBlob || messages.length > 0)) {
         const form = new FormData();
         // STT 분리 업로드: 상담사 화면(local=cnsler, remote=user)
         if (blobs?.remoteAudioBlob) form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
@@ -524,6 +577,11 @@ function App() {
 
   return (
     <div className="app">
+      <div className="top-right-actions">
+        <button type="button" className="logout-btn" onClick={handleLogout}>
+          로그아웃
+        </button>
+      </div>
       <h1>AI 화상 채팅</h1>
 
       <div className="status-info">
