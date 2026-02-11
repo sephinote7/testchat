@@ -20,11 +20,6 @@ const RecordPanel = forwardRef(function RecordPanel(
   const [isRecording, setIsRecording] = useState(false);
   const [lastBlob, setLastBlob] = useState(null);
   const [lastAudioBlob, setLastAudioBlob] = useState(null);
-  const [summaryApiUrl, setSummaryApiUrl] = useState(
-    () => import.meta.env.VITE_SUMMARY_API_URL || '',
-  );
-  const [summaryResult, setSummaryResult] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // 레코더 및 데이터 참조
   const mediaRecorderRef = useRef(null);
@@ -60,6 +55,13 @@ const RecordPanel = forwardRef(function RecordPanel(
       cancelAnimationFrame(requestRef.current);
     }
   }, []);
+
+  // 통화가 끊기면 자동으로 녹화 중지
+  useEffect(() => {
+    if ((!autoStart || !canRecord) && isRecording) {
+      stopRecording();
+    }
+  }, [autoStart, canRecord, isRecording, stopRecording]);
 
   // 녹화 시작 함수
   const startRecording = useCallback(async () => {
@@ -243,56 +245,6 @@ const RecordPanel = forwardRef(function RecordPanel(
     URL.revokeObjectURL(url);
   }, [lastBlob]);
 
-  const sendForSummary = useCallback(async () => {
-    const blobToSend = lastAudioBlob || lastBlob;
-    if (!blobToSend) {
-      alert('녹화된 데이터가 없습니다.');
-      return;
-    }
-
-    console.log(
-      '서버로 전송 시도... 크기:',
-      (blobToSend.size / 1024).toFixed(1),
-      'KB',
-    );
-
-    setSummaryLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('audio', blobToSend, 'audio.webm');
-
-      const res = await fetch(
-        `${summaryApiUrl.replace(/\/$/, '')}/api/summarize`,
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
-
-      const data = await res.json();
-      console.log('서버 응답 결과:', data); // 서버가 왜 분석 내용이 없다고 했는지 힌트가 있을 수 있음
-
-      if (data.summary) {
-        setSummaryResult(data);
-      } else {
-        setSummaryResult({
-          summary: '분석할 내용이 없습니다. (서버 응답 빈값)',
-        });
-      }
-    } catch (err) {
-      console.error('전송 에러:', err);
-      setSummaryResult({ summary: `요약 실패: ${err.message}` });
-    } finally {
-      setSummaryLoading(false);
-    }
-  }, [lastBlob, lastAudioBlob, summaryApiUrl]);
-
-  const clearLast = () => {
-    setLastBlob(null);
-    setLastAudioBlob(null);
-    setSummaryResult(null);
-  };
-
   // 외부(App.js)에서 제어하기 위한 ref 노출
   useImperativeHandle(ref, () => ({
     stopRecordingAndGetBlob: async () => {
@@ -314,29 +266,12 @@ const RecordPanel = forwardRef(function RecordPanel(
 
   return (
     <section className="record-panel">
-      <h3>화면 합성 녹화 / 요약</h3>
+      <h3>화면 합성 녹화</h3>
       <p className="record-hint">
-        내 화면과 상대 화면을 합쳐 녹화하며, 요약은 저용량 음성으로 전송됩니다.
+        통화 연결 시 자동으로 녹화되며, 통화 종료 시 다운로드가 활성화됩니다.
       </p>
 
-      <div className="record-actions">
-        <button
-          type="button"
-          onClick={startRecording}
-          disabled={!canRecord || isRecording}
-          className={`record-btn ${isRecording ? 'recording' : 'record-btn--start'}`}
-        >
-          {isRecording ? '🔴 녹화 중...' : '🎥 녹화 시작'}
-        </button>
-        <button
-          type="button"
-          onClick={stopRecording}
-          disabled={!isRecording}
-          className="record-btn record-btn--stop"
-        >
-          녹화 중지
-        </button>
-      </div>
+      {isRecording && <div className="recording-indicator">🔴 녹화 중...</div>}
 
       {(lastBlob || lastAudioBlob) && (
         <div className="record-result fade-in">
@@ -363,32 +298,7 @@ const RecordPanel = forwardRef(function RecordPanel(
             >
               PC에 고화질 저장
             </button>
-            <div className="summary-input-group">
-              <input
-                type="url"
-                value={summaryApiUrl}
-                onChange={(e) => setSummaryApiUrl(e.target.value)}
-                placeholder="https://your-api.render.com"
-              />
-              <button
-                type="button"
-                onClick={sendForSummary}
-                disabled={summaryLoading}
-              >
-                {summaryLoading ? 'AI 분석 중...' : 'AI 요약 받기'}
-              </button>
-            </div>
           </div>
-          <button type="button" className="record-clear" onClick={clearLast}>
-            새로고침
-          </button>
-        </div>
-      )}
-
-      {summaryResult && (
-        <div className="summary-display">
-          <h4>✨ AI 대화 요약 결과</h4>
-          <p>{summaryResult.summary}</p>
         </div>
       )}
     </section>
