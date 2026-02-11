@@ -100,73 +100,53 @@ function App() {
     finalizeOnceRef.current = true;
 
     const session = sessionInfoRef.current;
-    const messages = getMessagesForApi() ?? [];
+    const messages = getMessagesForApi() ?? []; // 현재 채팅 메시지들
 
-    if (!isCnsler) {
-      setSummaryResult('');
-      return;
-    }
+    if (!isCnsler) return; // 상담사가 아니면 종료
 
     setStatus('summarizing');
 
     try {
-      const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
-      let summary = '';
-      let final_messages_payload = null;
-
-      // 1. RecordPanel로부터 녹화 파일(Blobs) 가져오기 (이미 대기 로직 포함됨)
+      // 1. 녹음 데이터 가져오기 (RecordPanel에서 제공하는 함수)
       let blobs = null;
       if (recordPanelRef.current?.stopRecordingAndGetBlobs) {
         blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
       }
 
-      // 2. 요약 API 호출
-      if (apiUrl) {
-        const form = new FormData();
-        if (blobs?.remoteAudioBlob)
-          form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
-        if (blobs?.localAudioBlob)
-          form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+      // 2. FormData 구성 (백엔드 필드명과 일치시켜야 함!)
+      const form = new FormData();
+      if (blobs?.remoteAudioBlob) {
+        form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
+      }
+      if (blobs?.localAudioBlob) {
+        form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
+      }
+      form.append('msg_data', JSON.stringify(messages));
 
-        // 채팅 데이터 추가
-        form.append('msg_data', JSON.stringify(messages));
+      // 3. API 호출
+      const res = await fetch(`${API_URL}/api/summarize`, {
+        method: 'POST',
+        body: form,
+      });
 
-        const res = await fetch(`${apiUrl}/api/summarize`, {
-          method: 'POST',
-          body: form,
-        });
+      if (res.ok) {
+        const data = await res.json();
 
-        if (res.ok) {
-          const data = await res.json();
-          // [수정] 백엔드가 정렬해서 보내준 데이터를 변수에 담습니다.
-          summary = data.summary;
-          final_messages_payload = { messages: data.msg_data };
-        } else {
-          summary = '(요약 실패: 서버 응답 오류)';
+        // 4. Supabase DB 업데이트 (백엔드가 준 msg_data와 summary 저장)
+        if (supabase && session?.chat_id) {
+          await supabase
+            .from('chat_msg')
+            .update({
+              role: 'cnsler',
+              msg_data: { messages: data.msg_data }, // 정렬된 데이터
+              summary: data.summary,
+            })
+            .eq('chat_id', session.chat_id);
         }
+        setSummaryResult(data.summary);
       }
-
-      // 3. DB 저장 (최종 정렬된 데이터 사용)
-      if (supabase && session?.chat_id != null) {
-        const payload = {
-          role: 'cnsler',
-          // 백엔드 데이터가 있으면 그것을 쓰고, 없으면 기존 buildMsgDataMessages 사용
-          msg_data: final_messages_payload || {
-            messages: buildMsgDataMessages(messages, null, ''),
-          },
-          summary: summary || '(요약 없음)',
-        };
-
-        await supabase
-          .from('chat_msg')
-          .update(payload)
-          .eq('chat_id', session.chat_id);
-      }
-
-      setSummaryResult(summary || '요약 결과가 없습니다.');
     } catch (err) {
-      console.error('최종 저장 중 오류:', err);
-      setSummaryResult('저장 실패: ' + err.message);
+      console.error('최종 저장 실패:', err);
     } finally {
       setStatus('idle');
     }
