@@ -68,10 +68,15 @@ const VisualChat = () => {
   const [summary, setSummary] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [mediaStream, setMediaStream] = useState(null);
+  const [deviceError, setDeviceError] = useState(false);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const videoRefMobile = useRef(null);
   const videoRefPc = useRef(null);
+
+  // 하단 채팅 상태
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
 
   useEffect(() => {
     const init = async () => {
@@ -260,10 +265,32 @@ const VisualChat = () => {
   };
 
   const handleStartCall = async () => {
-    if (!isMeSystem || isCallActive) return;
+    if (!isMeSystem || isCallActive || deviceError) return;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      let stream = null;
+      let canRecordAudio = true;
+
+      try {
+        // 1차 시도: 오디오 + 비디오
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      } catch (err) {
+        console.warn('오디오+비디오 장치 요청 실패, 비디오만으로 재시도:', err);
+        try {
+          // 2차 시도: 비디오만 (카메라만 있어도 동작하도록)
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          canRecordAudio = false;
+        } catch (videoErr) {
+          console.error('비디오 장치 요청도 실패:', videoErr);
+          setDeviceError(true);
+          setErrorMsg('사용 가능한 카메라/마이크 장치를 찾을 수 없습니다.');
+          setIsCallActive(false);
+          setIsRecording(false);
+          setMediaStream(null);
+          return;
+        }
+      }
+
       setMediaStream(stream);
       setIsCallActive(true);
       setSummary('');
@@ -271,7 +298,8 @@ const VisualChat = () => {
 
       attachStreamToVideos(stream);
 
-      if (typeof MediaRecorder !== 'undefined') {
+      // 오디오 장치가 있는 경우에만 녹음 시도
+      if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
         const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
         recordedChunksRef.current = [];
         recorder.ondataavailable = (event) => {
@@ -291,7 +319,13 @@ const VisualChat = () => {
       }
     } catch (error) {
       console.error('통화 시작 실패:', error);
-      setErrorMsg('통화 시작 중 오류가 발생했습니다.');
+      // 장치 없음 에러는 한 번만 안내
+      if (error?.name === 'NotFoundError' || String(error?.message || '').includes('Requested device')) {
+        setDeviceError(true);
+        setErrorMsg('사용 가능한 카메라/마이크 장치를 찾을 수 없습니다.');
+      } else {
+        setErrorMsg('통화 시작 중 오류가 발생했습니다.');
+      }
       setIsCallActive(false);
       setIsRecording(false);
       setMediaStream(null);
@@ -330,7 +364,16 @@ const VisualChat = () => {
         formData.append('audio_user', blob, 'user.webm');
       }
 
+      // 채팅 메시지(텍스트)와 함께 요약 API로 전달
+      const chatLogsPayload = chatMessages.map((msg) => ({
+        type: 'chat',
+        speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
+        text: msg.text,
+        timestamp: String(msg.timestamp || Date.now()),
+      }));
+
       const msgPayload = [
+        ...chatLogsPayload,
         {
           type: 'chat',
           speaker: isMeSystem ? 'cnsler' : 'user',
@@ -366,6 +409,24 @@ const VisualChat = () => {
     navigate(`/chat/visualchat/${trimmed}`);
   };
 
+  const handleChatSubmit = (event) => {
+    event.preventDefault();
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+
+    const now = Date.now();
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `local-${now}`,
+        role: me.role, // 'USER' 또는 'SYSTEM'
+        text: trimmed,
+        timestamp: now,
+      },
+    ]);
+    setChatInput('');
+  };
+
   return (
     <>
       {/* MOBILE 레이아웃: 가로 390 기준, 컨텐츠 폭 358 근처 */}
@@ -375,25 +436,27 @@ const VisualChat = () => {
           화상 상담
         </header>
 
-        {/* 메인: 채팅 ID 입력 + 상대 정보 + 영상 */}
+        {/* 메인: 채팅 ID 입력(상담사만) + 상대 정보 + 영상 */}
         <main className="flex-1 flex flex-col px-[16px] pt-4 pb-24 gap-4">
-          {/* 채팅 ID 연결 */}
-          <section className="flex items-center gap-2">
-            <input
-              type="text"
-              value={chatIdInput}
-              onChange={(event) => setChatIdInput(event.target.value)}
-              placeholder="채팅 ID를 입력하세요"
-              className="flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-[12px] bg-white"
-            />
-            <button
-              type="button"
-              onClick={handleChatIdConnect}
-              className="h-9 px-3 rounded-[10px] bg-main-02 text-white text-[12px] font-semibold"
-            >
-              연결
-            </button>
-          </section>
+          {/* 채팅 ID 연결 - SYSTEM(상담사)만 노출 */}
+          {isMeSystem && (
+            <section className="flex items-center gap-2">
+              <input
+                type="text"
+                value={chatIdInput}
+                onChange={(event) => setChatIdInput(event.target.value)}
+                placeholder="채팅 ID를 입력하세요"
+                className="flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-[12px] bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleChatIdConnect}
+                className="h-9 px-3 rounded-[10px] bg-main-02 text-white text-[12px] font-semibold"
+              >
+                연결
+              </button>
+            </section>
+          )}
 
           {/* 상대 정보 + 영상 */}
           <section className="flex-1 flex flex-col gap-3">
@@ -436,6 +499,46 @@ const VisualChat = () => {
                 muted
               />
             </div>
+
+            {/* 하단 채팅 영역 */}
+            <section className="mt-2 flex flex-col gap-2 h-40">
+              <div className="flex-1 overflow-y-auto border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]">
+                {chatMessages.length === 0 ? (
+                  <p className="text-[11px] text-[#9ca3af]">여기에 채팅이 표시됩니다.</p>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {chatMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`text-[11px] ${
+                          msg.role === me.role ? 'text-right' : 'text-left'
+                        }`}
+                      >
+                        <span className="font-semibold mr-1">
+                          {msg.role === 'USER' ? 'USER' : 'SYSTEM'}
+                        </span>
+                        <span className="text-[#4b5563]">{msg.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <form onSubmit={handleChatSubmit} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="메시지를 입력하세요"
+                  className="flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-[12px] bg-white"
+                />
+                <button
+                  type="submit"
+                  className="h-9 px-3 rounded-[10px] bg-main-02 text-white text-[12px] font-semibold"
+                >
+                  전송
+                </button>
+              </form>
+            </section>
           </section>
         </main>
 
@@ -454,19 +557,7 @@ const VisualChat = () => {
                   : 'bg-[#e5e7eb] text-[#9ca3af] cursor-not-allowed'
               }`}
             >
-              {isCallActive ? '통화 종료' : '통화 시작'}
-            </button>
-            <button
-              type="button"
-              className="w-10 h-10 rounded-full bg-[#e5e7eb] text-[#111827] text-[12px] font-semibold"
-            >
-              Mic
-            </button>
-            <button
-              type="button"
-              className="w-10 h-10 rounded-full bg-[#e5e7eb] text-[#111827] text-[12px] font-semibold"
-            >
-              Cam
+              {isCallActive ? '통화 종료' : isMeSystem ? '통화 시작' : '상담사만 통화 시작 가능'}
             </button>
           </div>
         </footer>
@@ -504,25 +595,27 @@ const VisualChat = () => {
             </div>
           </header>
 
-          {/* 채팅 ID 입력 영역 */}
-          <div className="px-8 pt-4">
-            <div className="w-full max-w-[1400px] mx-auto flex items-center gap-3">
-              <input
-                type="text"
-                value={chatIdInput}
-                onChange={(event) => setChatIdInput(event.target.value)}
-                placeholder="채팅 ID를 입력하세요"
-                className="flex-1 h-10 rounded-xl border border-gray-300 px-3 text-sm bg-white"
-              />
-              <button
-                type="button"
-                onClick={handleChatIdConnect}
-                className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold shadow-sm"
-              >
-                연결
-              </button>
+          {/* 채팅 ID 입력 영역 - SYSTEM(상담사)만 노출 */}
+          {isMeSystem && (
+            <div className="px-8 pt-4">
+              <div className="w-full max-w-[1400px] mx-auto flex items-center gap-3">
+                <input
+                  type="text"
+                  value={chatIdInput}
+                  onChange={(event) => setChatIdInput(event.target.value)}
+                  placeholder="채팅 ID를 입력하세요"
+                  className="flex-1 h-10 rounded-xl border border-gray-300 px-3 text-sm bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleChatIdConnect}
+                  className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold shadow-sm"
+                >
+                  연결
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 메인 컨텐츠: 상대 정보 + 영상 */}
           <main className="flex-1 flex items-center justify-center py-8">
