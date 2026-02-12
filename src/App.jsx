@@ -1,573 +1,298 @@
-import { useState, useEffect, useRef } from 'react';
-import Peer from 'peerjs';
-import { useChatStore } from './store/useChatStore';
-import { supabase } from './lib/supabase';
-import Auth from './components/Auth';
-import ChatPanel from './components/ChatPanel';
-import RecordPanel from './components/RecordPanel';
-import './App.css';
+import React from 'react';
+import { Route, Routes } from 'react-router-dom';
+import Home from './pages/common/home/Home';
+import Chat from './pages/user/chat/Chat';
+import Board from './pages/user/board/Board';
+import Info from './pages/user/info/Info';
+import Member from './pages/common/member/Member';
+import MyPage from './pages/common/mypage/MyPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import FloatingChatbot from './components/FloatingChatbot';
+import Alarm from './pages/admin/Alarm';
+import Statistics from './pages/admin/Statistics';
+import Admin from './pages/admin/Admin';
+import AdminActivities from './pages/admin/AdminActivities';
+import EditAdminInfo from './pages/admin/EditAdminInfo';
+import DashBoard from './pages/admin/DashBoard';
+import EditInfo from './pages/system/info/EditInfo';
+import MyCounsel from './pages/system/info/MyCounsel';
+import MyCounselDetail from './pages/system/info/MyCounselDetail';
+import MyCounselHistory from './pages/system/info/MyCounselHistory';
+import MyCounselReservations from './pages/system/info/MyCounselReservations';
+import About from './pages/system/info/About';
+import CounselorDefaultPage from './pages/system/info/CounselorDefaultPage';
+import CounselorProfile from './pages/system/info/CounselorProfile';
+import ReviewDetail from './pages/system/info/ReviewDetail';
+import ReviewList from './pages/system/info/ReviewList';
+import EditCounselorInfo from './pages/system/info/EditCounselorInfo';
+import EditCounselorAbout from './pages/system/info/EditCounselorAbout';
+import CounselorClientChat from './pages/system/info/CounselorClientChat';
+import ScheduleManagement from './pages/system/info/ScheduleManagement';
+import RiskCaseList from './pages/system/info/RiskCaseList';
+import VisualChat from './pages/user/chat/VisualChat';
 
-// 파이썬 서버 주소 (Vercel 환경 변수 우선, 없으면 기본값)
-const SUMMARY_API_URL =
-  import.meta.env.VITE_SUMMARY_API_URL || 'https://testchatpy.onrender.com';
-
-// Peer ID 생성 함수 (특수문자 처리)
-const getSafePeerId = (email) => {
-  if (!email) return null;
-  return email
-    .toString()
-    .toLowerCase()
-    .replace(/[@]/g, '_at_')
-    .replace(/[.]/g, '_');
-};
-
-function App() {
-  const [profile, setProfile] = useState(null);
-  const [chatIdInput, setChatIdInput] = useState('');
-  const [localStream, setLocalStream] = useState(null);
-  const [remoteStream, setRemoteStream] = useState(null);
-  const [summaryResult, setSummaryResult] = useState('');
-  const sessionInfoRef = useRef(null);
-
-  const {
-    myId,
-    status,
-    errorMessage,
-    setMyId,
-    setStatus,
-    setErrorMessage,
-    setConnectedRemoteId,
-    addMessage,
-    clearMessages,
-    resetCallState,
-    getMessagesForApi,
-  } = useChatStore();
-
-  const peerRef = useRef(null);
-  const currentCallRef = useRef(null);
-  const dataConnRef = useRef(null);
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const recordPanelRef = useRef(null);
-  const finalizeOnceRef = useRef(false);
-
-  const isConnected = status === 'connected';
-  const isCnsler = profile?.role === 'cnsler' || profile?.role === 'counsellor';
-  const isMember = Boolean(profile) && !isCnsler;
-
-  const handleLogout = async () => {
-    try {
-      if (isConnected) {
-        await endCall({ sendSignal: true });
-      }
-    } catch {
-      // ignore
-    }
-
-    try {
-      localStream?.getTracks?.().forEach((t) => t.stop());
-    } catch {
-      // ignore
-    }
-    try {
-      remoteStream?.getTracks?.().forEach((t) => t.stop());
-    } catch {
-      // ignore
-    }
-    setLocalStream(null);
-    setRemoteStream(null);
-    setSummaryResult('');
-    setChatIdInput('');
-    sessionInfoRef.current = null;
-    finalizeOnceRef.current = false;
-    clearMessages();
-
-    try {
-      if (peerRef.current) {
-        peerRef.current.destroy();
-        peerRef.current = null;
-      }
-    } catch {
-      // ignore
-    }
-
-    await supabase.auth.signOut();
-    setProfile(null);
-  };
-
-  const finalizeAndSaveOnce = async () => {
-    if (finalizeOnceRef.current) return;
-    finalizeOnceRef.current = true;
-
-    const session = sessionInfoRef.current;
-    const messages = getMessagesForApi() ?? []; // 현재 채팅 메시지들
-
-    if (!isCnsler) return; // 상담사가 아니면 종료
-
-    setStatus('summarizing');
-
-    try {
-      const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
-      let apiResult = null;
-
-      // 1. 녹음 데이터 가져오기 (RecordPanel에서 제공하는 함수)
-      let blobs = null;
-      if (recordPanelRef.current?.stopRecordingAndGetBlobs) {
-        blobs = await recordPanelRef.current.stopRecordingAndGetBlobs();
-      }
-
-      // 2. 요약 API 호출 (실패해도 DB 저장은 시도)
-      if (apiUrl) {
-        try {
-          const form = new FormData();
-          if (blobs?.remoteAudioBlob) {
-            form.append('audio_user', blobs.remoteAudioBlob, 'user.webm');
-          }
-          if (blobs?.localAudioBlob) {
-            form.append('audio_cnsler', blobs.localAudioBlob, 'cnsler.webm');
-          }
-          form.append('msg_data', JSON.stringify(messages));
-
-          const res = await fetch(`${apiUrl}/api/summarize`, {
-            method: 'POST',
-            body: form,
-          });
-
-          if (res.ok) {
-            apiResult = await res.json();
-          } else {
-            console.warn('요약 API 실패 상태코드:', res.status);
-          }
-        } catch (e) {
-          console.warn('요약 API 호출 중 오류:', e);
-        }
-      } else {
-        console.warn('SUMMARY_API_URL이 설정되어 있지 않습니다.');
-      }
-
-      // 3. 최종 msg_data / summary 결정
-      const finalMessages = Array.isArray(apiResult?.msg_data)
-        ? apiResult.msg_data
-        : messages.map((m) => ({
-            type: 'chat',
-            speaker: m.from === 'me' ? 'cnsler' : 'user',
-            text: m.text,
-            timestamp: String(m.time || Date.now()),
-          }));
-
-      const finalSummary =
-        (apiResult?.summary && String(apiResult.summary)) ||
-        '(요약 없음 또는 생성 실패)';
-
-      // 4. Supabase DB 업데이트 (실패 시 콘솔에 이유 출력)
-      if (supabase && session?.chat_id) {
-        const payload = {
-          role: 'cnsler',
-          msg_data: { messages: finalMessages },
-          summary: finalSummary,
-        };
-
-        const { data: updated, error } = await supabase
-          .from('chat_msg')
-          .update(payload)
-          .eq('chat_id', session.chat_id)
-          .select('chat_id');
-
-        if (error) {
-          console.error('chat_msg 업데이트 실패:', error);
-          setErrorMessage(
-            'DB 저장 실패: ' + (error?.message || JSON.stringify(error)),
-          );
-        } else if (!updated || updated.length === 0) {
-          console.warn(
-            'chat_msg 업데이트 0건 — chat_id가 일치하는 행이 없습니다.',
-          );
-        }
-      }
-
-      // 5. 상담사 화면에 요약 표시
-      setSummaryResult(finalSummary);
-    } catch (err) {
-      console.error('최종 저장 실패:', err);
-      setSummaryResult('요약/저장 실패: ' + (err?.message || String(err)));
-    } finally {
-      setStatus('idle');
-    }
-  };
-
-  // 1. 프로필 및 세션 관리
-  useEffect(() => {
-    const fetchProfile = async (session) => {
-      if (!session?.user) return;
-      try {
-        const { data, error } = await supabase
-          .from('member')
-          .select('role, email')
-          .eq('id', session.user.id)
-          .single();
-
-        if (error) throw error;
-        if (data) {
-          setProfile({
-            id: session.user.id,
-            role: data.role,
-            email: data.email,
-          });
-        }
-      } catch (err) {
-        setErrorMessage(`프로필 로드 실패: ${err.message}`);
-      }
-    };
-
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => fetchProfile(session));
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) fetchProfile(session);
-      else setProfile(null);
-    });
-    return () => subscription?.unsubscribe();
-  }, [setErrorMessage]);
-
-  // 2. 미디어 장치 시작 (권한 획득)
-  const startMedia = async () => {
-    setErrorMessage('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' }, // 셀카 모드 우선
-        audio: true,
-      });
-      setLocalStream(stream);
-      setStatus('idle');
-    } catch (err) {
-      console.warn('마이크 제외 시도:', err);
-      try {
-        const videoOnly = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
-        setLocalStream(videoOnly);
-        setErrorMessage('마이크를 찾을 수 없어 비디오만 연결합니다.');
-        setStatus('idle');
-      } catch (videoErr) {
-        setErrorMessage('카메라 권한이 거부되었거나 장치를 찾을 수 없습니다.');
-        setStatus('error');
-      }
-    }
-  };
-
-  // 3. PeerJS 초기화 (PeerJS는 ID에 .trim() 호출하므로 반드시 문자열)
-  useEffect(() => {
-    if (!profile?.email || !localStream) return;
-    if (peerRef.current) return;
-
-    const safeId = getSafePeerId(profile.email);
-    if (!safeId) return;
-    const peer = new Peer(String(safeId), {
-      debug: 2, // 로그 수준 강화
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      },
-    });
-
-    peer.on('open', (id) => {
-      console.log('My Peer ID:', id);
-      setMyId(id);
-    });
-
-    peer.on('call', (call) => {
-      console.log('전화 수신 중...');
-      call.answer(localStream);
-      currentCallRef.current = call;
-      call.on('stream', (s) => {
-        setRemoteStream(s);
-        setStatus('connected');
-        setConnectedRemoteId(String(call.peer ?? ''));
-        finalizeOnceRef.current = false; // 새 세션 시작
-      });
-      call.on('close', () => {
-        if (dataConnRef.current) dataConnRef.current.close();
-        dataConnRef.current = null;
-        setRemoteStream(null);
-        resetCallState();
-        currentCallRef.current = null;
-        // 상대방이 끊어도 상담사 화면에서 자동 요약/저장
-        finalizeAndSaveOnce();
-      });
-      call.on('error', (err) => {
-        setErrorMessage('수신 통화 오류: ' + (err?.message || err?.type));
-      });
-    });
-
-    peer.on('connection', (conn) => {
-      dataConnRef.current = conn;
-      conn.on('data', (data) => {
-        const obj = typeof data === 'string' ? JSON.parse(data) : data;
-        // 통화 종료 제어 메시지
-        if (obj?.type === 'control' && obj?.action === 'end_call') {
-          endCall({ sendSignal: false });
-          return;
-        }
-        addMessage({
-          from: 'remote',
-          text: obj?.text ?? '',
-          time: obj?.time ?? Date.now(),
-        });
-      });
-    });
-
-    peer.on('error', (err) => {
-      setErrorMessage(`Peer 오류: ${err.type}`);
-    });
-
-    peerRef.current = peer;
-    return () => {
-      peer.destroy();
-      peerRef.current = null;
-    };
-  }, [
-    localStream,
-    profile?.email,
-    setMyId,
-    setStatus,
-    setErrorMessage,
-    setConnectedRemoteId,
-    resetCallState,
-    addMessage,
-  ]);
-
-  // 4. 통화 시작 (핵심 수정 부분)
-  const startCall = async () => {
-    if (!isCnsler) {
-      setErrorMessage('상담사(cnsler)만 통화를 걸 수 있습니다.');
-      return;
-    }
-    const peer = peerRef.current;
-    const inputId = (chatIdInput != null ? String(chatIdInput) : '').trim();
-
-    // 1. 입력값 검증
-    if (!inputId) return setErrorMessage('방 번호를 입력해주세요.');
-
-    try {
-      setStatus('connecting');
-      const { data, error } = await supabase
-        .from('chat_msg')
-        .select('chat_id, cnsl_id, cnsler_id, member_id')
-        .eq('chat_id', inputId)
-        .single();
-
-      if (error || !data)
-        throw new Error('방 번호가 잘못되었거나 존재하지 않습니다.');
-
-      sessionInfoRef.current = {
-        chat_id: data.chat_id,
-        cnsl_id: data.cnsl_id,
-        member_id: data.member_id,
-        cnsler_id: data.cnsler_id,
-      };
-
-      // 2. 상대방 ID 결정 (내 이메일과 비교하여 내가 아닌 쪽을 선택)
-      // Supabase에서 숫자로 올 수 있으므로 항상 문자열로 변환
-      const myEmail = String(profile.email || '').toLowerCase();
-      const cnslerEmail = String(data.cnsler_id ?? '').toLowerCase();
-      const memberEmail = String(data.member_id ?? '').toLowerCase();
-
-      // 내가 상담사라면 상대는 멤버, 내가 멤버라면 상대는 상담사
-      const targetEmail = myEmail === cnslerEmail ? memberEmail : cnslerEmail;
-      const remoteId = getSafePeerId(targetEmail);
-      if (!remoteId) throw new Error('상대방 ID를 생성할 수 없습니다.');
-
-      console.log(
-        '매칭 시도 -> 내 ID:',
-        getSafePeerId(myEmail),
-        '상대 ID:',
-        remoteId,
-      );
-
-      // 3. 통화 시도 (PeerJS는 ID에 .trim()을 호출하므로 반드시 문자열 전달)
-      const call = peer.call(String(remoteId), localStream);
-      currentCallRef.current = call;
-
-      // 타임아웃 설정 (10초 동안 응답 없으면 실패 처리)
-      const timeout = setTimeout(() => {
-        if (currentCallRef.current === call) {
-          setErrorMessage('상대방이 응답하지 않거나 네트워크가 불안정합니다.');
-          setStatus('idle');
-        }
-      }, 10000);
-
-      call.on('stream', (s) => {
-        clearTimeout(timeout);
-        setRemoteStream(s);
-        setStatus('connected');
-        setConnectedRemoteId(String(remoteId));
-        finalizeOnceRef.current = false; // 새 세션 시작
-        // 발신자: 채팅용 DataConnection 열기
-        const conn = peer.connect(String(remoteId));
-        dataConnRef.current = conn;
-        conn.on('open', () => {
-          conn.on('data', (data) => {
-            const obj = typeof data === 'string' ? JSON.parse(data) : data;
-            // 통화 종료 제어 메시지
-            if (obj?.type === 'control' && obj?.action === 'end_call') {
-              endCall({ sendSignal: false });
-              return;
-            }
-            addMessage({
-              from: 'remote',
-              text: obj?.text ?? '',
-              time: obj?.time ?? Date.now(),
-            });
-          });
-        });
-      });
-      call.on('close', () => {
-        if (dataConnRef.current) dataConnRef.current.close();
-        dataConnRef.current = null;
-        setRemoteStream(null);
-        resetCallState();
-        currentCallRef.current = null;
-        // 상대방이 끊어도 상담사 화면에서 자동 요약/저장
-        finalizeAndSaveOnce();
-      });
-      call.on('error', (err) => {
-        setErrorMessage('통화 오류: ' + (err?.message || err?.type));
-        setStatus('idle');
-      });
-    } catch (err) {
-      setErrorMessage(err.message);
-      setStatus('idle');
-    }
-  };
-
-  // 5. 통화 종료: 한쪽 종료 시 양쪽 종료 + 상담사 요약/저장
-  const endCall = async ({ sendSignal } = { sendSignal: true }) => {
-    // 상대에게도 종료 신호 전송 (양쪽 동시 종료)
-    if (sendSignal) {
-      try {
-        dataConnRef.current?.send({
-          type: 'control',
-          action: 'end_call',
-          time: Date.now(),
-        });
-      } catch (e) {
-        // 무시: dataConn이 없을 수 있음
-      }
-    }
-
-    // 먼저 finalize를 실행(버튼/상대 종료 모두 동일 처리)
-    await finalizeAndSaveOnce();
-
-    if (currentCallRef.current) currentCallRef.current.close();
-    if (dataConnRef.current) dataConnRef.current.close();
-    setRemoteStream(null);
-    resetCallState();
-  };
-
-  // 비디오 태그 연결
-  useEffect(() => {
-    if (localVideoRef.current && localStream)
-      localVideoRef.current.srcObject = localStream;
-  }, [localStream]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream)
-      remoteVideoRef.current.srcObject = remoteStream;
-  }, [remoteStream]);
-
-  if (!profile) return <Auth onSuccess={setProfile} />;
-
+const App = () => {
   return (
-    <div className="app">
-      <div className="top-right-actions">
-        <button type="button" className="logout-btn" onClick={handleLogout}>
-          로그아웃
-        </button>
-      </div>
-      <h1>AI 화상 채팅</h1>
+    <>
+      <Routes>
+        {/* COMMON */}
+        {/* HOME */}
+        <Route path="/" element={<Home />} />
+        {/* MEMBER */}
+        <Route path="/member/*" element={<Member />} />
+        {/* MY PAGE */}
+        <Route path="/mypage/*" element={<MyPage />} />
 
-      <div className="status-info">
-        <p>
-          접속: <b>{profile.email}</b> ({profile.role})
-        </p>
-        <p>
-          내 ID: <code>{myId || '연결 대기 중...'}</code>
-        </p>
-        {errorMessage && (
-          <p className="error-text" style={{ color: 'red' }}>
-            {errorMessage}
-          </p>
-        )}
-      </div>
-
-      <div className="controls">
-        <button onClick={startMedia} className="btn-media">
-          1. 미디어 시작
-        </button>
-        <input
-          placeholder="채팅방 ID 입력"
-          value={chatIdInput}
-          onChange={(e) => setChatIdInput(e.target.value)}
+        {/* USER */}
+        {/* CHAT (텍스트/리스트 등) */}
+        <Route
+          path="/chat/*"
+          element={
+            <ProtectedRoute allowRoles={['USER']}>
+              <Chat />
+            </ProtectedRoute>
+          }
         />
-        {isCnsler && (
-          <button
-            onClick={startCall}
-            disabled={!myId || isConnected}
-            className="btn-call"
-          >
-            2. 통화 걸기
-          </button>
-        )}
-        <button onClick={endCall} disabled={!isConnected} className="btn-end">
-          통화 종료
-        </button>
-      </div>
+        {/* VISUAL CHAT (화상 연결) */}
+        <Route
+          path="/chat/visualchat/:chatId"
+          element={
+            <ProtectedRoute allowRoles={['USER']}>
+              <VisualChat />
+            </ProtectedRoute>
+          }
+        />
+        {/* BOARD */}
+        <Route
+          path="/board/*"
+          element={
+            <ProtectedRoute allowRoles={['USER']}>
+              <Board />
+            </ProtectedRoute>
+          }
+        />
+        {/* INFO */}
+        <Route
+          path="/info/*"
+          element={
+            <ProtectedRoute allowRoles={['USER']}>
+              <Info />
+            </ProtectedRoute>
+          }
+        />
 
-      {status === 'summarizing' && <div className="loader">AI 요약 중...</div>}
+        {/* SYSTEM */}
+        {/* COUNSELOR MY PAGE */}
+        <Route
+          path="/system/mypage"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <CounselorDefaultPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* COUNSELOR PROFILE */}
+        <Route
+          path="/system/info/profile"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <CounselorProfile />
+            </ProtectedRoute>
+          }
+        />
+        {/* EDIT COUNSELOR INFO */}
+        <Route
+          path="/system/info/edit"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <EditCounselorInfo />
+            </ProtectedRoute>
+          }
+        />
+        {/* EDIT COUNSELOR ABOUT */}
+        <Route
+          path="/system/info/about"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <EditCounselorAbout />
+            </ProtectedRoute>
+          }
+        />
+        {/* SCHEDULE MANAGEMENT */}
+        <Route
+          path="/system/info/schedule"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <ScheduleManagement />
+            </ProtectedRoute>
+          }
+        />
+        {/* RISK CASE LIST */}
+        <Route
+          path="/system/info/risk-cases"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <RiskCaseList />
+            </ProtectedRoute>
+          }
+        />
+        {/* REVIEW LIST */}
+        <Route
+          path="/system/info/reviews"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <ReviewList />
+            </ProtectedRoute>
+          }
+        />
+        {/* REVIEW DETAIL */}
+        <Route
+          path="/system/info/review/:reviewId"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <ReviewDetail />
+            </ProtectedRoute>
+          }
+        />
+        {/* COUNSEL HISTORY - 활동 내역 요약 */}
+        <Route
+          path="/system/info/counsel-history"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <MyCounsel />
+            </ProtectedRoute>
+          }
+        />
+        {/* COUNSEL HISTORY LIST - 내 상담 내역 관리 */}
+        <Route
+          path="/system/info/counsel-history-list"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <MyCounselHistory />
+            </ProtectedRoute>
+          }
+        />
+        {/* OLD ROUTES - 기존 라우트 유지 */}
+        <Route
+          path="editinfo"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <EditInfo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="mycounsel"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <MyCounsel />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="mycounsel/history"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <MyCounselHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="mycounsel/reservations"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <MyCounselReservations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="mycounsel/:id"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <MyCounselDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="about/*"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <About />
+            </ProtectedRoute>
+          }
+        />
 
-      <div className="videos">
-        <div className="video-wrapper">
-          <span>내 화면</span>
-          <video ref={localVideoRef} autoPlay muted playsInline />
-        </div>
-        <div className="video-wrapper">
-          <span>상대 화면</span>
-          <video ref={remoteVideoRef} autoPlay playsInline />
-        </div>
-      </div>
+        {/* COUNSELOR CHAT WITH CLIENT */}
+        <Route
+          path="/counselor/:clientId/chat"
+          element={
+            <ProtectedRoute allowRoles={['COUNSELOR']}>
+              <CounselorClientChat />
+            </ProtectedRoute>
+          }
+        />
 
-      <ChatPanel
-        sendMessage={(text) => {
-          const time = Date.now();
-          dataConnRef.current?.send({ text, time });
-          addMessage({ from: 'me', text, time });
-        }}
-        disabled={!isConnected}
-      />
+        {/* ADMIN */}
+        {/* ADMIN MY PAGE */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
+        {/* ADMIN ACTIVITIES */}
+        <Route
+          path="/admin/activities"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <AdminActivities />
+            </ProtectedRoute>
+          }
+        />
+        {/* ADMIN INFO EDIT */}
+        <Route
+          path="/admin/edit"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <EditAdminInfo />
+            </ProtectedRoute>
+          }
+        />
+        {/* ALARM */}
+        <Route
+          path="/alarm"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <Alarm />
+            </ProtectedRoute>
+          }
+        />
+        {/* DASHBOARD */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <DashBoard />
+            </ProtectedRoute>
+          }
+        />
+        {/* STATS */}
+        <Route
+          path="/stats"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <Statistics />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
 
-      {isCnsler && summaryResult && (
-        <div className="summary-box">
-          <h3>✨ AI 대화 요약</h3>
-          <p>{summaryResult}</p>
-        </div>
-      )}
-
-      <RecordPanel
-        ref={recordPanelRef}
-        localStream={localStream}
-        remoteStream={remoteStream}
-        disabled={!isConnected}
-        autoStart={isConnected}
-        showDownload={isMember}
-      />
-    </div>
+      {/* PC 전용 플로팅 챗봇 버튼 */}
+      <FloatingChatbot />
+    </>
   );
-}
+};
 
 export default App;

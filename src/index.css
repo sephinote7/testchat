@@ -1,68 +1,300 @@
+/* import  */
+@import 'tailwindcss';
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  --font-sans: 'Pretendard', ui-sans-serif, system-ui;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Regular.woff2') format('woff2');
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-display: swap;
 }
 
-a {
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Medium.woff2') format('woff2');
   font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  font-display: swap;
 }
-a:hover {
-  color: #535bf2;
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Pretendard';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/pretendard@1.0/Pretendard-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
+/*set */
+@theme {
+  --breakpoint-xs: 475px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1500px;
+
+  --color-main-01: #f3f7ff;
+  --color-main-02: #2f80ed;
+  /* --color-light-01: #e2edff;
+  --color-light-02: #f4f8ff; */
+  --color-gray-light: #eaf1ff;
+  --color-chat: #2ed3c6;
+  --color-deep: #1f2937;
+  --color-white: #fff;
+  --color-black: #333;
+  --color-point: #ff9f43;
+  --color-point-hov: #f08c1a;
+  --color-gray-deep: #7c7c7c;
+  --color-gray-mid: #b9b9b9;
+  /* --color-gray-light: #e6e6e6; */
+}
+
+/* common settings */
+
+html,
+body {
+  overflow-x: hidden;
+  background-color: #f3f7ff;
+}
+
+/* ========================================
+   🔬 TEST: 75% ZOOM (방법 1)
+   - 마음에 들지 않으면 이 섹션 전체를 삭제하세요
+   - 되돌리려면: 아래 3줄 주석처리 또는 삭제
+   ======================================== */
+@media (min-width: 1024px) {
+  body {
+    zoom: 0.75;
+  }
+}
+/* ======================================== */
+
+/* PC 화면에서 컨텐츠는 1520px로 제한하되, #root는 전체 너비 사용 */
+@media (min-width: 1024px) {
+  body {
+    background-color: #f3f7ff;
+  }
+}
+
+/* 스크롤바 숨기기 */
+::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  font-family: var(--font-sans) !important;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* font settings */
+h2 {
+  font-size: 28px;
+  font-weight: 600;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+h3 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 18px;
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+h5 {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+p {
+  font-size: 14px;
+  font-weight: 400;
+}
+.p_md {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+input,
+.sm {
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.xs {
+  font-size: 12px;
+  font-weight: 300;
+}
+
+span {
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+
+a {
+  font-size: var(--text-base);
+  font-weight: 500;
+}
+
+.dummy {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+@media (min-width: 768px) {
+  h1 {
+    font-size: 60px; /* Ag pc_h1 */
+    font-weight: 700;
   }
-  a:hover {
-    color: #747bff;
+
+  h2 {
+    font-size: 48px; /* Ag pc_h2 */
+    font-weight: 700;
   }
-  button {
-    background-color: #f9f9f9;
+
+  h3 {
+    font-size: 40px; /* Ag pc_h3 */
+    font-weight: 600;
   }
+
+  h4 {
+    font-size: 30px; /* Ag pc_h4 */
+    font-weight: 600;
+  }
+
+  h5 {
+    font-size: 24px; /* Ag pc_h5 */
+    font-weight: 500;
+  }
+
+  h6 {
+    font-size: 18px; /* Ag pc_h6 */
+    font-weight: 500;
+  }
+
+  p,
+  a,
+  input {
+    font-size: 16px; /* Ag pc_p */
+    line-height: 20px; /* Ag pc_p */
+    font-weight: 400;
+  }
+
+  .sm {
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  .xs {
+    font-size: 12px;
+    font-weight: 400;
+  }
+}
+
+/* layout settings */
+.wrap {
+  width: 100%;
+  margin-top: 64px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-white);
+  overflow: hidden;
+}
+
+.container {
+  width: 90%;
+  max-width: 1520px;
+  margin: 0 auto;
+  padding: 0px;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .container {
+    width: 90%;
+  }
+
+  .myBg {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container {
+    width: 90%;
+  }
+
+  .myBg {
+    width: 100%;
+    overflow: visible !important;
+  }
+}
+
+/* title settings */
+.tit {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-deep);
+}
+
+/* bg-img setting */
+.myBg {
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+
+  max-width: 100vw;
+  box-sizing: border-box;
 }
