@@ -46,9 +46,9 @@ function mapMemberRow(row) {
  * />
  *
  * - chat_msg 테이블의 chat_id를 URL 파라미터(chatId)로 사용
- * - 해당 row의 member_id / cnsler_id를 기준으로
+ * - 해당 row의 member_id / cnsler_id(이메일 문자열)를 기준으로
  *   로그인 사용자가 USER 인지 SYSTEM 인지 판별
- * - member 테이블에서 두 참여자의 정보를 조회하여
+ * - member 테이블의 email 컬럼을 기준으로 두 참여자의 정보를 조회하여
  *   USER / SYSTEM 각각의 정보를 UI에 표시
  */
 const VisualChat = () => {
@@ -82,8 +82,7 @@ const VisualChat = () => {
           setLoading(false);
           return;
         }
-
-        const currentMemberId = user.id; // member.id 와 매핑된다고 가정
+        const currentEmail = user.email;
 
         // 2) chat_msg 에서 현재 채팅방 정보 조회
         const { data: chatRow, error: chatError } = await supabase
@@ -101,9 +100,9 @@ const VisualChat = () => {
 
         const { member_id, cnsler_id } = chatRow;
 
-        // 3) 로그인 사용자가 이 상담방에 속해 있는지 확인
-        const isMemberSide = member_id === currentMemberId;
-        const isCnslerSide = cnsler_id === currentMemberId;
+        // 3) 로그인 사용자가 이 상담방에 속해 있는지 확인 (이메일 기준)
+        const isMemberSide = member_id === currentEmail;
+        const isCnslerSide = cnsler_id === currentEmail;
 
         if (!isMemberSide && !isCnslerSide) {
           setErrorMsg('해당 상담방에 대한 접근 권한이 없습니다.');
@@ -111,13 +110,13 @@ const VisualChat = () => {
           return;
         }
 
-        const partnerId = isMemberSide ? cnsler_id : member_id;
+        const partnerEmail = isMemberSide ? cnsler_id : member_id;
 
-        // 4) member 테이블에서 두 참여자 정보 조회
+        // 4) member 테이블에서 두 참여자 정보 조회 (email 기준)
         const { data: memberRows, error: memberError } = await supabase
           .from('member')
-          .select('id, role, nickname, mbti, persona, profile')
-          .in('id', [currentMemberId, partnerId]);
+          .select('id, email, role, nickname, mbti, persona, profile')
+          .in('email', [currentEmail, partnerEmail]);
 
         if (memberError || !memberRows || memberRows.length < 2) {
           console.error('member 조회 실패', memberError);
@@ -126,8 +125,8 @@ const VisualChat = () => {
           return;
         }
 
-        const myRow = memberRows.find((m) => m.id === currentMemberId);
-        const partnerRow = memberRows.find((m) => m.id === partnerId);
+        const myRow = memberRows.find((m) => m.email === currentEmail);
+        const partnerRow = memberRows.find((m) => m.email === partnerEmail);
 
         if (!myRow || !partnerRow) {
           setErrorMsg('상담 참여자 정보를 찾을 수 없습니다.');
