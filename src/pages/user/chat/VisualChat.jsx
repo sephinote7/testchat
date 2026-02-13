@@ -188,6 +188,19 @@ const VisualChat = () => {
     setChatIdInput(chatId || '');
   }, [chatId]);
 
+  // 통화 시작 시 스트림을 비디오 ref에 동기화 (렌더 후 ref 준비 보장)
+  useEffect(() => {
+    if (!mediaStream) return;
+    const targets = [videoRefMobile.current, videoRefPc.current];
+    targets.forEach((el) => {
+      if (el) {
+        el.srcObject = mediaStream;
+        el.play().catch(() => {});
+      }
+    });
+    return () => {};
+  }, [mediaStream]);
+
   // 공통 로딩 / 에러 뷰
   if (loading) {
     return (
@@ -267,25 +280,29 @@ const VisualChat = () => {
   const handleStartCall = async () => {
     if (!isMeSystem || isCallActive || deviceError) return;
 
+    setErrorMsg('');
+
     try {
       let stream = null;
       let canRecordAudio = true;
 
       try {
-        // 1차 시도: 오디오 + 비디오
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        });
       } catch (err) {
-        console.warn('오디오+비디오 장치 요청 실패, 비디오만으로 재시도:', err);
+        console.warn('오디오+비디오 실패, 비디오만 재시도:', err);
         try {
-          // 2차 시도: 비디오만 (카메라만 있어도 동작하도록)
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+          });
           canRecordAudio = false;
         } catch (videoErr) {
-          console.error('비디오 장치 요청도 실패:', videoErr);
+          console.error('비디오 요청 실패:', videoErr);
           setDeviceError(true);
           setErrorMsg('사용 가능한 카메라/마이크 장치를 찾을 수 없습니다.');
           setIsCallActive(false);
-          setIsRecording(false);
           setMediaStream(null);
           return;
         }
@@ -295,7 +312,6 @@ const VisualChat = () => {
       setIsCallActive(true);
       setSummary('');
       setHasRecording(false);
-
       attachStreamToVideos(stream);
 
       // 오디오 장치가 있는 경우에만 녹음 시도
@@ -563,109 +579,85 @@ const VisualChat = () => {
         </footer>
       </div>
 
-      {/* PC 레이아웃: 가로 1920 기준, 컨텐츠 폭 1520 */}
+      {/* PC 레이아웃: 페이지 1920, 내부 컨텐츠 1520px */}
       <div className="hidden lg:flex w-full min-h-screen bg-main-01">
-        <div className="w-full max-w-[1520px] mx-auto flex flex-col">
-          {/* 상단 헤더 영역 */}
-          <header className="bg-linear-to-r from-main-02 to-[#1d4ed8] h-20 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-            <div className="w-full max-w-[1400px] flex items-center justify-between px-8">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
-                  {peer.nickname?.slice(0, 1) || '상'}
-                </div>
-                <div className="flex flex-col">
-                  <span>
-                    {peer.nickname} {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
-                  </span>
-                  <span className="text-sm font-normal opacity-90">
-                    실시간 화상 상담이 진행 중입니다.
-                  </span>
-                </div>
+        <div className="w-full max-w-[1520px] mx-auto flex flex-col px-4">
+          {/* 상단 헤더 */}
+          <header className="bg-linear-to-r from-main-02 to-[#1d4ed8] h-20 flex items-center justify-between text-white font-bold text-2xl shadow-lg rounded-t-2xl px-8">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
+                {peer.nickname?.slice(0, 1) || '상'}
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full">
-                <span
-                  className={`w-3 h-3 rounded-full ${
-                    isCallActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
-                  }`}
-                />
-                <span className="text-sm font-medium text-blue-700">
-                  {isCallActive ? '연결됨' : '대기 중'}
+              <div className="flex flex-col">
+                <span>
+                  {peer.nickname} {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
+                </span>
+                <span className="text-sm font-normal opacity-90">
+                  실시간 화상 상담이 진행 중입니다.
                 </span>
               </div>
             </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full">
+              <span
+                className={`w-3 h-3 rounded-full ${
+                  isCallActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-sm font-medium text-blue-700">
+                {isCallActive ? '연결됨' : '대기 중'}
+              </span>
+            </div>
           </header>
 
-          {/* 채팅 ID 입력 영역 - SYSTEM(상담사)만 노출 */}
+          {/* 채팅 ID 입력 - SYSTEM만 */}
           {isMeSystem && (
-            <div className="px-8 pt-4">
-              <div className="w-full max-w-[1400px] mx-auto flex items-center gap-3">
-                <input
-                  type="text"
-                  value={chatIdInput}
-                  onChange={(event) => setChatIdInput(event.target.value)}
-                  placeholder="채팅 ID를 입력하세요"
-                  className="flex-1 h-10 rounded-xl border border-gray-300 px-3 text-sm bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={handleChatIdConnect}
-                  className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold shadow-sm"
-                >
-                  연결
-                </button>
-              </div>
+            <div className="py-3 flex items-center gap-3">
+              <input
+                type="text"
+                value={chatIdInput}
+                onChange={(e) => setChatIdInput(e.target.value)}
+                placeholder="채팅 ID를 입력하세요"
+                className="flex-1 max-w-xs h-10 rounded-xl border border-gray-300 px-3 text-sm bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleChatIdConnect}
+                className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold"
+              >
+                연결
+              </button>
             </div>
           )}
 
-          {/* 메인 컨텐츠: 상대 정보 + 영상 */}
-          <main className="flex-1 flex items-center justify-center py-8">
-            <div className="w-full max-w-[1400px] h-[760px] bg-white rounded-3xl shadow-2xl flex flex-col mx-8">
-              {/* 상단 설명 영역 */}
-              <div className="bg-linear-to-r from-[#eef2ff] to-[#e0e7ff] py-5 px-8 rounded-t-3xl border-b-2 border-main-02/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-linear-to-br from-[#e9efff] to-[#d1e0ff] flex items-center justify-center text-main-02 font-bold text-2xl shadow-md">
-                      {peer.nickname?.slice(0, 1) || '상'}
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-800 mb-1">
-                        {peer.nickname} {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
-                      </h2>
-                      {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                        <p className="text-sm text-gray-600 line-clamp-2">{systemMember.profile}</p>
-                      )}
-                      {peerRoleLabel === 'USER' && peer.persona && (
-                        <p className="text-sm text-gray-600 line-clamp-2">{peer.persona}</p>
-                      )}
-                    </div>
+          {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 */}
+          <main className="flex-1 flex min-h-0 py-4">
+            <div className="w-full max-w-[1520px] flex-1 flex bg-white rounded-2xl shadow-2xl overflow-hidden flex-col">
+              <section className="flex-1 flex min-h-0 gap-4 p-4">
+                {/* 좌측 정보창 480px, 스크롤 */}
+                <div
+                  className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
+                  style={{ minHeight: 320 }}
+                >
+                  <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
+                        peerRoleLabel === 'SYSTEM'
+                          ? 'bg-[#eef2ff] text-[#4f46e5]'
+                          : 'bg-[#ecfdf5] text-[#047857]'
+                      }`}
+                    >
+                      {peerRoleLabel}
+                    </span>
+                    <span className="font-semibold text-[15px]">{peer.nickname}</span>
                   </div>
-                </div>
-              </div>
-
-              {/* 영상 + 정보 레이아웃 */}
-              <section className="flex-1 grid grid-cols-2 gap-6 px-8 py-6 bg-linear-to-b from-gray-50 to-white">
-                {/* 좌측: 상대 정보 */}
-                <div className="flex flex-col gap-4">
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 text-sm text-[#374151] shadow-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
-                          peerRoleLabel === 'SYSTEM'
-                            ? 'bg-[#eef2ff] text-[#4f46e5]'
-                            : 'bg-[#ecfdf5] text-[#047857]'
-                        }`}
-                      >
-                        {peerRoleLabel}
-                      </span>
-                      <span className="font-semibold text-[15px]">{peer.nickname}</span>
-                    </div>
+                  <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
                     {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
                       <p className="leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
                     )}
                     {peerRoleLabel === 'USER' && (
                       <>
                         {peer.mbti && (
-                          <p className="text-[12px] text-[#6b7280] mb-1">MBTI: {peer.mbti}</p>
+                          <p className="text-[12px] text-[#6b7280] mb-2">MBTI: {peer.mbti}</p>
                         )}
                         {peer.persona && (
                           <p className="leading-relaxed whitespace-pre-line">{peer.persona}</p>
@@ -675,28 +667,26 @@ const VisualChat = () => {
                   </div>
                 </div>
 
-                {/* 우측: 화상 영상 */}
-                <div className="flex flex-col gap-4">
-                  <div className="flex-1 rounded-3xl bg-[#020617] flex items-center justify-center text-white text-lg overflow-hidden">
-                    <video
-                      ref={videoRefPc}
-                      className="w-full h-full object-cover"
-                      playsInline
-                      muted
-                    />
-                  </div>
+                {/* 우측 화상 영역 (나머지 전체) */}
+                <div className="flex-1 min-w-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                  <video
+                    ref={videoRefPc}
+                    className="w-full h-full object-cover"
+                    playsInline
+                    muted
+                  />
                 </div>
               </section>
 
-              {/* 하단 컨트롤 바 + AI 요약 */}
-              <footer className="px-8 py-5 bg-white border-t-2 border-gray-100 rounded-b-3xl">
-                <div className="flex flex-col gap-4 max-w-[900px] mx-auto">
-                  <div className="flex items-center justify-center gap-4">
+              {/* 하단: 통화 버튼 + 채팅 영역 + AI 요약 */}
+              <footer className="border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+                <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
+                  <div className="flex justify-center">
                     <button
                       type="button"
                       onClick={isCallActive ? handleEndCall : handleStartCall}
                       disabled={!isMeSystem && !isCallActive}
-                      className={`flex-1 h-12 rounded-full text-sm font-semibold shadow-md hover:shadow-lg hover:scale-[1.02] transition-all ${
+                      className={`h-12 px-8 rounded-full text-sm font-semibold shadow-md transition-all ${
                         isCallActive
                           ? 'bg-[#ef4444] text-white'
                           : isMeSystem
@@ -706,21 +696,49 @@ const VisualChat = () => {
                     >
                       {isCallActive ? '통화 종료' : '통화 시작'}
                     </button>
-                    <button
-                      type="button"
-                      className="w-12 h-12 rounded-full bg-[#e5e7eb] text-[#111827] text-sm font-semibold shadow-sm hover:bg-[#d1d5db] transition-colors"
-                    >
-                      Mic
-                    </button>
-                    <button
-                      type="button"
-                      className="w-12 h-12 rounded-full bg-[#e5e7eb] text-[#111827] text-sm font-semibold shadow-sm hover:bg-[#d1d5db] transition-colors"
-                    >
-                      Cam
-                    </button>
                   </div>
 
-                  <div className="mt-2 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 text-sm text-[#374151]">
+                  {/* 하단 채팅 영역 - 고정 높이 + 스크롤 */}
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col">
+                    <h3 className="text-sm font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb]">
+                      채팅
+                    </h3>
+                    <div className="h-[160px] overflow-y-auto px-4 py-2 flex flex-col gap-1">
+                      {chatMessages.length === 0 ? (
+                        <p className="text-xs text-[#9ca3af]">메시지를 입력해 주세요.</p>
+                      ) : (
+                        chatMessages.map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
+                          >
+                            <span className="font-semibold mr-1">
+                              {msg.role === 'USER' ? 'USER' : 'SYSTEM'}
+                            </span>
+                            <span className="text-[#4b5563]">{msg.text}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <form onSubmit={handleChatSubmit} className="flex gap-2 p-3 border-t border-[#e5e7eb]">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="메시지를 입력하세요"
+                        className="flex-1 h-10 rounded-xl border border-[#dbe3f1] px-3 text-sm bg-white"
+                      />
+                      <button
+                        type="submit"
+                        className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold"
+                      >
+                        전송
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* AI 요약 */}
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-semibold text-gray-800">AI 상담 요약</h3>
                       <button
