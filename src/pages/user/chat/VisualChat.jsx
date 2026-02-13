@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import Peer from 'peerjs';
 import { supabase } from '../../../lib/supabase';
+
+// PeerJS ID: member_id/cnsler_id(이메일) 기반. 서버 호환을 위해 @ . 치환
+function sanitizePeerId(email) {
+  if (!email || typeof email !== 'string') return '';
+  return email.replace(/@/g, '_at_').replace(/\./g, '_');
+}
 
 // DB role → UI role 정규화: member / cnsler → USER / SYSTEM
 function normalizeRole(rawRole) {
@@ -69,11 +76,17 @@ const VisualChat = () => {
   const [summary, setSummary] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [mediaStream, setMediaStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [deviceError, setDeviceError] = useState(false);
+  const [peerError, setPeerError] = useState('');
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
   const videoRefMobile = useRef(null);
   const videoRefPc = useRef(null);
+  const remoteVideoRefMobile = useRef(null);
+  const remoteVideoRefPc = useRef(null);
+  const peerRef = useRef(null);
+  const currentCallRef = useRef(null);
 
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
@@ -189,18 +202,93 @@ const VisualChat = () => {
     setChatIdInput(chatId || '');
   }, [chatId]);
 
-  // 통화 시작 시 스트림을 비디오 ref에 동기화 (렌더 후 ref 준비 보장)
+  // 메인 비디오: remoteStream 우선, 없으면 mediaStream. PIP: mediaStream(통화 중일 때만)
   useEffect(() => {
-    if (!mediaStream) return;
-    const targets = [videoRefMobile.current, videoRefPc.current];
-    targets.forEach((el) => {
+    const mainStream = remoteStream ?? mediaStream;
+    const mainTargets = [videoRefMobile.current, videoRefPc.current];
+    mainTargets.forEach((el) => {
       if (el) {
+        el.srcObject = mainStream;
+        if (mainStream) el.play().catch(() => {});
+      }
+    });
+    const pipTargets = [remoteVideoRefMobile.current, remoteVideoRefPc.current];
+    pipTargets.forEach((el) => {
+      if (el && mediaStream) {
         el.srcObject = mediaStream;
         el.play().catch(() => {});
       }
     });
-    return () => {};
-  }, [mediaStream]);
+  }, [mediaStream, remoteStream]);
+
+  // PeerJS: me/other 확정 시 Peer 생성, 수신 콜 처리
+  useEffect(() => {
+    if (!me?.email || !other?.email) return;
+    const myId = sanitizePeerId(me.email);
+    if (!myId) return;
+
+    const peer = new Peer(myId, {
+      host: import.meta.env.VITE_PEER_HOST || '0.peerjs.com',
+      secure: true,
+      key: import.meta.env.VITE_PEER_KEY || 'peerjs',
+    });
+    peerRef.current = peer;
+
+    peer.on('open', () => {
+      setPeerError('');
+    });
+
+    peer.on('call', async (call) => {
+      currentCallRef.current = call;
+      try {
+        let stream = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true }).catch(() => null);
+          if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+        }
+        if (!stream) {
+          setErrorMsg('카메라/마이크를 사용할 수 없습니다.');
+          return;
+        }
+        setMediaStream(stream);
+        setIsCallActive(true);
+        setRemoteStream(null);
+        call.answer(stream);
+        call.on('stream', (remote) => {
+          setRemoteStream(remote);
+        });
+        call.on('close', () => {
+          setRemoteStream(null);
+        });
+        call.on('error', () => {
+          setRemoteStream(null);
+        });
+      } catch (err) {
+        console.error('수신 통화 처리 실패:', err);
+        setErrorMsg('수신 통화를 시작할 수 없습니다.');
+      }
+    });
+
+    peer.on('error', (err) => {
+      const msg = err?.message || String(err);
+      setPeerError(msg);
+      if (err?.type === 'peer-unavailable') {
+        setErrorMsg('상대방이 아직 대기 중이 아닙니다. 상대가 같은 방에 들어온 뒤 다시 시도해 주세요.');
+      }
+    });
+
+    return () => {
+      if (currentCallRef.current) {
+        currentCallRef.current.close();
+        currentCallRef.current = null;
+      }
+      peer.destroy();
+      peerRef.current = null;
+      setRemoteStream(null);
+    };
+  }, [me?.email, other?.email]);
 
   // 공통 로딩 / 에러 뷰
   if (loading) {
@@ -312,12 +400,29 @@ const VisualChat = () => {
       }
 
       setMediaStream(stream);
+      setRemoteStream(null);
       setIsCallActive(true);
       setSummary('');
       setHasRecording(false);
       attachStreamToVideos(stream);
-      // ref가 아직 갱신되지 않았을 수 있으므로 다음 틱에 한 번 더 붙임
       setTimeout(() => attachStreamToVideos(stream), 0);
+
+      // PeerJS: 상대방(USER)에게 발신
+      const remoteId = sanitizePeerId(other?.email);
+      if (peerRef.current && remoteId) {
+        try {
+          const call = peerRef.current.call(remoteId, stream);
+          if (call) {
+            currentCallRef.current = call;
+            call.on('stream', (remote) => setRemoteStream(remote));
+            call.on('close', () => setRemoteStream(null));
+            call.on('error', () => setRemoteStream(null));
+          }
+        } catch (err) {
+          console.error('PeerJS 발신 실패:', err);
+          setErrorMsg('상대방 연결에 실패했습니다. 상대가 같은 방에 있는지 확인해 주세요.');
+        }
+      }
 
       // 오디오 장치가 있는 경우에만 녹음 시도
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
@@ -355,6 +460,12 @@ const VisualChat = () => {
 
   const handleEndCall = () => {
     if (!isCallActive) return;
+
+    if (currentCallRef.current) {
+      currentCallRef.current.close();
+      currentCallRef.current = null;
+    }
+    setRemoteStream(null);
 
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -445,7 +556,7 @@ const VisualChat = () => {
       {
         id: `local-${now}`,
         role: me.role,
-        member_id: me.email ?? '', // 채팅 목록에 표시할 발신자 식별자
+        nickname: me.nickname ?? '', // 채팅 목록에 표시할 발신자 이름
         text: trimmed,
         timestamp: now,
       },
@@ -462,28 +573,8 @@ const VisualChat = () => {
           화상 상담
         </header>
 
-        {/* 메인: 채팅 ID 입력(상담사만) + 상대 정보 + 영상 */}
+        {/* 메인: 상대 정보 + 영상 (방 번호/통화 연결은 하단 컨트롤 바에만) */}
         <main className="flex-1 flex flex-col px-[16px] pt-4 pb-24 gap-4">
-          {/* 채팅 ID 연결 - SYSTEM(상담사)만 노출 */}
-          {isMeSystem && (
-            <section className="flex items-center gap-2">
-              <input
-                type="text"
-                value={chatIdInput}
-                onChange={(event) => setChatIdInput(event.target.value)}
-                placeholder="채팅 ID를 입력하세요"
-                className="flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-[12px] bg-white"
-              />
-              <button
-                type="button"
-                onClick={handleChatIdConnect}
-                className="h-9 px-3 rounded-[10px] bg-main-02 text-white text-[12px] font-semibold"
-              >
-                연결
-              </button>
-            </section>
-          )}
-
           {/* 상대 정보 + 영상 */}
           <section className="flex-1 flex flex-col gap-3">
             <h2 className="text-[13px] text-[#4b5563] font-semibold">
@@ -517,13 +608,21 @@ const VisualChat = () => {
               )}
             </div>
 
-            <div className="w-full aspect-4/3 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden">
+            <div className="relative w-full aspect-4/3 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden">
               <video
                 ref={videoRefMobile}
                 className="w-full h-full object-cover"
                 playsInline
-                muted
+                muted={!remoteStream}
               />
+              {remoteStream && (
+                <video
+                  ref={remoteVideoRefMobile}
+                  className="absolute bottom-2 right-2 w-24 aspect-video object-cover rounded-lg border-2 border-white shadow-lg bg-black"
+                  playsInline
+                  muted
+                />
+              )}
             </div>
 
             {/* 하단 채팅 영역 */}
@@ -541,7 +640,7 @@ const VisualChat = () => {
                         }`}
                       >
                         <span className="font-semibold mr-1">
-                          {msg.member_id ?? (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                          {msg.nickname || (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
                         </span>
                         <span className="text-[#4b5563]">{msg.text}</span>
                       </div>
@@ -570,15 +669,24 @@ const VisualChat = () => {
 
         {/* 하단 컨트롤 바: 모바일 Nav(하단 탭) 위에 오도록 bottom-14 사용 */}
         <footer className="fixed bottom-14 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-4">
-          <div className="flex items-center justify-center gap-3 bg-white/90 backdrop-blur border border-[#e5e7eb] rounded-2xl px-4 py-3 shadow-lg">
+          <div className="flex items-center gap-2 bg-white/90 backdrop-blur border border-[#e5e7eb] rounded-2xl px-3 py-3 shadow-lg">
             {isMeSystem && (
-              <button
-                type="button"
-                onClick={handleChatIdConnect}
-                className="h-10 px-4 rounded-full text-[13px] font-semibold bg-[#3b82f6] text-white"
-              >
-                통화 연결
-              </button>
+              <>
+                <input
+                  type="text"
+                  value={chatIdInput}
+                  onChange={(e) => setChatIdInput(e.target.value)}
+                  placeholder="방 번호"
+                  className="w-20 h-9 rounded-full border border-[#dbe3f1] px-2 text-[12px] bg-white text-center"
+                />
+                <button
+                  type="button"
+                  onClick={handleChatIdConnect}
+                  className="h-9 px-3 rounded-full text-[12px] font-semibold bg-[#3b82f6] text-white shrink-0"
+                >
+                  통화 연결
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -616,37 +724,24 @@ const VisualChat = () => {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full">
-              <span
-                className={`w-3 h-3 rounded-full ${
-                  isCallActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
-                }`}
-              />
-              <span className="text-sm font-medium text-blue-700">
-                {isCallActive ? '연결됨' : '대기 중'}
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full">
+                <span
+                  className={`w-3 h-3 rounded-full ${
+                    isCallActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
+                  }`}
+                />
+                <span className="text-sm font-medium text-blue-700">
+                  {isCallActive ? '연결됨' : '대기 중'}
+                </span>
+              </div>
+              {peerError && (
+                <span className="text-xs text-amber-200 max-w-[200px] truncate" title={peerError}>
+                  Peer: {peerError}
+                </span>
+              )}
             </div>
           </header>
-
-          {/* 채팅 ID 입력 - SYSTEM만 */}
-          {isMeSystem && (
-            <div className="py-3 flex items-center gap-3">
-              <input
-                type="text"
-                value={chatIdInput}
-                onChange={(e) => setChatIdInput(e.target.value)}
-                placeholder="채팅 ID를 입력하세요"
-                className="flex-1 max-w-xs h-10 rounded-xl border border-gray-300 px-3 text-sm bg-white"
-              />
-              <button
-                type="button"
-                onClick={handleChatIdConnect}
-                className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold"
-              >
-                연결
-              </button>
-            </div>
-          )}
 
           {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 */}
           <main className="flex-1 flex min-h-0 py-4">
@@ -687,28 +782,45 @@ const VisualChat = () => {
                 </div>
 
                 {/* 우측 화상 영역 (나머지 전체) */}
-                <div className="flex-1 min-w-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                <div className="relative flex-1 min-w-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
                     className="w-full h-full object-cover"
                     playsInline
-                    muted
+                    muted={!remoteStream}
                   />
+                  {remoteStream && (
+                    <video
+                      ref={remoteVideoRefPc}
+                      className="absolute bottom-4 right-4 w-40 aspect-video object-cover rounded-xl border-2 border-white shadow-lg bg-black"
+                      playsInline
+                      muted
+                    />
+                  )}
                 </div>
               </section>
 
               {/* 하단: 통화 버튼 + 채팅 영역 + AI 요약 */}
               <footer className="border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
                 <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
-                  <div className="flex justify-center gap-3">
+                  <div className="flex justify-center items-center gap-3 flex-wrap">
                     {isMeSystem && (
-                      <button
-                        type="button"
-                        onClick={handleChatIdConnect}
-                        className="h-12 px-6 rounded-full text-sm font-semibold shadow-md bg-[#3b82f6] text-white hover:bg-[#2563eb] transition-all"
-                      >
-                        통화 연결
-                      </button>
+                      <>
+                        <input
+                          type="text"
+                          value={chatIdInput}
+                          onChange={(e) => setChatIdInput(e.target.value)}
+                          placeholder="방 번호"
+                          className="w-24 h-12 rounded-full border border-gray-300 px-3 text-sm bg-white text-center"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleChatIdConnect}
+                          className="h-12 px-6 rounded-full text-sm font-semibold shadow-md bg-[#3b82f6] text-white hover:bg-[#2563eb] transition-all"
+                        >
+                          통화 연결
+                        </button>
+                      </>
                     )}
                     <button
                       type="button"
@@ -741,7 +853,7 @@ const VisualChat = () => {
                             className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
                           >
                             <span className="font-semibold mr-1">
-                              {msg.member_id ?? (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                              {msg.nickname || (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
                             </span>
                             <span className="text-[#4b5563]">{msg.text}</span>
                           </div>
