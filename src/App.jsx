@@ -29,7 +29,7 @@ import EditCounselorAbout from './pages/system/info/EditCounselorAbout';
 import CounselorClientChat from './pages/system/info/CounselorClientChat';
 import ScheduleManagement from './pages/system/info/ScheduleManagement';
 import RiskCaseList from './pages/system/info/RiskCaseList';
-import VisualChat from './pages/user/chat/VisualChat';
+import { VisualChatRoute } from './pages/user/chat/VisualChat';
 
 const App = () => {
   return (
@@ -58,7 +58,7 @@ const App = () => {
           path="/chat/visualchat/:chatId"
           element={
             <ProtectedRoute allowRoles={['USER']}>
-              <VisualChat />
+              <VisualChatRoute />
             </ProtectedRoute>
           }
         />

@@ -24,7 +24,8 @@ function mapMemberRow(row) {
 
   return {
     id: row.id,
-    role: normalizeRole(row.role), // USER 또는 SYSTEM
+    email: row.email, // 채팅 발신자 표시용 member_id
+    role: normalizeRole(row.role),
     nickname: row.nickname,
     mbti: row.mbti,
     persona: row.persona,
@@ -286,25 +287,27 @@ const VisualChat = () => {
       let stream = null;
       let canRecordAudio = true;
 
+      // 제약을 최소화해 NotFoundError 감소: 먼저 audio+video(true만), 실패 시 video만, 마지막으로 audio만
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       } catch (err) {
         console.warn('오디오+비디오 실패, 비디오만 재시도:', err);
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-          });
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
           canRecordAudio = false;
         } catch (videoErr) {
-          console.error('비디오 요청 실패:', videoErr);
-          setDeviceError(true);
-          setErrorMsg('사용 가능한 카메라/마이크 장치를 찾을 수 없습니다.');
-          setIsCallActive(false);
-          setMediaStream(null);
-          return;
+          console.warn('비디오 실패, 오디오만 재시도:', videoErr);
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            canRecordAudio = true;
+          } catch (audioErr) {
+            console.error('오디오 요청도 실패:', audioErr);
+            setDeviceError(true);
+            setErrorMsg('카메라/마이크를 연결하고 브라우저 권한을 허용해 주세요.');
+            setIsCallActive(false);
+            setMediaStream(null);
+            return;
+          }
         }
       }
 
@@ -313,6 +316,8 @@ const VisualChat = () => {
       setSummary('');
       setHasRecording(false);
       attachStreamToVideos(stream);
+      // ref가 아직 갱신되지 않았을 수 있으므로 다음 틱에 한 번 더 붙임
+      setTimeout(() => attachStreamToVideos(stream), 0);
 
       // 오디오 장치가 있는 경우에만 녹음 시도
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
@@ -421,7 +426,11 @@ const VisualChat = () => {
 
   const handleChatIdConnect = () => {
     const trimmed = (chatIdInput || '').trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setErrorMsg('채팅 ID를 입력한 뒤 연결해 주세요.');
+      return;
+    }
+    setErrorMsg('');
     navigate(`/chat/visualchat/${trimmed}`);
   };
 
@@ -435,7 +444,8 @@ const VisualChat = () => {
       ...prev,
       {
         id: `local-${now}`,
-        role: me.role, // 'USER' 또는 'SYSTEM'
+        role: me.role,
+        member_id: me.email ?? '', // 채팅 목록에 표시할 발신자 식별자
         text: trimmed,
         timestamp: now,
       },
@@ -531,7 +541,7 @@ const VisualChat = () => {
                         }`}
                       >
                         <span className="font-semibold mr-1">
-                          {msg.role === 'USER' ? 'USER' : 'SYSTEM'}
+                          {msg.member_id ?? (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
                         </span>
                         <span className="text-[#4b5563]">{msg.text}</span>
                       </div>
@@ -561,6 +571,15 @@ const VisualChat = () => {
         {/* 하단 컨트롤 바: 모바일 Nav(하단 탭) 위에 오도록 bottom-14 사용 */}
         <footer className="fixed bottom-14 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-4">
           <div className="flex items-center justify-center gap-3 bg-white/90 backdrop-blur border border-[#e5e7eb] rounded-2xl px-4 py-3 shadow-lg">
+            {isMeSystem && (
+              <button
+                type="button"
+                onClick={handleChatIdConnect}
+                className="h-10 px-4 rounded-full text-[13px] font-semibold bg-[#3b82f6] text-white"
+              >
+                통화 연결
+              </button>
+            )}
             <button
               type="button"
               onClick={isCallActive ? handleEndCall : handleStartCall}
@@ -681,7 +700,16 @@ const VisualChat = () => {
               {/* 하단: 통화 버튼 + 채팅 영역 + AI 요약 */}
               <footer className="border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
                 <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
-                  <div className="flex justify-center">
+                  <div className="flex justify-center gap-3">
+                    {isMeSystem && (
+                      <button
+                        type="button"
+                        onClick={handleChatIdConnect}
+                        className="h-12 px-6 rounded-full text-sm font-semibold shadow-md bg-[#3b82f6] text-white hover:bg-[#2563eb] transition-all"
+                      >
+                        통화 연결
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={isCallActive ? handleEndCall : handleStartCall}
@@ -713,7 +741,7 @@ const VisualChat = () => {
                             className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
                           >
                             <span className="font-semibold mr-1">
-                              {msg.role === 'USER' ? 'USER' : 'SYSTEM'}
+                              {msg.member_id ?? (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
                             </span>
                             <span className="text-[#4b5563]">{msg.text}</span>
                           </div>
@@ -769,6 +797,12 @@ const VisualChat = () => {
     </>
   );
 };
+
+// chatId 변경 시 리마운트해 연결 시 해당 방이 확실히 로드되도록 함
+export function VisualChatRoute() {
+  const { chatId } = useParams();
+  return <VisualChat key={chatId ?? 'new'} />;
+}
 
 export default VisualChat;
 
