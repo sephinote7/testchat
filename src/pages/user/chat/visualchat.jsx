@@ -1200,21 +1200,15 @@ const VisualChat = () => {
     </>
   );
 
+  // 레이아웃 한 번만 렌더 → ref가 항상 보이는 비디오를 가리켜 모바일에서 회색 화면 방지
   return (
-    <>
-      {/* 모바일: 채팅 입력란 푸터에 가리지 않도록 하단 여백·safe-area 적용 */}
-      <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-[#f3f7ff] px-4 py-4">
-        <div
-          className="max-w-[358px] mx-auto flex flex-col min-h-[calc(100vh-2rem)]"
-          style={{ paddingBottom: 'max(8rem, env(safe-area-inset-bottom, 8rem))' }}
-        >
-          {layout}
-        </div>
+    <div className="w-full min-h-screen bg-[#f3f7ff] px-4 py-4 lg:px-8 lg:py-8">
+      <div
+        className="max-w-[358px] lg:max-w-[1520px] mx-auto flex flex-col min-h-[calc(100vh-2rem)] lg:min-h-screen pb-[max(8rem,env(safe-area-inset-bottom,8rem))] lg:pb-0"
+      >
+        {layout}
       </div>
-      <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
-        <div className="max-w-[1520px] mx-auto px-8 py-8 flex flex-col min-h-screen">{layout}</div>
-      </div>
-    </>
+    </div>
   );
 };
 
