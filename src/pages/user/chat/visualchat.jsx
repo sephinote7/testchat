@@ -4,6 +4,9 @@ import Peer from 'peerjs';
 import useAuth from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabase';
 
+const SUMMARY_API_URL =
+  import.meta.env.VITE_SUMMARY_API_URL || 'https://testchatpy.onrender.com';
+
 /** PeerJS ID: 이메일 특수문자 치환 (testchat과 동일 규칙) */
 function getSafePeerId(email) {
   if (!email) return null;
@@ -64,6 +67,9 @@ const VisualChat = () => {
   const remoteVideoRef = useRef(null);
   const peerRef = useRef(null);
   const currentCallRef = useRef(null);
+  const dataConnRef = useRef(null);
+  const finalizeOnceRef = useRef(false);
+  const endCallRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,10 +81,21 @@ const VisualChat = () => {
   const [remoteStream, setRemoteStream] = useState(null);
   const [recordingReady, setRecordingReady] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState(null);
+  const [summaryResult, setSummaryResult] = useState('');
 
   const localStreamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const localAudioChunksRef = useRef([]);
+  const remoteAudioChunksRef = useRef([]);
+  const localAudioRecorderRef = useRef(null);
+  const remoteAudioRecorderRef = useRef(null);
+  const localAudioBlobRef = useRef(null);
+  const remoteAudioBlobRef = useRef(null);
+  const messagesRef = useRef([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // 접속자 구분: member 테이블의 role 사용. 이메일로 counselor/client 매칭 후 role 대조 → SYSTEM이면 상담사, USER면 상담자 (counselInfo 선언 이후에 계산해 TDZ 방지)
   const currentUserEmail = (user?.email || '').trim().toLowerCase();
@@ -236,12 +253,44 @@ const VisualChat = () => {
       }
     });
 
+    peer.on('connection', (conn) => {
+      dataConnRef.current = conn;
+      conn.on('data', (data) => {
+        const obj = typeof data === 'string' ? JSON.parse(data) : data;
+        if (obj?.type === 'control' && obj?.action === 'end_call') {
+          endCallRef.current?.();
+          return;
+        }
+        if (obj?.type === 'chat' && obj?.text != null) {
+          const senderRole = obj.sender === 'cnsler' ? 'SYSTEM' : 'USER';
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + Math.random(),
+              sender: senderRole,
+              senderName: senderRole === 'SYSTEM' ? '상담사' : '상담자',
+              text: obj.text,
+              time: new Date((obj.time || Date.now())).toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              timeMs: obj.time,
+            },
+          ]);
+        }
+      });
+    });
+
     peer.on('error', (err) => {
       console.error('[PeerJS]', err?.type ?? err);
     });
 
     peerRef.current = peer;
     return () => {
+      try {
+        dataConnRef.current?.close();
+      } catch (_) {}
+      dataConnRef.current = null;
       try {
         peer.destroy();
       } catch (_) {}
@@ -266,6 +315,32 @@ const VisualChat = () => {
         remoteVideo.srcObject = null;
         remoteVideo.muted = true;
       }
+    };
+  }, [inCall, remoteStream]);
+
+  // 원격 스트림 수신 시 저화질 오디오 녹화 (testchatpy STT용)
+  useEffect(() => {
+    if (!inCall || !remoteStream || remoteAudioRecorderRef.current) return;
+    const tracks = remoteStream.getAudioTracks();
+    if (tracks.length === 0) return;
+    const rec = new MediaRecorder(remoteStream, {
+      mimeType: 'audio/webm',
+      audioBitsPerSecond: 64000,
+    });
+    remoteAudioChunksRef.current = [];
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) remoteAudioChunksRef.current.push(e.data);
+    };
+    rec.onstop = () => {
+      remoteAudioBlobRef.current = new Blob(remoteAudioChunksRef.current, {
+        type: 'audio/webm',
+      });
+    };
+    rec.start(1000);
+    remoteAudioRecorderRef.current = rec;
+    return () => {
+      if (rec.state === 'recording') rec.stop();
+      remoteAudioRecorderRef.current = null;
     };
   }, [inCall, remoteStream]);
 
@@ -327,13 +402,44 @@ const VisualChat = () => {
       setRemoteStream(null);
       setRecordingReady(false);
       setRecordedBlob(null);
+      setSummaryResult('');
       recordedChunksRef.current = [];
+      finalizeOnceRef.current = false;
 
       // 상담사만 통화 걸기 가능 → 상담자(USER) 쪽 Peer에 발신
       const call = peer.call(String(oppositeSafeId), stream);
       currentCallRef.current = call;
       call.on('stream', (s) => {
         setRemoteStream(s);
+        if (isSystem) {
+          const conn = peer.connect(String(oppositeSafeId));
+          dataConnRef.current = conn;
+          conn.on('open', () => {
+            conn.on('data', (data) => {
+              const obj = typeof data === 'string' ? JSON.parse(data) : data;
+              if (obj?.type === 'control' && obj?.action === 'end_call') {
+                endCallRef.current?.();
+                return;
+              }
+              if (obj?.type === 'chat' && obj?.text != null) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: Date.now() + Math.random(),
+                    sender: 'USER',
+                    senderName: '상담자',
+                    text: obj.text,
+                    time: new Date((obj.time || Date.now())).toLocaleTimeString('ko-KR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                    timeMs: obj.time,
+                  },
+                ]);
+              }
+            });
+          });
+        }
       });
       call.on('close', () => {
         setRemoteStream(null);
@@ -362,6 +468,22 @@ const VisualChat = () => {
         setRecordingReady(true);
       };
       recorder.start(1000);
+
+      const audioRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm',
+        audioBitsPerSecond: 64000,
+      });
+      localAudioChunksRef.current = [];
+      audioRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) localAudioChunksRef.current.push(e.data);
+      };
+      audioRecorder.onstop = () => {
+        localAudioBlobRef.current = new Blob(localAudioChunksRef.current, {
+          type: 'audio/webm',
+        });
+      };
+      audioRecorder.start(1000);
+      localAudioRecorderRef.current = audioRecorder;
     } catch (err) {
       console.error('미디어 장치 오류:', err);
       const name = err?.name || '';
@@ -390,7 +512,85 @@ const VisualChat = () => {
     }
   };
 
+  const finalizeAndSaveOnce = async () => {
+    if (finalizeOnceRef.current) return;
+    if (!isSystem || !counselInfo) return;
+    finalizeOnceRef.current = true;
+
+    const chatMessages = (messagesRef.current || []).map((m) => ({
+      type: 'chat',
+      speaker: m.sender === 'SYSTEM' ? 'cnsler' : 'user',
+      text: m.text,
+      timestamp: String(m.timeMs ?? Date.now()),
+    }));
+
+    const apiUrl = (SUMMARY_API_URL || '').replace(/\/$/, '');
+    let finalMessages = chatMessages;
+    let finalSummary = '(요약 없음)';
+
+    if (apiUrl) {
+      try {
+        const form = new FormData();
+        const localBlob = localAudioBlobRef.current;
+        const remoteBlob = remoteAudioBlobRef.current;
+        if (remoteBlob) form.append('audio_user', remoteBlob, 'user.webm');
+        if (localBlob) form.append('audio_cnsler', localBlob, 'cnsler.webm');
+        form.append('msg_data', JSON.stringify(chatMessages));
+
+        const res = await fetch(`${apiUrl}/api/summarize`, {
+          method: 'POST',
+          body: form,
+        });
+        if (res.ok) {
+          const apiResult = await res.json();
+          finalMessages = Array.isArray(apiResult?.msg_data) ? apiResult.msg_data : chatMessages;
+          finalSummary = (apiResult?.summary && String(apiResult.summary)) || finalSummary;
+        }
+      } catch (e) {
+        console.warn('요약 API 오류:', e);
+      }
+    }
+
+    try {
+      const { data: existing } = await supabase
+        .from('chat_msg')
+        .select('chat_id')
+        .eq('cnsl_id', id)
+        .maybeSingle();
+
+      const payload = {
+        msg_data: { messages: finalMessages },
+        summary: finalSummary,
+        role: 'cnsler',
+        cnsler_id: counselInfo.counselor?.email ?? '',
+        member_id: counselInfo.client?.email ?? '',
+      };
+
+      if (existing?.chat_id) {
+        await supabase.from('chat_msg').update(payload).eq('chat_id', existing.chat_id);
+      } else {
+        await supabase.from('chat_msg').insert({
+          cnsl_id: Number(id) || id,
+          ...payload,
+        });
+      }
+      setSummaryResult(finalSummary);
+    } catch (e) {
+      console.error('chat_msg 저장 실패:', e);
+    }
+  };
+
   const endCall = () => {
+    endCallRef.current = null;
+    try {
+      dataConnRef.current?.send(
+        JSON.stringify({ type: 'control', action: 'end_call', time: Date.now() })
+      );
+    } catch (_) {}
+    try {
+      dataConnRef.current?.close();
+    } catch (_) {}
+    dataConnRef.current = null;
     if (currentCallRef.current) {
       try {
         currentCallRef.current.close();
@@ -402,12 +602,26 @@ const VisualChat = () => {
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
+    if (localAudioRecorderRef.current?.state === 'recording') {
+      localAudioRecorderRef.current.stop();
+    }
+    if (remoteAudioRecorderRef.current?.state === 'recording') {
+      remoteAudioRecorderRef.current.stop();
+    }
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     setInCall(false);
+    setTimeout(() => finalizeAndSaveOnce(), 800);
   };
+
+  useEffect(() => {
+    endCallRef.current = endCall;
+    return () => {
+      endCallRef.current = null;
+    };
+  });
 
   const downloadRecording = () => {
     if (!recordedBlob || !counselInfo) return;
@@ -428,20 +642,34 @@ const VisualChat = () => {
     const senderName = isSystem
       ? counselInfo?.counselor?.nickname
       : counselInfo?.client?.nickname;
+    const timeMs = Date.now();
     setMessages((prev) => [
       ...prev,
       {
-        id: Date.now(),
+        id: timeMs,
         sender: senderRole,
         senderName: senderName || (senderRole === 'SYSTEM' ? '상담사' : '상담자'),
         text: trimmed,
-        time: new Date().toLocaleTimeString('ko-KR', {
+        time: new Date(timeMs).toLocaleTimeString('ko-KR', {
           hour: '2-digit',
           minute: '2-digit',
         }),
+        timeMs,
       },
     ]);
     setInputMessage('');
+    try {
+      dataConnRef.current?.send(
+        JSON.stringify({
+          type: 'chat',
+          text: trimmed,
+          time: timeMs,
+          sender: isSystem ? 'cnsler' : 'user',
+        })
+      );
+    } catch (err) {
+      console.warn('채팅 전송 실패:', err);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -623,8 +851,8 @@ const VisualChat = () => {
         </div>
       </div>
 
-      {/* 하단: 통화 종료 버튼 없음(상단만 유지), 통화 종료 후에만 녹화 다운로드 표기 */}
-      <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
+      {/* 하단: 통화 종료 후 녹화 다운로드, 상담사 요약 표시 */}
+      <div className="flex flex-col gap-3 pt-4 border-t border-gray-200 mt-4">
         <div className="flex items-center gap-3">
           {!inCall && (recordingReady || recordedBlob) && (
             <button
@@ -636,6 +864,12 @@ const VisualChat = () => {
             </button>
           )}
         </div>
+        {isSystem && summaryResult && (
+          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <h3 className="text-sm font-semibold text-blue-800 mb-2">상담 요약</h3>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{summaryResult}</p>
+          </div>
+        )}
       </div>
 
       {/* 채팅: 통화가 연결된 후에만 사용 가능 */}
