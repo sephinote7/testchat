@@ -53,21 +53,6 @@ const VisualChat = () => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  // 접속자 구분: member 테이블의 role 사용. 이메일로 counselor/client 매칭 후 role 대조 → SYSTEM이면 상담사, USER면 상담자
-  const currentUserEmail = (user?.email || '').trim().toLowerCase();
-  const isSystem = (() => {
-    if (!counselInfo || !currentUserEmail) return false;
-    const counselorEmail = (counselInfo.counselor?.email || '').trim().toLowerCase();
-    const clientEmail = (counselInfo.client?.email || '').trim().toLowerCase();
-    if (counselorEmail === currentUserEmail) {
-      return String(counselInfo.counselor?.role || '').toUpperCase() === 'SYSTEM';
-    }
-    if (clientEmail === currentUserEmail) {
-      return String(counselInfo.client?.role || '').toUpperCase() === 'SYSTEM';
-    }
-    return false;
-  })();
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [counselInfo, setCounselInfo] = useState(null);
@@ -81,6 +66,21 @@ const VisualChat = () => {
   const localStreamRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+
+  // 접속자 구분: member 테이블의 role 사용. 이메일로 counselor/client 매칭 후 role 대조 → SYSTEM이면 상담사, USER면 상담자 (counselInfo 선언 이후에 계산해 TDZ 방지)
+  const currentUserEmail = (user?.email || '').trim().toLowerCase();
+  const isSystem = (() => {
+    if (!counselInfo || !currentUserEmail) return false;
+    const counselorEmail = (counselInfo.counselor?.email || '').trim().toLowerCase();
+    const clientEmail = (counselInfo.client?.email || '').trim().toLowerCase();
+    if (counselorEmail === currentUserEmail) {
+      return String(counselInfo.counselor?.role || '').toUpperCase() === 'SYSTEM';
+    }
+    if (clientEmail === currentUserEmail) {
+      return String(counselInfo.client?.role || '').toUpperCase() === 'SYSTEM';
+    }
+    return false;
+  })();
 
   useEffect(() => {
     if (!id) {
