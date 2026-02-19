@@ -80,9 +80,10 @@ const VisualChat = () => {
       setLoading(true);
       setError(null);
       try {
+        // cnsl_reg 한 테이블에 상담 정보 + cnsler_id(상담사), member_id(상담자) 포함
         const { data: cnslRow, error: cnslErr } = await supabase
           .from('cnsl_reg')
-          .select('cnsl_id, cnsl_title, cnsl_content, cnsl_start_time')
+          .select('cnsl_id, cnsl_title, cnsl_content, cnsl_start_time, cnsler_id, member_id')
           .eq('cnsl_id', id)
           .maybeSingle();
 
@@ -93,15 +94,7 @@ const VisualChat = () => {
           return;
         }
 
-        // cnsler_reg: cnsl_reg와 연결되는 FK가 cnsl_id가 아니면 (예: counsel_id) 해당 컬럼명으로 변경
-        const { data: regRow, error: regErr } = await supabase
-          .from('cnsler_reg')
-          .select('cnsler_id, member_id')
-          .eq('cnsl_id', id)
-          .maybeSingle();
-
-        if (regErr) throw regErr;
-        if (!regRow?.cnsler_id || !regRow?.member_id) {
+        if (!cnslRow.cnsler_id || !cnslRow.member_id) {
           setError('상담사/상담자 매칭 정보가 없습니다.');
           setLoading(false);
           return;
@@ -110,12 +103,12 @@ const VisualChat = () => {
         const { data: members, error: memErr } = await supabase
           .from('member')
           .select('id, nickname, gender, birth, persona, profile')
-          .in('id', [regRow.cnsler_id, regRow.member_id]);
+          .in('id', [cnslRow.cnsler_id, cnslRow.member_id]);
 
         if (memErr) throw memErr;
 
-        const counselor = members?.find((m) => m.id === regRow.cnsler_id) || {};
-        const client = members?.find((m) => m.id === regRow.member_id) || {};
+        const counselor = members?.find((m) => m.id === cnslRow.cnsler_id) || {};
+        const client = members?.find((m) => m.id === cnslRow.member_id) || {};
 
         setCounselInfo({
           cnsl_id: cnslRow.cnsl_id,
