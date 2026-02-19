@@ -16,6 +16,55 @@ function getSafePeerId(email) {
     .replace(/[.]/g, '_');
 }
 
+/** 브라우저가 지원하는 MediaRecorder 옵션 반환 (NotSupportedError 방지) */
+function getSupportedRecorderOptions(stream) {
+  const hasVideo = stream.getVideoTracks().length > 0;
+  const types = hasVideo
+    ? [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+        'video/mp4',
+        'audio/webm',
+      ]
+    : ['audio/webm', 'audio/mp4'];
+  for (const mimeType of types) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mimeType)) {
+      const opts = { mimeType };
+      if (mimeType.startsWith('video/')) {
+        opts.videoBitsPerSecond = 1500000;
+      } else {
+        opts.audioBitsPerSecond = 64000;
+      }
+      return opts;
+    }
+  }
+  return hasVideo ? { mimeType: 'video/webm', videoBitsPerSecond: 1500000 } : { mimeType: 'audio/webm', audioBitsPerSecond: 64000 };
+}
+
+/** 지원되는 형식으로 MediaRecorder 생성 후 start. 실패 시 브라우저 기본값으로 재시도 */
+function startMediaRecorderSafe(stream, options, onData, onStop) {
+  const tryStart = (opts) => {
+    const rec = new MediaRecorder(stream, opts);
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) onData(e.data);
+    };
+    rec.onstop = onStop;
+    rec.start(1000);
+    return rec;
+  };
+  try {
+    return tryStart(options);
+  } catch (e1) {
+    try {
+      return tryStart({});
+    } catch (e2) {
+      console.warn('MediaRecorder 시작 실패:', e2);
+      return null;
+    }
+  }
+}
+
 /**
  * 화상 상담 페이지
  * - 상담 내용: cnsl_reg (cnsl_title, cnsl_content, cnsl_start_time)
@@ -361,22 +410,22 @@ const VisualChat = () => {
   // 원격 스트림 수신 시 저화질 오디오 녹화 (testchatpy STT용)
   useEffect(() => {
     if (!inCall || !remoteStream || remoteAudioRecorderRef.current) return;
-    const tracks = remoteStream.getAudioTracks();
-    if (tracks.length === 0) return;
-    const rec = new MediaRecorder(remoteStream, {
-      mimeType: 'audio/webm',
-      audioBitsPerSecond: 64000,
-    });
+    const audioTracks = remoteStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
+    const audioOnlyStream = new MediaStream(audioTracks);
+    const opts = getSupportedRecorderOptions(audioOnlyStream);
     remoteAudioChunksRef.current = [];
-    rec.ondataavailable = (e) => {
-      if (e.data.size > 0) remoteAudioChunksRef.current.push(e.data);
-    };
-    rec.onstop = () => {
-      remoteAudioBlobRef.current = new Blob(remoteAudioChunksRef.current, {
-        type: 'audio/webm',
-      });
-    };
-    rec.start(1000);
+    const rec = startMediaRecorderSafe(
+      audioOnlyStream,
+      { mimeType: opts.mimeType, audioBitsPerSecond: opts.audioBitsPerSecond ?? 64000 },
+      (data) => remoteAudioChunksRef.current.push(data),
+      () => {
+        remoteAudioBlobRef.current = new Blob(remoteAudioChunksRef.current, {
+          type: opts.mimeType?.split(';')[0] || 'audio/webm',
+        });
+      }
+    );
+    if (!rec) return;
     remoteAudioRecorderRef.current = rec;
     return () => {
       if (rec.state === 'recording') rec.stop();
@@ -506,43 +555,47 @@ const VisualChat = () => {
       });
 
       const hasVideo = stream.getVideoTracks().length > 0;
-      const hasAudio = stream.getAudioTracks().length > 0;
-      const options = hasVideo
-        ? { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 2500000 }
-        : { mimeType: 'audio/webm' };
-      const recorder = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, {
-          type: hasVideo ? 'video/webm' : 'audio/webm',
-        });
-        setRecordedBlob(blob);
-        setRecordingReady(true);
-      };
-      recorder.start(1000);
+      const mainOptions = getSupportedRecorderOptions(stream);
+      const mainRec = startMediaRecorderSafe(
+        stream,
+        mainOptions,
+        (data) => recordedChunksRef.current.push(data),
+        () => {
+          const type = mainOptions.mimeType?.split(';')[0] || 'video/webm';
+          setRecordedBlob(new Blob(recordedChunksRef.current, { type }));
+          setRecordingReady(true);
+        }
+      );
+      if (mainRec) mediaRecorderRef.current = mainRec;
 
-      const audioRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm',
-        audioBitsPerSecond: 64000,
-      });
-      localAudioChunksRef.current = [];
-      audioRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) localAudioChunksRef.current.push(e.data);
-      };
-      audioRecorder.onstop = () => {
-        localAudioBlobRef.current = new Blob(localAudioChunksRef.current, {
-          type: 'audio/webm',
-        });
-      };
-      audioRecorder.start(1000);
-      localAudioRecorderRef.current = audioRecorder;
+      const audioOptions = getSupportedRecorderOptions(stream);
+      if (audioOptions.mimeType?.startsWith('audio/')) {
+        const audioRec = startMediaRecorderSafe(
+          stream,
+          { mimeType: audioOptions.mimeType, audioBitsPerSecond: audioOptions.audioBitsPerSecond ?? 64000 },
+          (data) => localAudioChunksRef.current.push(data),
+          () => {
+            localAudioBlobRef.current = new Blob(localAudioChunksRef.current, {
+              type: audioOptions.mimeType?.split(';')[0] || 'audio/webm',
+            });
+          }
+        );
+        if (audioRec) localAudioRecorderRef.current = audioRec;
+      }
     } catch (err) {
       console.error('미디어 장치 오류:', err);
       const name = err?.name || '';
       const msg = err?.message || String(err);
+      if (name === 'NotSupportedError' || msg.includes('MediaRecorder')) {
+        alert(
+          '이 브라우저에서는 녹화를 지원하지 않습니다. 통화는 가능합니다.\n\n' +
+            'Chrome 또는 Edge 최신 버전을 사용해 보세요.'
+        );
+        localStreamRef.current?.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+        setInCall(false);
+        return;
+      }
       if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || msg.includes('Permission')) {
         alert(
           '카메라/마이크 접근이 거부되었습니다.\n\n' +
