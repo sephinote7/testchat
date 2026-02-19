@@ -165,9 +165,27 @@ const VisualChat = () => {
   }, [messages]);
 
   const startCall = async () => {
+    if (typeof window === 'undefined') return;
+
+    if (!window.isSecureContext) {
+      alert(
+        '카메라/마이크는 보안 연결(HTTPS) 또는 localhost에서만 사용할 수 있습니다.\n' +
+          '주소창이 https:// 또는 http://localhost 로 시작하는지 확인해 주세요.'
+      );
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert(
+        '이 브라우저는 카메라/마이크 접근을 지원하지 않습니다.\n' +
+          'Chrome, Edge, Firefox, Safari 최신 버전을 사용해 주세요.'
+      );
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { facingMode: 'user' },
         audio: true,
       });
       localStreamRef.current = stream;
@@ -195,7 +213,29 @@ const VisualChat = () => {
       recorder.start(1000);
     } catch (err) {
       console.error('미디어 장치 오류:', err);
-      alert('카메라/마이크 접근을 허용해주세요.');
+      const name = err?.name || '';
+      const msg = err?.message || String(err);
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || msg.includes('Permission')) {
+        alert(
+          '카메라/마이크 접근이 거부되었습니다.\n\n' +
+            '• 브라우저 주소창 왼쪽 자물쇠(또는 아이콘)를 클릭한 뒤 카메라/마이크를 "허용"으로 설정해 주세요.\n' +
+            '• 또는 브라우저 설정에서 이 사이트의 카메라·마이크 권한을 허용한 뒤 페이지를 새로고침해 주세요.'
+        );
+      } else if (name === 'NotFoundError' || msg.includes('NotFound')) {
+        alert('연결된 카메라 또는 마이크를 찾을 수 없습니다. 장치가 연결되어 있는지 확인해 주세요.');
+      } else if (name === 'NotReadableError' || name === 'AbortError') {
+        alert(
+          '카메라 또는 마이크를 사용할 수 없습니다. 다른 프로그램에서 사용 중이 아닌지 확인한 뒤 다시 시도해 주세요.'
+        );
+      } else {
+        alert(
+          '카메라/마이크에 접근할 수 없습니다.\n\n' +
+            '1) 주소가 https:// 또는 http://localhost 인지 확인\n' +
+            '2) 브라우저에서 이 사이트의 카메라·마이크 권한 허용\n' +
+            '3) 페이지 새로고침 후 다시 통화 걸기\n\n' +
+            `오류: ${msg}`
+        );
+      }
     }
   };
 
@@ -284,27 +324,19 @@ const VisualChat = () => {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold text-gray-800">화상 상담</h1>
         <div className="flex items-center gap-3 flex-wrap">
-          {inCall ? (
-            <button
-              type="button"
-              onClick={endCall}
-              className="px-5 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition"
-            >
-              통화 종료
-            </button>
-          ) : isSystem ? (
-            <button
-              type="button"
-              onClick={startCall}
-              className="px-5 py-2.5 rounded-xl bg-green-500 text-white font-semibold hover:bg-green-600 transition"
-            >
-              통화 걸기
-            </button>
-          ) : null}
           {inCall && (
-            <span className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold">
-              상담 진행 중
-            </span>
+            <>
+              <button
+                type="button"
+                onClick={endCall}
+                className="px-5 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition"
+              >
+                통화 종료
+              </button>
+              <span className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold">
+                상담 진행 중
+              </span>
+            </>
           )}
           <button
             type="button"
@@ -319,10 +351,10 @@ const VisualChat = () => {
         상담 시작: {counselInfo.startedAt}
       </p>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
-        {/* 좌측: 상담 내용 + 상대방 정보 (상담자/상담사 구분) */}
-        <div className="lg:w-[480px] xl:w-[520px] flex flex-col min-h-0 bg-white rounded-2xl shadow-lg p-6">
-          <section className="mb-4">
+      <div className="flex flex-col lg:flex-row gap-6 h-[800px]">
+        {/* 좌측: 상담 내용 칸 - 높이 800px 고정, 페르소나/상담사 소개는 스크롤 */}
+        <div className="lg:w-[480px] xl:w-[520px] h-[800px] flex flex-col bg-white rounded-2xl shadow-lg p-6 overflow-hidden">
+          <section className="flex-shrink-0 mb-4">
             <h2 className="text-sm font-semibold text-gray-500 mb-1">상담 내용</h2>
             <p className="font-medium text-gray-800">{counselInfo.title}</p>
             <p className="text-sm text-gray-600 mt-2 leading-relaxed whitespace-pre-wrap">
@@ -330,7 +362,7 @@ const VisualChat = () => {
             </p>
           </section>
 
-          <section className="mb-4 pb-4 border-b border-gray-100">
+          <section className="flex-shrink-0 mb-4 pb-4 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-500 mb-2">
               {oppositeLabel} 정보
             </h2>
@@ -360,32 +392,34 @@ const VisualChat = () => {
             </div>
           </section>
 
-          {/* 상담자 로그인 시: 상담사 정보 아래에 member.profile 내용(텍스트) */}
-          {!isSystem && (
-            <section className="mb-4 pb-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-500 mb-2">상담사 프로필</h2>
-              {counselInfo.counselor.profile && !/^\s*(https?:\/\/|\/)/.test(String(counselInfo.counselor.profile)) ? (
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {counselInfo.counselor.profile}
-                </p>
-              ) : (
-                <p className="text-sm text-gray-500">(프로필 이미지로만 등록된 경우)</p>
-              )}
-            </section>
-          )}
+          {/* 스크롤 영역: 상담사 프로필 / 상담자 페르소나 */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {!isSystem && (
+              <section className="mb-4 pb-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">상담사 프로필</h2>
+                {counselInfo.counselor.profile && !/^\s*(https?:\/\/|\/)/.test(String(counselInfo.counselor.profile)) ? (
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {counselInfo.counselor.profile}
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500">(프로필 이미지로만 등록된 경우)</p>
+                )}
+              </section>
+            )}
 
-          {isSystem && counselInfo.client.persona && (
-            <section className="mb-4 pb-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-500 mb-2">상담자 페르소나</h2>
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                {counselInfo.client.persona}
-              </p>
-            </section>
-          )}
+            {isSystem && counselInfo.client.persona && (
+              <section className="mb-4 pb-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-500 mb-2">상담자 페르소나</h2>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {counselInfo.client.persona}
+                </p>
+              </section>
+            )}
+          </div>
         </div>
 
-        {/* 우측: 화상 영역 + 통화 걸기/종료 */}
-        <div className="flex-1 min-h-[280px] lg:min-h-0 bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
+        {/* 우측: 화상 통화 영역 - 높이 800px 고정, 통화 걸기는 이 영역 안에만 */}
+        <div className="flex-1 h-[800px] min-h-[280px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
           <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
             <video
               ref={remoteVideoRef}
@@ -397,6 +431,11 @@ const VisualChat = () => {
             {!inCall && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/80">
                 <p className="text-lg">화상 통화 영역</p>
+                {typeof window !== 'undefined' && !window.isSecureContext && (
+                  <p className="mt-2 text-amber-300 text-sm text-center max-w-md">
+                    카메라/마이크는 HTTPS 또는 localhost에서만 사용 가능합니다.
+                  </p>
+                )}
                 {isSystem && (
                   <button
                     type="button"
@@ -427,18 +466,9 @@ const VisualChat = () => {
         </div>
       </div>
 
-      {/* 하단: 통화 걸기(상담사·미연결 시) / 통화 종료(연결 시) + 녹화 다운로드 */}
+      {/* 하단: 통화 종료(연결 시) + 녹화 다운로드 (통화 걸기는 화상 통화 영역 내부에만) */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
         <div className="flex items-center gap-3">
-          {!inCall && isSystem && (
-            <button
-              type="button"
-              onClick={startCall}
-              className="px-6 py-2.5 rounded-xl bg-green-500 text-white font-semibold hover:bg-green-600 transition"
-            >
-              통화 걸기
-            </button>
-          )}
           {inCall && (
             <button
               type="button"
