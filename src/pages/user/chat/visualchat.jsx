@@ -107,6 +107,14 @@ function formatStartTime(v) {
   });
 }
 
+function formatFileSize(bytes) {
+  if (bytes == null || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / k ** i).toFixed(1)} ${sizes[i]}`;
+}
+
 const VisualChat = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -322,6 +330,19 @@ const VisualChat = () => {
           localStreamRef.current = stream;
           call.answer(stream);
           currentCallRef.current = call;
+          recordedChunksRef.current = [];
+          const clientOptions = getSupportedRecorderOptions(stream);
+          const clientRec = startMediaRecorderSafe(
+            stream,
+            clientOptions,
+            (data) => recordedChunksRef.current.push(data),
+            () => {
+              const type = clientOptions.mimeType?.split(';')[0] || 'video/webm';
+              setRecordedBlob(new Blob(recordedChunksRef.current, { type }));
+              setRecordingReady(true);
+            }
+          );
+          if (clientRec) mediaRecorderRef.current = clientRec;
           call.on('stream', (s) => {
             setRemoteStream(s);
             setReceiveCallError(null);
@@ -841,26 +862,24 @@ const VisualChat = () => {
           </button>
         </div>
       </div>
-      <div className="flex flex-col lg:flex-row gap-6 h-[800px]">
-        {/* 좌측: 상담 시작 시간 + 상담 내용 칸 - 높이 800px 고정 */}
-        <div className="lg:w-[480px] xl:w-[520px] h-[800px] flex flex-col bg-white rounded-2xl shadow-lg p-6 overflow-hidden">
-          <p className="text-sm text-gray-500 flex-shrink-0 mb-2">
-            상담 시작: {counselInfo.startedAt}
-          </p>
-          <section className="flex-shrink-0 mb-4">
-            <h2 className="text-sm font-semibold text-gray-500 mb-1">상담 내용</h2>
-            <p className="font-medium text-gray-800">{counselInfo.title}</p>
-            <p className="text-sm text-gray-600 mt-2 leading-relaxed whitespace-pre-wrap">
+      <div className="flex flex-col lg:flex-row gap-6 h-[600px]">
+        {/* 좌측: 상담 시작 / 상담 내용 / 상담자 정보 / 페르소나·프로필 각각 div 분리, 높이 600px */}
+        <div className="lg:w-[400px] xl:w-[440px] h-[600px] flex flex-col bg-white rounded-2xl shadow-lg p-4 overflow-hidden">
+          <div className="shrink-0 py-2 border-b border-gray-100">
+            <p className="text-xs text-gray-500">상담 시작</p>
+            <p className="text-xs font-medium text-gray-700 mt-0.5">{counselInfo.startedAt}</p>
+          </div>
+          <div className="shrink-0 py-3 border-b border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 mb-1">상담 내용</p>
+            <p className="text-xs font-medium text-gray-800">{counselInfo.title}</p>
+            <p className="text-xs text-gray-600 mt-1.5 leading-relaxed whitespace-pre-wrap">
               {counselInfo.content || '(내용 없음)'}
             </p>
-          </section>
-
-          <section className="flex-shrink-0 mb-4 pb-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-500 mb-2">
-              {oppositeLabel} 정보
-            </h2>
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+          </div>
+          <div className="shrink-0 py-3 border-b border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">{oppositeLabel} 정보</p>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 shrink-0">
                 {!isSystem && counselInfo.counselor.profile && /^\s*(https?:\/\/|\/)/.test(String(counselInfo.counselor.profile)) ? (
                   <img
                     src={counselInfo.counselor.profile}
@@ -868,51 +887,48 @@ const VisualChat = () => {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="w-full h-full flex items-center justify-center text-gray-500 text-lg font-bold">
+                  <span className="w-full h-full flex items-center justify-center text-gray-500 text-sm font-bold">
                     {oppositeInfo.nickname?.slice(0, 1) || '?'}
                   </span>
                 )}
               </div>
               <div>
-                <p className="font-semibold text-gray-800">{oppositeInfo.nickname || '-'}</p>
+                <p className="text-xs font-semibold text-gray-800">{oppositeInfo.nickname || '-'}</p>
                 {isSystem && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-xs text-gray-600">
                     {counselInfo.client.gender}
                     {counselInfo.client.age != null && ` / ${counselInfo.client.age}세`}
                   </p>
                 )}
               </div>
             </div>
-          </section>
-
-          {/* 스크롤 영역: 상담사 프로필 / 상담자 페르소나 */}
+          </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             {!isSystem && (
-              <section className="mb-4 pb-4 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">상담사 프로필</h2>
+              <div className="py-3 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 mb-1">상담사 프로필</p>
                 {counselInfo.counselor.profile && !/^\s*(https?:\/\/|\/)/.test(String(counselInfo.counselor.profile)) ? (
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
                     {counselInfo.counselor.profile}
                   </p>
                 ) : (
-                  <p className="text-sm text-gray-500">(프로필 이미지로만 등록된 경우)</p>
+                  <p className="text-xs text-gray-500">(프로필 이미지로만 등록된 경우)</p>
                 )}
-              </section>
+              </div>
             )}
-
             {isSystem && counselInfo.client.persona && (
-              <section className="mb-4 pb-4 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-500 mb-2">상담자 페르소나</h2>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+              <div className="py-3 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 mb-1">상담자 페르소나</p>
+                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {counselInfo.client.persona}
                 </p>
-              </section>
+              </div>
             )}
           </div>
         </div>
 
-        {/* 우측: 화상 통화 영역 - 높이 800px 고정, 통화 걸기는 이 영역 안에만 */}
-        <div className="flex-1 h-[800px] min-h-[280px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
+        {/* 우측: 화상 통화 영역 - 높이 600px */}
+        <div className="flex-1 h-[600px] min-h-[240px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
           <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
             <video
               ref={remoteVideoRef}
@@ -977,17 +993,24 @@ const VisualChat = () => {
         </div>
       </div>
 
-      {/* 하단: 통화 종료 후 녹화 다운로드, 상담사 요약 표시 */}
+      {/* 하단: 통화 종료 후 녹화 다운로드(상담사·상담자 모두), 용량 표기, 상담사 요약 */}
       <div className="flex flex-col gap-3 pt-4 border-t border-gray-200 mt-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {!inCall && (recordingReady || recordedBlob) && (
-            <button
-              type="button"
-              onClick={downloadRecording}
-              className="px-5 py-2.5 rounded-xl bg-gray-200 text-gray-600 font-medium hover:bg-gray-300 transition"
-            >
-              녹화 다운로드
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={downloadRecording}
+                className="px-5 py-2.5 rounded-xl bg-gray-200 text-gray-600 font-medium hover:bg-gray-300 transition"
+              >
+                녹화 다운로드
+              </button>
+              {recordedBlob?.size != null && (
+                <span className="text-xs text-gray-500">
+                  (용량: {formatFileSize(recordedBlob.size)})
+                </span>
+              )}
+            </>
           )}
         </div>
         {isSystem && summaryResult && (
