@@ -962,19 +962,21 @@ const VisualChat = () => {
           </button>
         </div>
       </div>
-      <div className="flex flex-col lg:flex-row gap-6 h-[600px]">
-        {/* 좌측: 상담 시작 / 상담 내용 / 상담자 정보 / 페르소나·프로필 각각 div 분리, 높이 600px */}
-        <div className="lg:w-[400px] xl:w-[440px] h-[600px] flex flex-col bg-white rounded-2xl shadow-lg p-4 overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-6 lg:h-[600px]">
+        {/* 좌측: 상담 시작 / 상담 내용(PC 360px 스크롤) / 상담자 정보 / 페르소나·프로필 */}
+        <div className="lg:w-[400px] xl:w-[440px] lg:h-[600px] flex flex-col bg-white rounded-2xl shadow-lg p-4 overflow-hidden">
           <div className="shrink-0 py-2 border-b border-gray-100">
             <p className="text-xs text-gray-500">상담 시작</p>
             <p className="text-xs font-medium text-gray-700 mt-0.5">{counselInfo.startedAt}</p>
           </div>
-          <div className="shrink-0 py-3 border-b border-gray-100">
+          <div className="shrink-0 py-3 border-b border-gray-100 h-[280px] lg:h-[360px] flex flex-col min-h-0 overflow-hidden">
             <p className="text-xs font-semibold text-gray-500 mb-1">상담 내용</p>
             <p className="text-xs font-medium text-gray-800">{counselInfo.title}</p>
-            <p className="text-xs text-gray-600 mt-1.5 leading-relaxed whitespace-pre-wrap">
-              {counselInfo.content || '(내용 없음)'}
-            </p>
+            <div className="flex-1 min-h-0 overflow-y-auto mt-1.5">
+              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap pr-1">
+                {counselInfo.content || '(내용 없음)'}
+              </p>
+            </div>
           </div>
           <div className="shrink-0 py-3 border-b border-gray-100">
             <p className="text-xs font-semibold text-gray-500 mb-1.5">{oppositeLabel} 정보</p>
@@ -1027,15 +1029,15 @@ const VisualChat = () => {
           </div>
         </div>
 
-        {/* 우측: 화상 통화 영역 - 데스크톱 600px, 모바일에서도 영상 노출 보장 */}
-        <div className="flex-1 h-[600px] min-h-[200px] sm:min-h-[240px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-800 min-h-[180px]">
+        {/* 우측: 화상 통화 영역 - 모바일 50vh 고정으로 영상 노출, PC 600px */}
+        <div className="flex-1 min-h-[280px] h-[50vh] lg:h-[600px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col shrink-0">
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-800">
             <video
               ref={remoteVideoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full min-h-[180px] object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
             />
             {!inCall && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/80">
@@ -1078,8 +1080,9 @@ const VisualChat = () => {
               </div>
             )}
           </div>
+          {/* 모바일: 내 화면 비표시(오프스크린). PC: 우하단 PiP. 합성 녹화용으로 DOM 유지 */}
           {inCall && (
-            <div className="absolute right-4 bottom-4 w-[160px] h-[120px] lg:w-[240px] lg:h-[180px] rounded-xl overflow-hidden border-2 border-white shadow-xl bg-gray-700 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto">
+            <div className="absolute -left-[9999px] lg:left-auto right-4 bottom-4 w-[160px] h-[120px] lg:w-[240px] lg:h-[180px] rounded-xl overflow-hidden border-2 border-white shadow-xl bg-gray-700">
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -1121,8 +1124,8 @@ const VisualChat = () => {
         )}
       </div>
 
-      {/* 채팅: 통화가 연결된 후에만 사용 가능 */}
-      <div className="mt-6 bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col min-h-0" style={{ minHeight: '200px' }}>
+      {/* 채팅: 통화가 연결된 후에만 사용 가능. 모바일에서 푸터에 가리지 않도록 하단 여백 */}
+      <div className="mt-6 mb-12 lg:mb-0 bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col min-h-0" style={{ minHeight: '200px' }}>
         <div className="px-4 py-2 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700">채팅</h2>
         </div>
@@ -1191,8 +1194,14 @@ const VisualChat = () => {
 
   return (
     <>
+      {/* 모바일: 채팅 입력란 푸터에 가리지 않도록 하단 여백·safe-area 적용 */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-[#f3f7ff] px-4 py-4">
-        <div className="max-w-[358px] mx-auto flex flex-col min-h-[calc(100vh-2rem)] pb-28">{layout}</div>
+        <div
+          className="max-w-[358px] mx-auto flex flex-col min-h-[calc(100vh-2rem)]"
+          style={{ paddingBottom: 'max(8rem, env(safe-area-inset-bottom, 8rem))' }}
+        >
+          {layout}
+        </div>
       </div>
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-8 flex flex-col min-h-screen">{layout}</div>
