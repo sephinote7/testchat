@@ -100,15 +100,18 @@ const VisualChat = () => {
           return;
         }
 
+        // cnsl_reg의 cnsler_id, member_id는 이메일 값일 수 있음 → member는 email로 조회
         const { data: members, error: memErr } = await supabase
           .from('member')
-          .select('id, nickname, gender, birth, persona, profile')
-          .in('id', [cnslRow.cnsler_id, cnslRow.member_id]);
+          .select('id, email, nickname, gender, birth, persona, profile')
+          .in('email', [String(cnslRow.cnsler_id), String(cnslRow.member_id)]);
 
         if (memErr) throw memErr;
 
-        const counselor = members?.find((m) => m.id === cnslRow.cnsler_id) || {};
-        const client = members?.find((m) => m.id === cnslRow.member_id) || {};
+        const cnslerEmail = String(cnslRow.cnsler_id).trim().toLowerCase();
+        const memberEmail = String(cnslRow.member_id).trim().toLowerCase();
+        const counselor = members?.find((m) => (m.email || '').trim().toLowerCase() === cnslerEmail) || {};
+        const client = members?.find((m) => (m.email || '').trim().toLowerCase() === memberEmail) || {};
 
         setCounselInfo({
           cnsl_id: cnslRow.cnsl_id,
