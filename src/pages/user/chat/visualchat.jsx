@@ -53,7 +53,20 @@ const VisualChat = () => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
-  const isSystem = user?.role === 'COUNSELOR';
+  // 접속자 구분: member 테이블의 role 사용. 이메일로 counselor/client 매칭 후 role 대조 → SYSTEM이면 상담사, USER면 상담자
+  const currentUserEmail = (user?.email || '').trim().toLowerCase();
+  const isSystem = (() => {
+    if (!counselInfo || !currentUserEmail) return false;
+    const counselorEmail = (counselInfo.counselor?.email || '').trim().toLowerCase();
+    const clientEmail = (counselInfo.client?.email || '').trim().toLowerCase();
+    if (counselorEmail === currentUserEmail) {
+      return String(counselInfo.counselor?.role || '').toUpperCase() === 'SYSTEM';
+    }
+    if (clientEmail === currentUserEmail) {
+      return String(counselInfo.client?.role || '').toUpperCase() === 'SYSTEM';
+    }
+    return false;
+  })();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -100,10 +113,10 @@ const VisualChat = () => {
           return;
         }
 
-        // cnsl_reg의 cnsler_id, member_id는 이메일 값일 수 있음 → member는 email로 조회
+        // cnsl_reg의 cnsler_id, member_id는 이메일 값 → member는 email로 조회, role로 상담사(SYSTEM)/상담자(USER) 구분
         const { data: members, error: memErr } = await supabase
           .from('member')
-          .select('id, email, nickname, gender, birth, persona, profile')
+          .select('id, email, role, nickname, gender, birth, persona, profile')
           .in('email', [String(cnslRow.cnsler_id), String(cnslRow.member_id)]);
 
         if (memErr) throw memErr;
@@ -121,11 +134,15 @@ const VisualChat = () => {
           startedAtRaw: cnslRow.cnsl_start_time,
           counselor: {
             id: counselor.id,
+            email: counselor.email || cnslRow.cnsler_id || '',
+            role: counselor.role ?? '',
             nickname: counselor.nickname || '',
             profile: counselor.profile || null,
           },
           client: {
             id: client.id,
+            email: client.email || cnslRow.member_id || '',
+            role: client.role ?? '',
             nickname: client.nickname || '',
             gender: formatGender(client.gender),
             age: calcAge(client.birth),
@@ -266,7 +283,24 @@ const VisualChat = () => {
     <>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold text-gray-800">화상 상담</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {inCall ? (
+            <button
+              type="button"
+              onClick={endCall}
+              className="px-5 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition"
+            >
+              통화 종료
+            </button>
+          ) : isSystem ? (
+            <button
+              type="button"
+              onClick={startCall}
+              className="px-5 py-2.5 rounded-xl bg-green-500 text-white font-semibold hover:bg-green-600 transition"
+            >
+              통화 걸기
+            </button>
+          ) : null}
           {inCall && (
             <span className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold">
               상담 진행 중
@@ -302,10 +336,10 @@ const VisualChat = () => {
             </h2>
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
-                {oppositeInfo.profile ? (
+                {!isSystem && counselInfo.counselor.profile && /^\s*(https?:\/\/|\/)/.test(String(counselInfo.counselor.profile)) ? (
                   <img
-                    src={oppositeInfo.profile}
-                    alt={oppositeInfo.nickname}
+                    src={counselInfo.counselor.profile}
+                    alt={counselInfo.counselor.nickname}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -317,16 +351,28 @@ const VisualChat = () => {
               <div>
                 <p className="font-semibold text-gray-800">{oppositeInfo.nickname || '-'}</p>
                 {isSystem && (
-                  <>
-                    <p className="text-sm text-gray-600">
-                      {counselInfo.client.gender}
-                      {counselInfo.client.age != null && ` / ${counselInfo.client.age}세`}
-                    </p>
-                  </>
+                  <p className="text-sm text-gray-600">
+                    {counselInfo.client.gender}
+                    {counselInfo.client.age != null && ` / ${counselInfo.client.age}세`}
+                  </p>
                 )}
               </div>
             </div>
           </section>
+
+          {/* 상담자 로그인 시: 상담사 정보 아래에 member.profile 내용(텍스트) */}
+          {!isSystem && (
+            <section className="mb-4 pb-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-500 mb-2">상담사 프로필</h2>
+              {counselInfo.counselor.profile && !/^\s*(https?:\/\/|\/)/.test(String(counselInfo.counselor.profile)) ? (
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {counselInfo.counselor.profile}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500">(프로필 이미지로만 등록된 경우)</p>
+              )}
+            </section>
+          )}
 
           {isSystem && counselInfo.client.persona && (
             <section className="mb-4 pb-4 border-b border-gray-100">
