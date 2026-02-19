@@ -151,6 +151,8 @@ const VisualChat = () => {
   const localAudioBlobRef = useRef(null);
   const remoteAudioBlobRef = useRef(null);
   const messagesRef = useRef([]);
+  const canvasRef = useRef(null);
+  const compositeLoopRef = useRef(null);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -332,18 +334,6 @@ const VisualChat = () => {
           call.answer(stream);
           currentCallRef.current = call;
           recordedChunksRef.current = [];
-          const clientOptions = getSupportedRecorderOptions(stream);
-          const clientRec = startMediaRecorderSafe(
-            stream,
-            clientOptions,
-            (data) => recordedChunksRef.current.push(data),
-            () => {
-              const type = clientOptions.mimeType?.split(';')[0] || 'video/webm';
-              setRecordedBlob(new Blob(recordedChunksRef.current, { type }));
-              setRecordingReady(true);
-            }
-          );
-          if (clientRec) mediaRecorderRef.current = clientRec;
           call.on('stream', (s) => {
             setRemoteStream(s);
             setReceiveCallError(null);
@@ -426,6 +416,106 @@ const VisualChat = () => {
         remoteVideo.srcObject = null;
         remoteVideo.muted = true;
       }
+    };
+  }, [inCall, remoteStream]);
+
+  // 로컬 다운로드용 녹화: 상대 연결 전에는 단일 스트림, 연결 후에는 상담사+상담자 합성(캔버스) 녹화
+  useEffect(() => {
+    if (!inCall || !localStreamRef.current) {
+      if (compositeLoopRef.current) {
+        cancelAnimationFrame(compositeLoopRef.current);
+        compositeLoopRef.current = null;
+      }
+      return;
+    }
+    const localStream = localStreamRef.current;
+    const remoteStreamVal = remoteStream;
+    recordedChunksRef.current = [];
+
+    const onRecordStop = (type = 'video/webm') => {
+      setRecordedBlob(new Blob(recordedChunksRef.current, { type }));
+      setRecordingReady(true);
+    };
+
+    if (remoteStreamVal && remoteVideoRef.current && localVideoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      canvasRef.current = canvas;
+      const ctx = canvas.getContext('2d');
+      const rVideo = remoteVideoRef.current;
+      const lVideo = localVideoRef.current;
+
+      const draw = () => {
+        if (!ctx || !rVideo || !lVideo) return;
+        if (rVideo.readyState >= 2) {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          const rAspect = rVideo.videoWidth / rVideo.videoHeight;
+          const cAspect = canvas.width / canvas.height;
+          let dx = 0, dy = 0, dw = canvas.width, dh = canvas.height;
+          if (rAspect > cAspect) {
+            dw = canvas.height * rAspect;
+            dx = (canvas.width - dw) / 2;
+          } else {
+            dh = canvas.width / rAspect;
+            dy = (canvas.height - dh) / 2;
+          }
+          ctx.drawImage(rVideo, dx, dy, dw, dh);
+        }
+        if (lVideo.readyState >= 2) {
+          const pw = 240;
+          const ph = 180;
+          const px = canvas.width - pw - 16;
+          const py = canvas.height - ph - 16;
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(px, py, pw, ph);
+          ctx.drawImage(lVideo, px, py, pw, ph);
+        }
+        compositeLoopRef.current = requestAnimationFrame(draw);
+      };
+      draw();
+
+      try {
+        const compositeStream = canvas.captureStream(30);
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) compositeStream.addTrack(audioTrack);
+        const opts = getSupportedRecorderOptions(compositeStream);
+        const rec = new MediaRecorder(compositeStream, opts);
+        mediaRecorderRef.current = rec;
+        rec.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+        };
+        rec.onstop = () => onRecordStop(opts.mimeType?.split(';')[0] || 'video/webm');
+        rec.start(1000);
+      } catch (e) {
+        console.warn('합성 녹화 실패, 단일 스트림으로 대체:', e);
+        const mainOpts = getSupportedRecorderOptions(localStream);
+        const mainRec = startMediaRecorderSafe(localStream, mainOpts, (d) => recordedChunksRef.current.push(d), () => onRecordStop(mainOpts.mimeType?.split(';')[0]));
+        if (mainRec) mediaRecorderRef.current = mainRec;
+      }
+    } else {
+      const mainOpts = getSupportedRecorderOptions(localStream);
+      const mainRec = startMediaRecorderSafe(
+        localStream,
+        mainOpts,
+        (d) => recordedChunksRef.current.push(d),
+        () => onRecordStop(mainOpts.mimeType?.split(';')[0] || 'video/webm')
+      );
+      if (mainRec) mediaRecorderRef.current = mainRec;
+    }
+
+    return () => {
+      if (compositeLoopRef.current) {
+        cancelAnimationFrame(compositeLoopRef.current);
+        compositeLoopRef.current = null;
+      }
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current = null;
+      canvasRef.current = null;
     };
   }, [inCall, remoteStream]);
 
@@ -576,20 +666,7 @@ const VisualChat = () => {
         console.error('[PeerJS] 발신 오류:', err);
       });
 
-      // 1) 로컬 다운로드용 고화질 영상 (video+audio 또는 audio만)
-      const mainOptions = getSupportedRecorderOptions(stream);
-      const mainRec = startMediaRecorderSafe(
-        stream,
-        mainOptions,
-        (data) => recordedChunksRef.current.push(data),
-        () => {
-          const type = mainOptions.mimeType?.split(';')[0] || 'video/webm';
-          setRecordedBlob(new Blob(recordedChunksRef.current, { type }));
-          setRecordingReady(true);
-        }
-      );
-      if (mainRec) mediaRecorderRef.current = mainRec;
-
+      // 1) 로컬 다운로드용 고화질 영상은 단일/합성 녹화 useEffect에서 시작 (상담사+상담자 함께 저장)
       // 2) STT용 저화질 음성 (상담사 쪽) — 영상 여부와 관계없이 항상 오디오만 64kbps로 별도 녹음
       const localAudioTracks = stream.getAudioTracks();
       if (localAudioTracks.length > 0) {
@@ -950,15 +1027,15 @@ const VisualChat = () => {
           </div>
         </div>
 
-        {/* 우측: 화상 통화 영역 - 높이 600px */}
-        <div className="flex-1 h-[600px] min-h-[240px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+        {/* 우측: 화상 통화 영역 - 데스크톱 600px, 모바일에서도 영상 노출 보장 */}
+        <div className="flex-1 h-[600px] min-h-[200px] sm:min-h-[240px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col">
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800 min-h-[180px]">
             <video
               ref={remoteVideoRef}
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className="w-full h-full min-h-[180px] object-cover"
             />
             {!inCall && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white/80">
@@ -1002,7 +1079,7 @@ const VisualChat = () => {
             )}
           </div>
           {inCall && (
-            <div className="absolute right-4 bottom-4 w-[160px] h-[120px] lg:w-[240px] lg:h-[180px] rounded-xl overflow-hidden border-2 border-white shadow-xl bg-gray-700">
+            <div className="absolute right-4 bottom-4 w-[160px] h-[120px] lg:w-[240px] lg:h-[180px] rounded-xl overflow-hidden border-2 border-white shadow-xl bg-gray-700 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto">
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -1115,7 +1192,7 @@ const VisualChat = () => {
   return (
     <>
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-[#f3f7ff] px-4 py-4">
-        <div className="max-w-[358px] mx-auto flex flex-col min-h-[calc(100vh-2rem)]">{layout}</div>
+        <div className="max-w-[358px] mx-auto flex flex-col min-h-[calc(100vh-2rem)] pb-28">{layout}</div>
       </div>
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-8 flex flex-col min-h-screen">{layout}</div>
