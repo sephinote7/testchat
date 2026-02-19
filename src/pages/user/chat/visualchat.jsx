@@ -67,12 +67,13 @@ function startMediaRecorderSafe(stream, options, onData, onStop) {
 
 /**
  * 화상 상담 페이지
+ *
+ * [녹화 설계]
+ * - 로컬 다운로드용: 고화질 영상 1개 (video+audio 또는 audio만) → mediaRecorderRef → recordedBlob → "녹화 다운로드"
+ * - STT/DB 저장용: 저화질 음성 2개 (상담사 음성, 상담자 음성) → localAudioBlobRef, remoteAudioBlobRef
+ *   → testchatpy /api/summarize (Whisper STT) → msg_data + summary → chat_msg 테이블 저장
+ *
  * - 상담 내용: cnsl_reg (cnsl_title, cnsl_content, cnsl_start_time)
- * - 예약자(USER) 화면: 상대방 = "상담사" (cnsler_reg.cnsler_id → member)
- * - SYSTEM(상담사) 화면: 상대방 = "상담자" (cnsler_reg.member_id → member)
- * - 상담자 정보: member (nickname, gender M/F→남성/여성, 나이 from birth, persona)
- * - 상담사 정보: member (nickname, profile)
- * - 채팅: 하단 분리, 예시 없음
  * - 통화 걸기(상담사만) / 통화 종료
  */
 function calcAge(birth) {
@@ -428,7 +429,7 @@ const VisualChat = () => {
     };
   }, [inCall, remoteStream]);
 
-  // 원격 스트림 수신 시 저화질 오디오 녹화 (testchatpy STT용)
+  // 원격 스트림 수신 시 STT용 저화질 오디오만 녹화 (상담자 음성 → audio_user)
   useEffect(() => {
     if (!inCall || !remoteStream || remoteAudioRecorderRef.current) return;
     const audioTracks = remoteStream.getAudioTracks();
@@ -575,7 +576,7 @@ const VisualChat = () => {
         console.error('[PeerJS] 발신 오류:', err);
       });
 
-      const hasVideo = stream.getVideoTracks().length > 0;
+      // 1) 로컬 다운로드용 고화질 영상 (video+audio 또는 audio만)
       const mainOptions = getSupportedRecorderOptions(stream);
       const mainRec = startMediaRecorderSafe(
         stream,
@@ -589,15 +590,19 @@ const VisualChat = () => {
       );
       if (mainRec) mediaRecorderRef.current = mainRec;
 
-      const audioOptions = getSupportedRecorderOptions(stream);
-      if (audioOptions.mimeType?.startsWith('audio/')) {
+      // 2) STT용 저화질 음성 (상담사 쪽) — 영상 여부와 관계없이 항상 오디오만 64kbps로 별도 녹음
+      const localAudioTracks = stream.getAudioTracks();
+      if (localAudioTracks.length > 0) {
+        const localAudioOnlyStream = new MediaStream(localAudioTracks);
+        const sttAudioOpts = getSupportedRecorderOptions(localAudioOnlyStream);
+        const sttMime = sttAudioOpts.mimeType?.startsWith('audio/') ? sttAudioOpts.mimeType : 'audio/webm';
         const audioRec = startMediaRecorderSafe(
-          stream,
-          { mimeType: audioOptions.mimeType, audioBitsPerSecond: audioOptions.audioBitsPerSecond ?? 64000 },
+          localAudioOnlyStream,
+          { mimeType: sttMime, audioBitsPerSecond: 64000 },
           (data) => localAudioChunksRef.current.push(data),
           () => {
             localAudioBlobRef.current = new Blob(localAudioChunksRef.current, {
-              type: audioOptions.mimeType?.split(';')[0] || 'audio/webm',
+              type: sttMime?.split(';')[0] || 'audio/webm',
             });
           }
         );
@@ -641,6 +646,7 @@ const VisualChat = () => {
     }
   };
 
+  /** 통화 종료 후 1회 실행: 저화질 음성(상담사/상담자) + 채팅 → testchatpy STT → msg_data·summary → chat_msg 저장 */
   const finalizeAndSaveOnce = async () => {
     if (finalizeOnceRef.current) return;
     if (!isSystem || !counselInfo) return;
@@ -659,12 +665,29 @@ const VisualChat = () => {
 
     if (apiUrl) {
       try {
+        let waited = 0;
+        const maxWait = 3000;
+        const step = 200;
+        while (waited < maxWait) {
+          const localBlob = localAudioBlobRef.current;
+          const remoteBlob = remoteAudioBlobRef.current;
+          const localReady = localBlob && localBlob.size > 0;
+          const remoteReady = remoteBlob && remoteBlob.size > 0;
+          if (localReady && remoteReady) break;
+          await new Promise((r) => setTimeout(r, step));
+          waited += step;
+        }
+
         const form = new FormData();
-        const localBlob = localAudioBlobRef.current;
-        const remoteBlob = remoteAudioBlobRef.current;
-        if (remoteBlob) form.append('audio_user', remoteBlob, 'user.webm');
-        if (localBlob) form.append('audio_cnsler', localBlob, 'cnsler.webm');
         form.append('msg_data', JSON.stringify(chatMessages));
+        const localBlob = localAudioBlobRef.current;  // STT용 저화질 상담사 음성
+        const remoteBlob = remoteAudioBlobRef.current; // STT용 저화질 상담자 음성
+        if (remoteBlob && remoteBlob.size > 0) {
+          form.append('audio_user', remoteBlob, 'user.webm');
+        }
+        if (localBlob && localBlob.size > 0) {
+          form.append('audio_cnsler', localBlob, 'cnsler.webm');
+        }
 
         const res = await fetch(`${apiUrl}/api/summarize`, {
           method: 'POST',
@@ -742,7 +765,7 @@ const VisualChat = () => {
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     setInCall(false);
-    setTimeout(() => finalizeAndSaveOnce(), 800);
+    setTimeout(() => finalizeAndSaveOnce(), 1200);
   };
 
   useEffect(() => {
