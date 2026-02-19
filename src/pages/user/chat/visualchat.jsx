@@ -1,7 +1,17 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import Peer from 'peerjs';
 import useAuth from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabase';
+
+/** PeerJS ID: 이메일 특수문자 치환 (testchat과 동일 규칙) */
+function getSafePeerId(email) {
+  if (!email) return null;
+  return String(email)
+    .toLowerCase()
+    .replace(/[@]/g, '_at_')
+    .replace(/[.]/g, '_');
+}
 
 /**
  * 화상 상담 페이지
@@ -52,6 +62,8 @@ const VisualChat = () => {
   const messagesEndRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const peerRef = useRef(null);
+  const currentCallRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -60,6 +72,7 @@ const VisualChat = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [inCall, setInCall] = useState(false);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [recordingReady, setRecordingReady] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState(null);
 
@@ -164,19 +177,97 @@ const VisualChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 통화 시작 후 DOM 마운트 시 스트림 연결 (검은 화면 방지). 원격 없을 때 메인 영역에도 로컬 영상 표시
+  // PeerJS: 상담사/상담자 모두 자신의 이메일로 Peer 생성 (상대방과 1:1 매칭용)
   useEffect(() => {
-    if (!inCall || !localStreamRef.current) return;
-    const stream = localStreamRef.current;
+    if (!counselInfo || !currentUserEmail) return;
+    const counselorEmail = (counselInfo.counselor?.email || '').trim().toLowerCase();
+    const clientEmail = (counselInfo.client?.email || '').trim().toLowerCase();
+    if (currentUserEmail !== counselorEmail && currentUserEmail !== clientEmail) return;
+    const mySafeId = getSafePeerId(currentUserEmail);
+    if (!mySafeId || peerRef.current) return;
+
+    const peer = new Peer(String(mySafeId), {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      },
+    });
+
+    peer.on('open', () => {
+      console.log('[PeerJS] 내 ID:', mySafeId);
+    });
+
+    // 상담자(USER): 상담사가 걸면 수신 후 자신 미디어로 응답
+    peer.on('call', async (call) => {
+      console.log('[PeerJS] 통화 수신');
+      try {
+        let stream = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: true,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false,
+          });
+        }
+        if (stream) {
+          localStreamRef.current = stream;
+          call.answer(stream);
+          currentCallRef.current = call;
+          call.on('stream', (s) => {
+            setRemoteStream(s);
+            setInCall(true);
+          });
+          call.on('close', () => {
+            setRemoteStream(null);
+            setInCall(false);
+            currentCallRef.current = null;
+            localStreamRef.current?.getTracks().forEach((t) => t.stop());
+            localStreamRef.current = null;
+          });
+        }
+      } catch (err) {
+        console.error('[PeerJS] 수신 응답 오류:', err);
+      }
+    });
+
+    peer.on('error', (err) => {
+      console.error('[PeerJS]', err?.type ?? err);
+    });
+
+    peerRef.current = peer;
+    return () => {
+      try {
+        peer.destroy();
+      } catch (_) {}
+      peerRef.current = null;
+    };
+  }, [counselInfo, currentUserEmail]);
+
+  // 통화 중 비디오 연결: 큰 화면 = 상대(remote), 없으면 자기(local). 작은 화면 = 항상 자기(local)
+  useEffect(() => {
+    if (!inCall) return;
     const localVideo = localVideoRef.current;
     const remoteVideo = remoteVideoRef.current;
-    if (localVideo) localVideo.srcObject = stream;
-    if (remoteVideo) remoteVideo.srcObject = stream;
+    const localStream = localStreamRef.current;
+    if (localVideo && localStream) localVideo.srcObject = localStream;
+    if (remoteVideo) {
+      remoteVideo.srcObject = remoteStream || localStream || null;
+      remoteVideo.muted = !remoteStream; // 상대 영상은 소리 재생, 자기 영상은 muted
+    }
     return () => {
       if (localVideo) localVideo.srcObject = null;
-      if (remoteVideo) remoteVideo.srcObject = null;
+      if (remoteVideo) {
+        remoteVideo.srcObject = null;
+        remoteVideo.muted = true;
+      }
     };
-  }, [inCall]);
+  }, [inCall, remoteStream]);
 
   const startCall = async () => {
     if (typeof window === 'undefined') return;
@@ -194,6 +285,21 @@ const VisualChat = () => {
         '이 브라우저는 카메라/마이크 접근을 지원하지 않습니다.\n' +
           'Chrome, Edge, Firefox, Safari 최신 버전을 사용해 주세요.'
       );
+      return;
+    }
+
+    const peer = peerRef.current;
+    if (!peer) {
+      alert('연결 준비가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
+    const oppositeEmail = isSystem
+      ? (counselInfo?.client?.email || '').trim().toLowerCase()
+      : (counselInfo?.counselor?.email || '').trim().toLowerCase();
+    const oppositeSafeId = getSafePeerId(oppositeEmail);
+    if (!oppositeSafeId) {
+      alert('상대방 정보를 찾을 수 없습니다.');
       return;
     }
 
@@ -218,9 +324,25 @@ const VisualChat = () => {
 
       localStreamRef.current = stream;
       setInCall(true);
+      setRemoteStream(null);
       setRecordingReady(false);
       setRecordedBlob(null);
       recordedChunksRef.current = [];
+
+      // 상담사만 통화 걸기 가능 → 상담자(USER) 쪽 Peer에 발신
+      const call = peer.call(String(oppositeSafeId), stream);
+      currentCallRef.current = call;
+      call.on('stream', (s) => {
+        setRemoteStream(s);
+      });
+      call.on('close', () => {
+        setRemoteStream(null);
+        setInCall(false);
+        currentCallRef.current = null;
+      });
+      call.on('error', (err) => {
+        console.error('[PeerJS] 발신 오류:', err);
+      });
 
       const hasVideo = stream.getVideoTracks().length > 0;
       const hasAudio = stream.getAudioTracks().length > 0;
@@ -269,14 +391,21 @@ const VisualChat = () => {
   };
 
   const endCall = () => {
+    if (currentCallRef.current) {
+      try {
+        currentCallRef.current.close();
+      } catch (_) {}
+      currentCallRef.current = null;
+    }
+    remoteStream?.getTracks?.().forEach((t) => t.stop());
+    setRemoteStream(null);
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
-    }
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     setInCall(false);
   };
 
