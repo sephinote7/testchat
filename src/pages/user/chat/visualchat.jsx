@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Peer from 'peerjs';
 import useAuth from '../../../hooks/useAuth';
@@ -400,18 +400,26 @@ const VisualChat = () => {
   }, [counselInfo, currentUserEmail]);
 
   // 통화 중 비디오 연결: 큰 화면 = 상대(remote), 없으면 자기(local). 작은 화면 = 항상 자기(local)
-  useEffect(() => {
+  // useLayoutEffect: DOM 반영 직후 스트림 할당 → 회색 화면 방지. 할당 후 play()로 재생 보장.
+  useLayoutEffect(() => {
     if (!inCall) return;
     const localVideo = localVideoRef.current;
     const remoteVideo = remoteVideoRef.current;
     const localStream = localStreamRef.current;
-    if (localVideo && localStream) localVideo.srcObject = localStream;
+    if (localVideo && localStream) {
+      localVideo.srcObject = localStream;
+      localVideo.play().catch(() => {});
+    }
     if (remoteVideo) {
-      remoteVideo.srcObject = remoteStream || localStream || null;
-      remoteVideo.muted = !remoteStream; // 상대 영상은 소리 재생, 자기 영상은 muted
+      const stream = remoteStream || localStream || null;
+      remoteVideo.srcObject = stream;
+      remoteVideo.muted = !remoteStream;
+      if (stream) remoteVideo.play().catch(() => {});
     }
     return () => {
-      if (localVideo) localVideo.srcObject = null;
+      if (localVideo) {
+        localVideo.srcObject = null;
+      }
       if (remoteVideo) {
         remoteVideo.srcObject = null;
         remoteVideo.muted = true;
@@ -962,14 +970,14 @@ const VisualChat = () => {
           </button>
         </div>
       </div>
-      <div className="flex flex-col lg:flex-row gap-6 lg:h-[600px]">
-        {/* 좌측: 상담 시작 / 상담 내용(PC 360px 스크롤) / 상담자 정보 / 페르소나·프로필 */}
-        <div className="lg:w-[400px] xl:w-[440px] lg:h-[600px] flex flex-col bg-white rounded-2xl shadow-lg p-4 overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-6 min-h-[520px] lg:h-[600px]">
+        {/* 좌측: 상담 시작 / 상담 내용(300px 스크롤) / 상담자 정보 / 페르소나·프로필 */}
+        <div className="lg:w-[400px] xl:w-[440px] lg:h-[600px] flex flex-col bg-white rounded-2xl shadow-lg p-4 overflow-hidden shrink-0">
           <div className="shrink-0 py-2 border-b border-gray-100">
             <p className="text-xs text-gray-500">상담 시작</p>
             <p className="text-xs font-medium text-gray-700 mt-0.5">{counselInfo.startedAt}</p>
           </div>
-          <div className="shrink-0 py-3 border-b border-gray-100 h-[280px] lg:h-[360px] flex flex-col min-h-0 overflow-hidden">
+          <div className="shrink-0 py-3 border-b border-gray-100 h-[300px] flex flex-col min-h-0 overflow-hidden">
             <p className="text-xs font-semibold text-gray-500 mb-1">상담 내용</p>
             <p className="text-xs font-medium text-gray-800">{counselInfo.title}</p>
             <div className="flex-1 min-h-0 overflow-y-auto mt-1.5">
@@ -1029,9 +1037,9 @@ const VisualChat = () => {
           </div>
         </div>
 
-        {/* 우측: 화상 통화 영역 - 모바일 50vh 고정으로 영상 노출, PC 600px */}
-        <div className="flex-1 min-h-[280px] h-[50vh] lg:h-[600px] bg-gray-900 rounded-2xl shadow-lg overflow-hidden relative flex flex-col shrink-0">
-          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gray-800">
+        {/* 우측: 화상 통화 영역 - 줄인 뷰포트/모바일에서도 항상 출력 (고정 높이), PC 600px */}
+        <div className="flex-1 w-full h-[300px] min-h-[300px] lg:h-[600px] bg-gray-900 rounded-2xl overflow-hidden relative shrink-0">
+          <div className="absolute inset-0 w-full h-full bg-gray-800">
             <video
               ref={remoteVideoRef}
               autoPlay
