@@ -1,5 +1,5 @@
 {
-  "name": "visualchat",
+  "name": "pjt-gmss",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,17 +10,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.94.1",
-    "peerjs": "^1.5.5",
+    "@supabase/supabase-js": "^2.93.3",
+    "axios": "^1.13.2",
+    "class-variance-authority": "^0.7.1",
+    "postcss-cli": "^11.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "zustand": "^5.0.11"
+    "react-kakao-maps-sdk": "^1.2.0",
+    "react-router-dom": "^7.12.0",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.23",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
