@@ -194,15 +194,20 @@ const VisualChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // PeerJS: 상담사/상담자 모두 자신의 이메일로 Peer 생성 (상대방과 1:1 매칭용)
+  const [peerReady, setPeerReady] = useState(false);
+  const [peerError, setPeerError] = useState(null);
+  const [receiveCallError, setReceiveCallError] = useState(null);
+
+  // PeerJS: 상담사/상담자 모두 자신의 이메일로 Peer 생성 (open 성공 시에만 사용)
   useEffect(() => {
     if (!counselInfo || !currentUserEmail) return;
     const counselorEmail = (counselInfo.counselor?.email || '').trim().toLowerCase();
     const clientEmail = (counselInfo.client?.email || '').trim().toLowerCase();
     if (currentUserEmail !== counselorEmail && currentUserEmail !== clientEmail) return;
     const mySafeId = getSafePeerId(currentUserEmail);
-    if (!mySafeId || peerRef.current) return;
+    if (!mySafeId) return;
 
+    setPeerError(null);
     const peer = new Peer(String(mySafeId), {
       config: {
         iceServers: [
@@ -214,10 +219,34 @@ const VisualChat = () => {
 
     peer.on('open', () => {
       console.log('[PeerJS] 내 ID:', mySafeId);
+      peerRef.current = peer;
+      setPeerReady(true);
+      setPeerError(null);
+    });
+
+    peer.on('error', (err) => {
+      const errType = err?.type ?? '';
+      const errMsg = err?.message || errType || 'Peer 연결 실패';
+      console.error('[PeerJS]', errType, errMsg);
+      if (errType === 'unavailable-id' || errMsg.includes('unavailable')) {
+        setPeerError('같은 계정이 이미 다른 탭에서 접속 중입니다. 다른 탭을 닫고 새로고침해 주세요.');
+      } else {
+        setPeerError(errMsg);
+      }
+      try {
+        peer.destroy();
+      } catch (_) {}
+      peerRef.current = null;
+      setPeerReady(false);
+    });
+
+    peer.on('disconnected', () => {
+      setPeerReady(false);
     });
 
     // 상담자(USER): 상담사가 걸면 수신 후 자신 미디어로 응답
     peer.on('call', async (call) => {
+      if (!call) return;
       console.log('[PeerJS] 통화 수신');
       try {
         let stream = null;
@@ -226,11 +255,19 @@ const VisualChat = () => {
             video: { facingMode: 'user' },
             audio: true,
           });
-        } catch {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user' },
-            audio: false,
-          });
+        } catch (videoAudioErr) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'user' },
+              audio: false,
+            });
+          } catch (videoOnlyErr) {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (_) {
+              throw videoAudioErr;
+            }
+          }
         }
         if (stream) {
           localStreamRef.current = stream;
@@ -238,6 +275,7 @@ const VisualChat = () => {
           currentCallRef.current = call;
           call.on('stream', (s) => {
             setRemoteStream(s);
+            setReceiveCallError(null);
             setInCall(true);
           });
           call.on('close', () => {
@@ -250,6 +288,12 @@ const VisualChat = () => {
         }
       } catch (err) {
         console.error('[PeerJS] 수신 응답 오류:', err);
+        const msg = err?.message || String(err);
+        if (err?.name === 'NotFoundError' || msg.includes('not found')) {
+          setReceiveCallError('카메라/마이크를 찾을 수 없습니다. 장치를 연결한 뒤 새로고침해 주세요.');
+        } else {
+          setReceiveCallError('미디어 접근 실패: ' + msg);
+        }
       }
     });
 
@@ -281,12 +325,8 @@ const VisualChat = () => {
       });
     });
 
-    peer.on('error', (err) => {
-      console.error('[PeerJS]', err?.type ?? err);
-    });
-
-    peerRef.current = peer;
     return () => {
+      setPeerReady(false);
       try {
         dataConnRef.current?.close();
       } catch (_) {}
@@ -364,8 +404,14 @@ const VisualChat = () => {
     }
 
     const peer = peerRef.current;
-    if (!peer) {
-      alert('연결 준비가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+    if (!peer || !peer.open) {
+      if (peerError) {
+        alert(
+          '연결에 실패했습니다. 같은 계정으로 다른 탭이 열려 있으면 닫고, 페이지를 새로고침한 뒤 다시 시도해 주세요.'
+        );
+      } else {
+        alert('연결 준비가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+      }
       return;
     }
 
@@ -408,14 +454,22 @@ const VisualChat = () => {
 
       // 상담사만 통화 걸기 가능 → 상담자(USER) 쪽 Peer에 발신
       const call = peer.call(String(oppositeSafeId), stream);
+      if (!call) {
+        localStreamRef.current?.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+        setInCall(false);
+        alert('통화 연결에 실패했습니다. 상대방이 같은 화상상담 페이지에 있는지 확인 후 다시 시도해 주세요.');
+        return;
+      }
       currentCallRef.current = call;
       call.on('stream', (s) => {
         setRemoteStream(s);
         if (isSystem) {
           const conn = peer.connect(String(oppositeSafeId));
-          dataConnRef.current = conn;
-          conn.on('open', () => {
-            conn.on('data', (data) => {
+          if (conn) {
+            dataConnRef.current = conn;
+            conn.on('open', () => {
+              conn.on('data', (data) => {
               const obj = typeof data === 'string' ? JSON.parse(data) : data;
               if (obj?.type === 'control' && obj?.action === 'end_call') {
                 endCallRef.current?.();
@@ -439,6 +493,7 @@ const VisualChat = () => {
               }
             });
           });
+          }
         }
       });
       call.on('close', () => {
@@ -821,17 +876,35 @@ const VisualChat = () => {
                     카메라/마이크는 HTTPS 또는 localhost에서만 사용 가능합니다.
                   </p>
                 )}
+                {peerError && (
+                  <p className="mt-2 text-amber-300 text-sm text-center max-w-md px-4">
+                    {peerError}
+                  </p>
+                )}
                 {isSystem && (
-                  <button
-                    type="button"
-                    onClick={startCall}
-                    className="mt-4 px-6 py-3 bg-green-500 hover:bg-green-600 rounded-xl font-semibold"
-                  >
-                    통화 걸기
-                  </button>
+                  <>
+                    {!peerReady && !peerError && (
+                      <p className="mt-2 text-white/60 text-sm">연결 준비 중...</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={startCall}
+                      disabled={!peerReady}
+                      className="mt-4 px-6 py-3 bg-green-500 hover:bg-green-600 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      통화 걸기
+                    </button>
+                  </>
                 )}
                 {!isSystem && (
-                  <p className="mt-4 text-sm">상담사가 통화를 걸 때까지 기다려 주세요.</p>
+                  <>
+                    <p className="mt-4 text-sm">상담사가 통화를 걸 때까지 기다려 주세요.</p>
+                    {receiveCallError && (
+                      <p className="mt-2 text-amber-300 text-sm text-center max-w-md px-4">
+                        {receiveCallError}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
