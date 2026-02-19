@@ -184,10 +184,24 @@ const VisualChat = () => {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: true,
-      });
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: true,
+        });
+      } catch (firstErr) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false,
+          });
+        } catch (videoOnlyErr) {
+          throw firstErr;
+        }
+      }
+      if (!stream) throw new Error('미디어 스트림을 얻지 못했습니다.');
+
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -197,16 +211,20 @@ const VisualChat = () => {
       setRecordedBlob(null);
       recordedChunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
-        videoBitsPerSecond: 2500000,
-      });
+      const hasVideo = stream.getVideoTracks().length > 0;
+      const hasAudio = stream.getAudioTracks().length > 0;
+      const options = hasVideo
+        ? { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 2500000 }
+        : { mimeType: 'audio/webm' };
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const blob = new Blob(recordedChunksRef.current, {
+          type: hasVideo ? 'video/webm' : 'audio/webm',
+        });
         setRecordedBlob(blob);
         setRecordingReady(true);
       };
@@ -347,13 +365,12 @@ const VisualChat = () => {
           </button>
         </div>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
-        상담 시작: {counselInfo.startedAt}
-      </p>
-
       <div className="flex flex-col lg:flex-row gap-6 h-[800px]">
-        {/* 좌측: 상담 내용 칸 - 높이 800px 고정, 페르소나/상담사 소개는 스크롤 */}
+        {/* 좌측: 상담 시작 시간 + 상담 내용 칸 - 높이 800px 고정 */}
         <div className="lg:w-[480px] xl:w-[520px] h-[800px] flex flex-col bg-white rounded-2xl shadow-lg p-6 overflow-hidden">
+          <p className="text-sm text-gray-500 flex-shrink-0 mb-2">
+            상담 시작: {counselInfo.startedAt}
+          </p>
           <section className="flex-shrink-0 mb-4">
             <h2 className="text-sm font-semibold text-gray-500 mb-1">상담 내용</h2>
             <p className="font-medium text-gray-800">{counselInfo.title}</p>
@@ -466,7 +483,7 @@ const VisualChat = () => {
         </div>
       </div>
 
-      {/* 하단: 통화 종료(연결 시) + 녹화 다운로드 (통화 걸기는 화상 통화 영역 내부에만) */}
+      {/* 하단: 통화 중에는 통화 종료만, 통화 종료 후에만 녹화 다운로드 표기 */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
         <div className="flex items-center gap-3">
           {inCall && (
@@ -478,71 +495,82 @@ const VisualChat = () => {
               통화 종료
             </button>
           )}
-          <button
-            type="button"
-            onClick={downloadRecording}
-            disabled={!recordingReady}
-            className="px-5 py-2.5 rounded-xl bg-gray-200 text-gray-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:enabled:bg-gray-300 transition"
-          >
-            녹화 다운로드
-          </button>
+          {!inCall && (recordingReady || recordedBlob) && (
+            <button
+              type="button"
+              onClick={downloadRecording}
+              className="px-5 py-2.5 rounded-xl bg-gray-200 text-gray-600 font-medium hover:bg-gray-300 transition"
+            >
+              녹화 다운로드
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 채팅: 하단 분리 */}
+      {/* 채팅: 통화가 연결된 후에만 사용 가능 */}
       <div className="mt-6 bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col min-h-0" style={{ minHeight: '200px' }}>
         <div className="px-4 py-2 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-700">채팅</h2>
         </div>
-        <div className="flex-1 overflow-y-auto space-y-3 p-4 min-h-[160px] max-h-[280px]">
-          {messages.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">메시지를 입력해 보내주세요.</p>
-          ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.sender === (isSystem ? 'SYSTEM' : 'USER') ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                    msg.sender === (isSystem ? 'SYSTEM' : 'USER')
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  <p className="text-xs font-semibold opacity-90">{msg.senderName}</p>
-                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                  <p className="text-xs mt-1 opacity-80">{msg.time}</p>
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-4 border-t border-gray-100">
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder="메시지를 입력하세요"
-            className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-          />
-          <button
-            type="submit"
-            className="p-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition"
-            aria-label="전송"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+        {!inCall ? (
+          <div className="flex-1 flex items-center justify-center min-h-[160px] p-4">
+            <p className="text-sm text-gray-400 text-center">
+              통화가 연결된 후 채팅을 사용할 수 있습니다.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 overflow-y-auto space-y-3 p-4 min-h-[160px] max-h-[280px]">
+              {messages.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">메시지를 입력해 보내주세요.</p>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.sender === (isSystem ? 'SYSTEM' : 'USER') ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-2 ${
+                        msg.sender === (isSystem ? 'SYSTEM' : 'USER')
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <p className="text-xs font-semibold opacity-90">{msg.senderName}</p>
+                      <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                      <p className="text-xs mt-1 opacity-80">{msg.time}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+            <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-4 border-t border-gray-100">
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                placeholder="메시지를 입력하세요"
+                className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
               />
-            </svg>
-          </button>
-        </form>
+              <button
+                type="submit"
+                className="p-3 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition"
+                aria-label="전송"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                  />
+                </svg>
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </>
   );
