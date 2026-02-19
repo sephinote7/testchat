@@ -164,6 +164,20 @@ const VisualChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // 통화 시작 후 DOM 마운트 시 스트림 연결 (검은 화면 방지). 원격 없을 때 메인 영역에도 로컬 영상 표시
+  useEffect(() => {
+    if (!inCall || !localStreamRef.current) return;
+    const stream = localStreamRef.current;
+    const localVideo = localVideoRef.current;
+    const remoteVideo = remoteVideoRef.current;
+    if (localVideo) localVideo.srcObject = stream;
+    if (remoteVideo) remoteVideo.srcObject = stream;
+    return () => {
+      if (localVideo) localVideo.srcObject = null;
+      if (remoteVideo) remoteVideo.srcObject = null;
+    };
+  }, [inCall]);
+
   const startCall = async () => {
     if (typeof window === 'undefined') return;
 
@@ -203,9 +217,6 @@ const VisualChat = () => {
       if (!stream) throw new Error('미디어 스트림을 얻지 못했습니다.');
 
       localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
       setInCall(true);
       setRecordingReady(false);
       setRecordedBlob(null);
@@ -483,18 +494,9 @@ const VisualChat = () => {
         </div>
       </div>
 
-      {/* 하단: 통화 중에는 통화 종료만, 통화 종료 후에만 녹화 다운로드 표기 */}
+      {/* 하단: 통화 종료 버튼 없음(상단만 유지), 통화 종료 후에만 녹화 다운로드 표기 */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 mt-4">
         <div className="flex items-center gap-3">
-          {inCall && (
-            <button
-              type="button"
-              onClick={endCall}
-              className="px-6 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition"
-            >
-              통화 종료
-            </button>
-          )}
           {!inCall && (recordingReady || recordedBlob) && (
             <button
               type="button"
