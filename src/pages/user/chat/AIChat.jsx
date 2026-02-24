@@ -158,6 +158,7 @@ const AIChat = () => {
           cnsl_cate: 'DAILY',
           cnsl_dt: cnslDt,
           cnsl_start_time: cnslStartTime,
+          cnsl_end_time: cnslStartTime,
           cnsl_title: 'AI 즉시 상담',
           cnsl_content: 'AI 즉시 상담 요청',
           cnsl_stat: 'C', // 진행 중
@@ -178,6 +179,14 @@ const AIChat = () => {
     } catch (e) {
       console.error('AI 즉시 상담 생성 중 오류:', e);
       alert('상담 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  };
+
+  const handleCancel = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate('/chat');
     }
   };
 
@@ -220,15 +229,25 @@ const AIChat = () => {
                   />
                   <span className="text-sm text-gray-700">상기 내용을 확인하였습니다</span>
                 </label>
-                <button
-                  onClick={handleStartChat}
-                  disabled={!agreedToTerms}
-                  className={`w-full py-4 rounded-xl text-white font-bold text-lg transition-all ${
-                    agreedToTerms ? 'bg-[#2563eb] hover:bg-[#1d4ed8]' : 'bg-gray-300 cursor-not-allowed'
-                  }`}
-                >
-                  상담 시작
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="w-1/3 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm font-medium bg-white"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartChat}
+                    disabled={!agreedToTerms}
+                    className={`flex-1 py-3 rounded-xl text-white font-bold text-lg transition-all ${
+                      agreedToTerms ? 'bg-[#2563eb] hover:bg-[#1d4ed8]' : 'bg-gray-300 cursor-not-allowed'
+                    }`}
+                  >
+                    상담 시작
+                  </button>
+                </div>
               </div>
               <div className="w-full space-y-3 text-center">
                 <p className="text-xs text-gray-600">AI 상담 관련 향상 서비스</p>
@@ -316,15 +335,25 @@ const AIChat = () => {
                 />
                 <span className="text-base text-gray-700">상기 내용을 확인하였습니다</span>
               </label>
-              <button
-                onClick={handleStartChat}
-                disabled={!agreedToTerms}
-                className={`w-full py-4 rounded-xl text-white font-bold text-lg transition-all ${
-                  agreedToTerms ? 'bg-[#2563eb] hover:bg-[#1d4ed8]' : 'bg-gray-300 cursor-not-allowed'
-                }`}
-              >
-                상담 시작
-              </button>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="w-1/3 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm font-medium bg-white"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartChat}
+                  disabled={!agreedToTerms}
+                  className={`flex-1 py-3 rounded-xl text-white font-bold text-lg transition-all ${
+                    agreedToTerms ? 'bg-[#2563eb] hover:bg-[#1d4ed8]' : 'bg-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  상담 시작
+                </button>
+              </div>
               <div className="mt-6 space-y-2 text-center">
                 <p className="text-xs text-gray-600">AI 상담 관련 향상 서비스</p>
                 <p className="text-xs text-gray-500">고민, 커리어, 취업 까지 혼자 고민하지 마세요.</p>
