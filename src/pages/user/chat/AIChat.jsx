@@ -491,7 +491,7 @@ const AIChat = () => {
                     onClick={handleEndChat}
                     className="max-w-[70%] rounded-2xl px-6 py-4 text-base leading-relaxed shadow-md bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 text-red-700 hover:from-red-100 hover:to-red-200 transition-colors"
                   >
-                    상담을 종료하고<br />새로운 고민을 정리할게요
+                    상담 종료
                   </button>
                 )}
               </div>
