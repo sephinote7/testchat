@@ -10,6 +10,7 @@ const Chat = () => {
     <Routes>
       <Route index element={<ChatDefaultPage />} />
       <Route path="withai" element={<AIChat />} />
+      <Route path="withai/:cnslId" element={<AIChat />} />
       <Route path="counselor/*" element={<Counselor />} />
       <Route path="visualchat/:id" element={<VisualChat />} />
     </Routes>
