@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
@@ -17,6 +17,7 @@ function msgDataContentToMessages(content) {
 }
 
 const AIChat = () => {
+  const navigate = useNavigate();
   const { cnslId: urlCnslId } = useParams();
   const cnslId = urlCnslId ? Number(urlCnslId) : null;
   const [input, setInput] = useState('');
@@ -123,20 +124,60 @@ const AIChat = () => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
 
-  const handleStartChat = () => {
+  const handleStartChat = async () => {
     if (!agreedToTerms) {
       alert('상기 내용을 확인해주세요.');
       return;
     }
-    setShowStartModal(false);
-    if (messages.length === 0 && !useAiApi) {
-      setMessages([
-        {
-          id: 'ai-welcome',
-          role: 'ai',
-          text: '안녕하세요. 저는 고민을 함께 정리해 드리는 AI 상담사입니다. 지금 가장 신경 쓰이는 고민이 있다면 편하게 말씀해 주세요. (실제 AI 대화는 상담 ID가 있는 링크에서 이용 가능합니다.)',
-        },
-      ]);
+
+    // 이미 cnslId가 있는 경우(예: 다른 페이지에서 세션 생성 후 진입)는 단순히 모달만 닫고 진행
+    if (cnslId) {
+      setShowStartModal(false);
+      return;
+    }
+
+    // 새 AI 즉시 상담: cnsl_reg에 한 건 생성 (cnsl_tp=3, 상담사 없이 진행)
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const email = (user?.email || '').trim();
+      if (!email) {
+        alert('로그인 후 이용 가능합니다.');
+        return;
+      }
+
+      const now = new Date();
+      const cnslDt = now.toISOString().slice(0, 10); // YYYY-MM-DD
+      const cnslStartTime = now.toISOString(); // 타임존 포함 ISO 문자열
+
+      const { data, error } = await supabase
+        .from('cnsl_reg')
+        .insert({
+          member_id: email,
+          cnsler_id: null,
+          cnsl_tp: '3', // AI 즉시 상담
+          cnsl_cate: 'DAILY',
+          cnsl_dt: cnslDt,
+          cnsl_start_time: cnslStartTime,
+          cnsl_title: 'AI 즉시 상담',
+          cnsl_content: 'AI 즉시 상담 요청',
+          cnsl_stat: 'C', // 진행 중
+          cnsl_todo_yn: 'Y',
+        })
+        .select('cnsl_id')
+        .single();
+
+      if (error || !data?.cnsl_id) {
+        console.error('cnsl_reg 생성 실패:', error);
+        alert('상담 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+
+      // 생성된 상담 ID로 라우팅 → /chat/withai/:cnslId 에서 testchatpy와 연동
+      setShowStartModal(false);
+      navigate(`/chat/withai/${data.cnsl_id}`, { replace: true });
+    } catch (e) {
+      console.error('AI 즉시 상담 생성 중 오류:', e);
+      alert('상담 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     }
   };
 
