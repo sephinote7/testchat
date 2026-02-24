@@ -89,7 +89,14 @@ const AIChat = () => {
           setMessages(msgDataContentToMessages(content));
         } else {
           setMessages([
-            { id: 'ai-welcome', role: 'ai', text: '안녕하세요. 고민을 알려주시면 차근차근 함께 정리해드릴게요.' },
+            {
+              id: 'ai-welcome',
+              role: 'ai',
+              text:
+                '안녕하세요. 고민을 함께 정리해 드리는 AI 상담사입니다. ' +
+                '첫 답변까지는 5~10초 정도 시간이 걸릴 수 있으니 잠시만 기다려 주세요. ' +
+                '지금 가장 신경 쓰이는 고민이나 걱정을 편하게 적어 주세요.',
+            },
           ]);
         }
       } catch (e) {
@@ -474,23 +481,19 @@ const AIChat = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-800 mb-1">AI와 함께하는 상담</h2>
-                  <p className="text-sm text-gray-600">편안하게 고민을 나눠보세요</p>
+                  <p className="text-sm text-gray-600">
+                    고민과 걱정을 함께 정리해 보세요. 첫 답변까지 조금 시간이 걸릴 수 있습니다.
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full">
-                    <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-sm font-medium text-green-700">상담 가능</span>
-                  </div>
-                  {cnslId && (
-                    <button
-                      type="button"
-                      onClick={handleEndChat}
-                      className="px-4 py-2 rounded-lg border border-red-300 text-sm font-medium text-red-600 bg-white hover:bg-red-50 transition-colors"
-                    >
-                      상담 종료
-                    </button>
-                  )}
-                </div>
+                {cnslId && (
+                  <button
+                    type="button"
+                    onClick={handleEndChat}
+                    className="max-w-[70%] rounded-2xl px-6 py-4 text-base leading-relaxed shadow-md bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 text-red-700 hover:from-red-100 hover:to-red-200 transition-colors"
+                  >
+                    상담을 종료하고<br />새로운 고민을 정리할게요
+                  </button>
+                )}
               </div>
             </div>
             <main className="flex-1 overflow-y-auto px-12 py-8 bg-gradient-to-b from-gray-50 to-white">
