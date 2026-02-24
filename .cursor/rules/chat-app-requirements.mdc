@@ -1,0 +1,31 @@
+---
+description: 화상 상담 앱 핵심 요구사항 및 기술 스택
+alwaysApply: true
+---
+
+# 화상 상담 앱 요구사항
+
+## 기술 스택
+- **React** 함수형 컴포넌트, hooks (useState, useEffect, useRef)
+- **Supabase** 인증 및 DB (member 프로필, chat_msg 테이블)
+- **PeerJS** WebRTC P2P (음성/영상 + DataConnection 채팅) — 연동 시
+- **Vite** 환경 변수: `import.meta.env.VITE_*`
+
+## 역할 구분
+- **SYSTEM(상담사, cnsler)**: `user.role === 'COUNSELOR'`
+  - 통화 걸기 가능, 요약 API 호출 및 DB 저장, 요약 결과 표시
+  - 상대방(USER) 정보 표시: member 테이블 nickname, mbti, persona
+- **USER(멤버, member)**: 상담 신청자
+  - 통화 걸기 불가, 상담사가 통화 시작할 때까지 대기
+  - 상대방(SYSTEM) 정보 표시: member.nickname, mbti, persona, profile
+
+## 화면 규격
+- PC: 전체 폭 1920px, 콘텐츠 최대 폭 1520px
+- 모바일: 전체 폭 390px, 콘텐츠 폭 358px
+
+## 녹화 및 다운로드
+- 통화 시작과 동시에 영상 녹화
+- 통화 종료 시 "녹화 다운로드" 버튼 활성화
+
+## 한글/UI
+- 사용자 facing 메시지·버튼·에러 문구는 한글로 작성

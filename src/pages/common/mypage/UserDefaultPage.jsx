@@ -7,7 +7,7 @@ const UserDefaultPage = () => {
   const navigate = useNavigate();
 
   // TODO: DB 연동 시 실제 사용자 포인트 조회
-  const userPoints = 20000;
+  const userPoints = 5000;
   const userName = user?.email?.split('@')[0] || '홍길동';
 
   const handleLogout = async () => {

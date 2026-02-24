@@ -29,7 +29,6 @@ import EditCounselorAbout from './pages/system/info/EditCounselorAbout';
 import CounselorClientChat from './pages/system/info/CounselorClientChat';
 import ScheduleManagement from './pages/system/info/ScheduleManagement';
 import RiskCaseList from './pages/system/info/RiskCaseList';
-import { VisualChatRoute } from './pages/user/chat/VisualChat';
 
 const App = () => {
   return (
@@ -44,21 +43,12 @@ const App = () => {
         <Route path="/mypage/*" element={<MyPage />} />
 
         {/* USER */}
-        {/* CHAT (텍스트/리스트 등) */}
+        {/* CHAT */}
         <Route
           path="/chat/*"
           element={
             <ProtectedRoute allowRoles={['USER']}>
               <Chat />
-            </ProtectedRoute>
-          }
-        />
-        {/* VISUAL CHAT (화상 연결) */}
-        <Route
-          path="/chat/visualchat/:chatId"
-          element={
-            <ProtectedRoute allowRoles={['USER']}>
-              <VisualChatRoute />
             </ProtectedRoute>
           }
         />
