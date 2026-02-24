@@ -21,11 +21,15 @@ const AIChat = () => {
   const { cnslId: urlCnslId } = useParams();
   const cnslId = urlCnslId ? Number(urlCnslId) : null;
   const [input, setInput] = useState('');
-  const [showStartModal, setShowStartModal] = useState(true);
+  // cnslId가 이미 있는 URL(/chat/withai/:cnslId)로 들어온 경우에는 모달을 띄우지 않음
+  const [showStartModal, setShowStartModal] = useState(() => !urlCnslId);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [loadingChat, setLoadingChat] = useState(!!cnslId);
   const [messages, setMessages] = useState([]);
+  const [cnslInfo, setCnslInfo] = useState(null); // { id, stat, startAt, endAt }
+  const [timeNoticeSent, setTimeNoticeSent] = useState(false);
+  const [aiThinking, setAiThinking] = useState(false);
   const endRef = useRef(null);
 
   const useAiApi = Boolean(cnslId && AI_CHAT_API_BASE);
@@ -36,6 +40,33 @@ const AIChat = () => {
       if (user?.email) setUserEmail(user.email);
     })();
   }, []);
+
+  // cnsl_reg 정보 조회 (상담 상태/시작·종료 시간)
+  useEffect(() => {
+    if (!cnslId) return;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_id, cnsl_start_time, cnsl_end_time, cnsl_stat')
+          .eq('cnsl_id', cnslId)
+          .maybeSingle();
+        if (error) {
+          console.warn('cnsl_reg 조회 실패:', error);
+          return;
+        }
+        if (!data) return;
+        setCnslInfo({
+          id: data.cnsl_id,
+          stat: data.cnsl_stat || 'C',
+          startAt: data.cnsl_start_time ? new Date(data.cnsl_start_time) : null,
+          endAt: data.cnsl_end_time ? new Date(data.cnsl_end_time) : null,
+        });
+      } catch (e) {
+        console.warn('cnsl_reg 조회 오류:', e);
+      }
+    })();
+  }, [cnslId]);
 
   useEffect(() => {
     if (!cnslId || !AI_CHAT_API_BASE || !userEmail) {
@@ -74,10 +105,16 @@ const AIChat = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
+    if (cnslInfo?.stat === 'D') {
+      alert('이미 종료된 상담입니다. 새로운 AI 상담을 시작해 주세요.');
+      return;
+    }
+
     if (useAiApi && userEmail) {
       setInput('');
       const tempUser = { id: `temp-${Date.now()}`, role: 'user', text: trimmed };
       setMessages((prev) => [...prev, tempUser]);
+      setAiThinking(true);
       try {
         const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
           method: 'POST',
@@ -105,6 +142,8 @@ const AIChat = () => {
         console.warn('AI 전송 실패:', e);
         setMessages((prev) => prev.filter((m) => m.id !== tempUser.id));
         setInput(trimmed);
+      } finally {
+        setAiThinking(false);
       }
       return;
     }
@@ -123,6 +162,33 @@ const AIChat = () => {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
+
+  // 상담 종료 20분 전 안내
+  useEffect(() => {
+    if (!cnslInfo?.endAt) return;
+
+    const checkRemaining = () => {
+      const now = new Date();
+      const diffMs = cnslInfo.endAt.getTime() - now.getTime();
+      const diffMin = diffMs / 60000;
+      if (diffMin <= 20 && diffMin > 0 && !timeNoticeSent) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `time-notice-${Date.now()}`,
+            role: 'ai',
+            text: '상담 종료까지 약 20분 남았습니다. 마무리하고 싶은 내용을 정리해 보세요.',
+          },
+        ]);
+        setTimeNoticeSent(true);
+      }
+    };
+
+    // 처음 한 번 즉시 체크
+    checkRemaining();
+    const interval = setInterval(checkRemaining, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [cnslInfo, timeNoticeSent]);
 
   const handleStartChat = async () => {
     if (!agreedToTerms) {
@@ -148,6 +214,7 @@ const AIChat = () => {
       const now = new Date();
       const cnslDt = now.toISOString().slice(0, 10); // YYYY-MM-DD
       const cnslStartTime = now.toISOString(); // 타임존 포함 ISO 문자열
+      const cnslEndTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 시작 기준 1시간 후
 
       const { data, error } = await supabase
         .from('cnsl_reg')
@@ -158,7 +225,7 @@ const AIChat = () => {
           cnsl_cate: 'DAILY',
           cnsl_dt: cnslDt,
           cnsl_start_time: cnslStartTime,
-          cnsl_end_time: cnslStartTime,
+          cnsl_end_time: cnslEndTime,
           cnsl_title: 'AI 즉시 상담',
           cnsl_content: 'AI 즉시 상담 요청',
           cnsl_stat: 'C', // 진행 중
@@ -187,6 +254,26 @@ const AIChat = () => {
       window.history.back();
     } else {
       navigate('/chat');
+    }
+  };
+
+  const handleEndChat = async () => {
+    if (!cnslId) return;
+    try {
+      const { error } = await supabase
+        .from('cnsl_reg')
+        .update({ cnsl_stat: 'D' })
+        .eq('cnsl_id', cnslId);
+      if (error) {
+        console.error('상담 종료 실패:', error);
+        alert('상담 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      alert('상담이 종료되었습니다.');
+      navigate('/chat');
+    } catch (e) {
+      console.error('상담 종료 중 오류:', e);
+      alert('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     }
   };
 
@@ -285,6 +372,11 @@ const AIChat = () => {
                   </div>
                 </div>
               ))}
+              {aiThinking && (
+                <div className="flex justify-start text-[11px] text-gray-400 pl-2">
+                  AI 상담사가 답변을 준비하고 있습니다...
+                </div>
+              )}
               <div ref={endRef} className="scroll-mb-[132px]" />
             </div>
           )}
@@ -384,9 +476,20 @@ const AIChat = () => {
                   <h2 className="text-xl font-bold text-gray-800 mb-1">AI와 함께하는 상담</h2>
                   <p className="text-sm text-gray-600">편안하게 고민을 나눠보세요</p>
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full">
-                  <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm font-medium text-green-700">상담 가능</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full">
+                    <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-sm font-medium text-green-700">상담 가능</span>
+                  </div>
+                  {cnslId && (
+                    <button
+                      type="button"
+                      onClick={handleEndChat}
+                      className="px-4 py-2 rounded-lg border border-red-300 text-sm font-medium text-red-600 bg-white hover:bg-red-50 transition-colors"
+                    >
+                      상담 종료
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -413,6 +516,11 @@ const AIChat = () => {
                       </div>
                     </div>
                   ))}
+                  {aiThinking && (
+                    <div className="flex justify-start text-sm text-gray-400 pl-1">
+                      AI 상담사가 답변을 준비하고 있습니다...
+                    </div>
+                  )}
                   <div ref={endRef} />
                 </div>
               )}
