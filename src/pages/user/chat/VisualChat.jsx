@@ -26,12 +26,14 @@ function normalizeRole(rawRole) {
 }
 
 // member row → UI에서 사용하기 좋은 형태로 매핑
+// Supabase member: id, email 등. 이메일은 row.email 또는 row.member_id
 function mapMemberRow(row) {
   if (!row) return null;
+  const emailVal = row.email ?? row.member_id;
 
   return {
-    id: row.id,
-    email: row.email, // 채팅 발신자 표시용 member_id
+    id: row.id ?? emailVal,
+    email: emailVal, // 채팅/PeerJS 식별용
     role: normalizeRole(row.role),
     nickname: row.nickname,
     mbti: row.mbti,
@@ -56,8 +58,7 @@ function mapMemberRow(row) {
  * - chat_msg 테이블의 chat_id를 URL 파라미터(chatId)로 사용
  * - 해당 row의 member_id / cnsler_id(이메일 문자열)를 기준으로
  *   로그인 사용자가 USER 인지 SYSTEM 인지 판별
- * - member 테이블의 email 컬럼을 기준으로 두 참여자의 정보를 조회하여
- *   USER / SYSTEM 각각의 정보를 UI에 표시
+ * - member 테이블의 member_id(PK, varchar=이메일) 기준으로 두 참여자 정보 조회
  */
 const VisualChat = () => {
   const { chatId } = useParams();
@@ -73,8 +74,6 @@ const VisualChat = () => {
   const [isCallActive, setIsCallActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
-  const [summary, setSummary] = useState('');
-  const [isSummarizing, setIsSummarizing] = useState(false);
   const [mediaStream, setMediaStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [deviceError, setDeviceError] = useState(false);
@@ -145,7 +144,7 @@ const VisualChat = () => {
 
         const partnerEmail = isMemberSide ? cnsler_id : member_id;
 
-        // 4) member 테이블에서 두 참여자 정보 조회 (email 기준)
+        // 4) member 테이블에서 두 참여자 정보 조회 (email 또는 member_id 기준)
         const { data: memberRows, error: memberError } = await supabase
           .from('member')
           .select('id, email, role, nickname, mbti, persona, profile')
@@ -158,8 +157,8 @@ const VisualChat = () => {
           return;
         }
 
-        const myRow = memberRows.find((m) => m.email === currentEmail);
-        const partnerRow = memberRows.find((m) => m.email === partnerEmail);
+        const myRow = memberRows.find((m) => (m.email ?? m.member_id) === currentEmail);
+        const partnerRow = memberRows.find((m) => (m.email ?? m.member_id) === partnerEmail);
 
         if (!myRow || !partnerRow) {
           setErrorMsg('상담 참여자 정보를 찾을 수 없습니다.');
@@ -201,6 +200,45 @@ const VisualChat = () => {
   useEffect(() => {
     setChatIdInput(chatId || '');
   }, [chatId]);
+
+  // 채팅 목록 API 조회 (명세: GET /api/cnsl/{cnslId}/chat). chatId를 cnslId로 사용.
+  const fetchChatMessages = async () => {
+    if (!chatId || !me?.email) return;
+    const base = import.meta.env.VITE_API_BASE_URL || '';
+    if (!base) return;
+    try {
+      const res = await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setChatMessages(
+        list.map((msg) => {
+          const senderEmail =
+            (msg.role || '').toLowerCase() === 'counselor' ? msg.cnslerId : msg.memberId;
+          const nickname =
+            senderEmail === me.email ? me.nickname : (other?.nickname ?? senderEmail ?? '');
+          const createdAt = msg.createdAt ?? msg.created_at;
+          return {
+            id: msg.chatId ?? `msg-${createdAt ?? Date.now()}`,
+            role: (msg.role || '').toLowerCase() === 'counselor' ? 'SYSTEM' : 'USER',
+            nickname: nickname || (msg.role === 'SYSTEM' ? 'SYSTEM' : 'USER'),
+            text: msg.content ?? '',
+            timestamp: createdAt ? new Date(createdAt).getTime() : Date.now(),
+          };
+        })
+      );
+    } catch (err) {
+      console.warn('채팅 목록 조회 실패:', err);
+    }
+  };
+
+  // 방 입장 후 채팅 목록 로드 (API 사용 시)
+  useEffect(() => {
+    if (!me || !chatId) return;
+    fetchChatMessages();
+  }, [chatId, me?.email]);
 
   // 메인 비디오: remoteStream 우선, 없으면 mediaStream. PIP: mediaStream(통화 중일 때만)
   useEffect(() => {
@@ -402,7 +440,6 @@ const VisualChat = () => {
       setMediaStream(stream);
       setRemoteStream(null);
       setIsCallActive(true);
-      setSummary('');
       setHasRecording(false);
       attachStreamToVideos(stream);
       setTimeout(() => attachStreamToVideos(stream), 0);
@@ -458,6 +495,47 @@ const VisualChat = () => {
     }
   };
 
+  /** AI 요약 생성 후 백엔드에만 저장. 화면에는 표시하지 않음. 차후 조회 시 chat_msg.summary로 확인 */
+  const saveSummaryInBackground = async () => {
+    if (!chatId || !me?.email || !recordedChunksRef.current?.length) return;
+    const base = import.meta.env.VITE_API_BASE_URL || '';
+    const summarizeUrl = import.meta.env.VITE_SUMMARIZE_API_URL || 'http://localhost:8000/api/summarize';
+    try {
+      const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+      const formData = new FormData();
+      if (me.role === 'SYSTEM') {
+        formData.append('audio_cnsler', blob, 'cnsler.webm');
+      } else {
+        formData.append('audio_user', blob, 'user.webm');
+      }
+      const chatLogsPayload = chatMessages.map((msg) => ({
+        type: 'chat',
+        speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
+        text: msg.text,
+        timestamp: String(msg.timestamp || Date.now()),
+      }));
+      formData.append('msg_data', JSON.stringify([
+        ...chatLogsPayload,
+        { type: 'chat', speaker: me.role === 'SYSTEM' ? 'cnsler' : 'user', text: '화상 상담 세션', timestamp: String(Date.now()) },
+      ]));
+      const summaryRes = await fetch(summarizeUrl, { method: 'POST', body: formData });
+      if (!summaryRes.ok) return;
+      const data = await summaryRes.json();
+      const summaryText = data.summary || '';
+      if (!summaryText || !base) return;
+      await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Email': me.email,
+        },
+        body: JSON.stringify({ role: 'summary', content: summaryText, summary: summaryText }),
+      });
+    } catch (err) {
+      console.warn('AI 요약 저장 실패:', err);
+    }
+  };
+
   const handleEndCall = () => {
     if (!isCallActive) return;
 
@@ -477,62 +555,12 @@ const VisualChat = () => {
     }
 
     setIsCallActive(false);
-  };
-
-  const handleSummarize = async () => {
-    if (!hasRecording || recordedChunksRef.current.length === 0) {
-      setSummary('녹화된 음성이 없습니다.');
-      return;
-    }
-
-    try {
-      setIsSummarizing(true);
-      const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
-      const formData = new FormData();
-
-      if (isMeSystem) {
-        formData.append('audio_cnsler', blob, 'cnsler.webm');
-      } else {
-        formData.append('audio_user', blob, 'user.webm');
+    // 녹음이 있으면 요약 생성 후 백엔드에만 저장(UI 미표시)
+    setTimeout(() => {
+      if (recordedChunksRef.current.length > 0) {
+        saveSummaryInBackground();
       }
-
-      // 채팅 메시지(텍스트)와 함께 요약 API로 전달
-      const chatLogsPayload = chatMessages.map((msg) => ({
-        type: 'chat',
-        speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
-        text: msg.text,
-        timestamp: String(msg.timestamp || Date.now()),
-      }));
-
-      const msgPayload = [
-        ...chatLogsPayload,
-        {
-          type: 'chat',
-          speaker: isMeSystem ? 'cnsler' : 'user',
-          text: '화상 상담 세션',
-          timestamp: String(Date.now()),
-        },
-      ];
-      formData.append('msg_data', JSON.stringify(msgPayload));
-
-      const apiUrl = import.meta.env.VITE_SUMMARIZE_API_URL || 'http://localhost:8000/api/summarize';
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('요약 API 호출 실패');
-      }
-
-      const data = await response.json();
-      setSummary(data.summary || '요약이 생성되었습니다.');
-    } catch (error) {
-      console.error('요약 생성 오류:', error);
-      setSummary('요약 생성 중 오류가 발생했습니다.');
-    } finally {
-      setIsSummarizing(false);
-    }
+    }, 800);
   };
 
   const handleChatIdConnect = () => {
@@ -545,22 +573,61 @@ const VisualChat = () => {
     navigate(`/chat/visualchat/${trimmed}`);
   };
 
-  const handleChatSubmit = (event) => {
+  const handleChatSubmit = async (event) => {
     event.preventDefault();
     const trimmed = chatInput.trim();
-    if (!trimmed) return;
+    if (!trimmed || !me) return;
 
-    const now = Date.now();
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        id: `local-${now}`,
-        role: me.role,
-        nickname: me.nickname ?? '', // 채팅 목록에 표시할 발신자 이름
-        text: trimmed,
-        timestamp: now,
-      },
-    ]);
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user'; // 명세: user / counselor
+
+    if (apiBase) {
+      try {
+        const res = await fetch(
+          `${apiBase.replace(/\/$/, '')}/cnsl/${chatId}/chat`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-Email': me.email ?? '',
+            },
+            body: JSON.stringify({ role: roleForApi, content: trimmed }),
+          }
+        );
+        if (!res.ok) {
+          setErrorMsg('메시지 전송에 실패했습니다.');
+          return;
+        }
+        const saved = await res.json();
+        const now = Date.now();
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: saved.chatId ?? `local-${now}`,
+            role: me.role,
+            nickname: me.nickname ?? '',
+            text: trimmed,
+            timestamp: (saved.createdAt ?? saved.created_at) ? new Date(saved.createdAt ?? saved.created_at).getTime() : now,
+          },
+        ]);
+      } catch (err) {
+        console.error('채팅 전송 오류:', err);
+        setErrorMsg('메시지 전송 중 오류가 발생했습니다.');
+        return;
+      }
+    } else {
+      const now = Date.now();
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `local-${now}`,
+          role: me.role,
+          nickname: me.nickname ?? '',
+          text: trimmed,
+          timestamp: now,
+        },
+      ]);
+    }
     setChatInput('');
   };
 
@@ -724,26 +791,19 @@ const VisualChat = () => {
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full">
-                <span
-                  className={`w-3 h-3 rounded-full ${
-                    isCallActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
-                  }`}
-                />
-                <span className="text-sm font-medium text-blue-700">
-                  {isCallActive ? '연결됨' : '대기 중'}
-                </span>
-              </div>
-              {peerError && (
-                <span className="text-xs text-amber-200 max-w-[200px] truncate" title={peerError}>
-                  Peer: {peerError}
-                </span>
-              )}
+            <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full">
+              <span
+                className={`w-3 h-3 rounded-full ${
+                  isCallActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-sm font-medium text-blue-700">
+                {isCallActive ? '연결됨' : '대기 중'}
+              </span>
             </div>
           </header>
 
-          {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 */}
+          {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 500px 고정 */}
           <main className="flex-1 flex min-h-0 py-4">
             <div className="w-full max-w-[1520px] flex-1 flex bg-white rounded-2xl shadow-2xl overflow-hidden flex-col">
               <section className="flex-1 flex min-h-0 gap-4 p-4">
@@ -781,8 +841,8 @@ const VisualChat = () => {
                   </div>
                 </div>
 
-                {/* 우측 화상 영역 (나머지 전체) */}
-                <div className="relative flex-1 min-w-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                {/* 우측 화상 영역: PC 높이 500px 고정, 호버 시 플로팅 버튼 + 반투명 어둡게 */}
+                <div className="group relative flex-1 min-w-0 h-[500px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
                     className="w-full h-full object-cover"
@@ -797,48 +857,47 @@ const VisualChat = () => {
                       muted
                     />
                   )}
+                  {/* 호버 시 반투명 어두운 레이어 */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors pointer-events-none rounded-2xl" />
+                  {/* 호버 시 플로팅 버튼: 미연결=통화 연결(상담사만), 연결됨=통화 종료(양쪽) */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
+                    <div className="flex items-center gap-3">
+                      {!isCallActive && isMeSystem && (
+                        <>
+                          <input
+                            type="text"
+                            value={chatIdInput}
+                            onChange={(e) => setChatIdInput(e.target.value)}
+                            placeholder="방 번호"
+                            className="w-24 h-12 rounded-full border border-gray-300 px-3 text-sm bg-white text-center shadow-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleChatIdConnect}
+                            className="h-12 px-6 rounded-full text-sm font-semibold shadow-lg bg-[#3b82f6] text-white hover:bg-[#2563eb]"
+                          >
+                            통화 연결
+                          </button>
+                        </>
+                      )}
+                      {isCallActive && (
+                        <button
+                          type="button"
+                          onClick={handleEndCall}
+                          className="h-12 px-8 rounded-full text-sm font-semibold shadow-lg bg-[#ef4444] text-white hover:bg-[#dc2626]"
+                        >
+                          통화 종료
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </section>
 
-              {/* 하단: 통화 버튼 + 채팅 영역 + AI 요약 */}
+              {/* 하단: 채팅 영역만 */}
               <footer className="border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
                 <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
-                  <div className="flex justify-center items-center gap-3 flex-wrap">
-                    {isMeSystem && (
-                      <>
-                        <input
-                          type="text"
-                          value={chatIdInput}
-                          onChange={(e) => setChatIdInput(e.target.value)}
-                          placeholder="방 번호"
-                          className="w-24 h-12 rounded-full border border-gray-300 px-3 text-sm bg-white text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleChatIdConnect}
-                          className="h-12 px-6 rounded-full text-sm font-semibold shadow-md bg-[#3b82f6] text-white hover:bg-[#2563eb] transition-all"
-                        >
-                          통화 연결
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      onClick={isCallActive ? handleEndCall : handleStartCall}
-                      disabled={!isMeSystem && !isCallActive}
-                      className={`h-12 px-8 rounded-full text-sm font-semibold shadow-md transition-all ${
-                        isCallActive
-                          ? 'bg-[#ef4444] text-white'
-                          : isMeSystem
-                          ? 'bg-main-02 text-white'
-                          : 'bg-[#e5e7eb] text-[#9ca3af] cursor-not-allowed'
-                      }`}
-                    >
-                      {isCallActive ? '통화 종료' : '통화 시작'}
-                    </button>
-                  </div>
-
-                  {/* 하단 채팅 영역 - 고정 높이 + 스크롤 */}
+                  {/* 채팅 영역 - 고정 높이 + 스크롤 */}
                   <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col">
                     <h3 className="text-sm font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb]">
                       채팅
@@ -875,30 +934,6 @@ const VisualChat = () => {
                         전송
                       </button>
                     </form>
-                  </div>
-
-                  {/* AI 요약 */}
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-gray-800">AI 상담 요약</h3>
-                      <button
-                        type="button"
-                        onClick={handleSummarize}
-                        disabled={!hasRecording || isSummarizing}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
-                          hasRecording && !isSummarizing
-                            ? 'bg-main-02 text-white'
-                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {isSummarizing ? '요약 중...' : '요약 생성'}
-                      </button>
-                    </div>
-                    <p className="text-sm text-gray-600 whitespace-pre-line">
-                      {summary
-                        ? summary
-                        : '통화 종료 후 녹음된 음성을 기반으로 AI 요약을 생성할 수 있습니다.'}
-                    </p>
                   </div>
                 </div>
               </footer>
