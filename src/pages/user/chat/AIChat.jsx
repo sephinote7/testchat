@@ -100,10 +100,7 @@ const AIChat = () => {
   }, [cnslId]);
 
   useEffect(() => {
-    if (!cnslId || !AI_CHAT_API_BASE || !userEmail) {
-      if (cnslId && AI_CHAT_API_BASE && !userEmail) setLoadingChat(false);
-      return;
-    }
+    if (!cnslId || !AI_CHAT_API_BASE || !userEmail) return;
     (async () => {
       try {
         const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
@@ -204,6 +201,15 @@ const AIChat = () => {
   const handleEndChat = async () => {
     if (!cnslId || isEndingChat) return;
     setIsEndingChat(true);
+    // 종료 처리에 시간이 걸릴 수 있음 안내
+    const toast = document.createElement('div');
+    toast.textContent = '상담 종료 처리 중입니다. 완료까지 잠시 기다려 주세요.';
+    toast.className = 'fixed top-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 bg-gray-800 text-white text-sm rounded-lg shadow-lg whitespace-nowrap';
+    document.body.appendChild(toast);
+    const removeToast = () => {
+      toast.remove();
+    };
+    const removeTimeout = setTimeout(removeToast, 3000);
     try {
       let summaryForCnsl = null;
 
@@ -238,15 +244,21 @@ const AIChat = () => {
         .eq('cnsl_id', cnslId);
       if (error) {
         console.error('상담 종료 실패:', error);
+        clearTimeout(removeTimeout);
+        removeToast();
         alert('상담 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         setIsEndingChat(false);
         return;
       }
       clearActiveCnslId();
+      clearTimeout(removeTimeout);
+      removeToast();
       alert('상담이 종료되었습니다.');
       navigate('/chat');
     } catch (e) {
       console.error('상담 종료 중 오류:', e);
+      clearTimeout(removeTimeout);
+      removeToast();
       alert('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
       setIsEndingChat(false);
     }
@@ -434,7 +446,7 @@ const AIChat = () => {
         </header>
         <main className="px-[18px] pt-4 flex-1 overflow-y-auto pb-[132px]">
           {loading ? (
-            <div className="flex justify-center py-8 text-gray-500">불러오는 중...</div>
+            <div className="flex items-center justify-center min-h-[240px] text-gray-500">불러오는 중...</div>
           ) : (
             <div className="flex flex-col gap-3 pb-6">
               {messages.map((message) => (
@@ -585,7 +597,7 @@ const AIChat = () => {
             </div>
             <main className="flex-1 overflow-y-auto px-12 py-8 bg-gradient-to-b from-gray-50 to-white">
               {loading ? (
-                <div className="flex justify-center py-12 text-gray-500">불러오는 중...</div>
+                <div className="flex items-center justify-center min-h-[300px] text-gray-500">불러오는 중...</div>
               ) : (
                 <div className="flex flex-col gap-6 max-w-[1100px] mx-auto">
                   {messages.map((message) => (
