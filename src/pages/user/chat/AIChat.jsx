@@ -31,10 +31,19 @@ const AIChat = () => {
   const [cnslInfo, setCnslInfo] = useState(null); // { id, stat, startAt, endAt }
   const [timeNoticeSent, setTimeNoticeSent] = useState(false);
   const [aiThinking, setAiThinking] = useState(false);
+  const [isEndingChat, setIsEndingChat] = useState(false);
   const endRef = useRef(null);
   const { setActiveCnslId, clearActiveCnslId } = useAiConsultStore();
+  const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
 
   const useAiApi = Boolean(cnslId && AI_CHAT_API_BASE);
+
+  // cnslId 없이 /chat/withai 진입 시 진행 중 상담이 있으면 해당 상담으로 복귀
+  useEffect(() => {
+    if (!cnslId && activeCnslId) {
+      navigate(`/chat/withai/${activeCnslId}`, { replace: true });
+    }
+  }, [cnslId, activeCnslId, navigate]);
 
   useEffect(() => {
     (async () => {
@@ -176,7 +185,8 @@ const AIChat = () => {
   }, [messages]);
 
   const handleEndChat = async () => {
-    if (!cnslId) return;
+    if (!cnslId || isEndingChat) return;
+    setIsEndingChat(true);
     try {
       let summaryForCnsl = null;
 
@@ -209,6 +219,7 @@ const AIChat = () => {
       if (error) {
         console.error('상담 종료 실패:', error);
         alert('상담 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        setIsEndingChat(false);
         return;
       }
       clearActiveCnslId();
@@ -217,6 +228,7 @@ const AIChat = () => {
     } catch (e) {
       console.error('상담 종료 중 오류:', e);
       alert('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      setIsEndingChat(false);
     }
   };
 
@@ -330,7 +342,7 @@ const AIChat = () => {
     <>
       {/* MOBILE */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
-        {showStartModal && (
+        {showStartModal && !(!cnslId && activeCnslId) && (
           <div className="fixed inset-0 bg-white z-50 flex flex-col">
             <header className="bg-[#2563eb] h-14 flex items-center justify-center">
               <div className="flex items-center gap-2">
@@ -449,7 +461,7 @@ const AIChat = () => {
 
       {/* PC */}
       <div className="hidden lg:flex w-full min-h-screen bg-[#f3f7ff]">
-        {showStartModal && (
+        {showStartModal && !(!cnslId && activeCnslId) && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-8">
             <div className="bg-white rounded-3xl shadow-2xl max-w-[500px] w-full p-8">
               <div className="flex flex-col items-center mb-6">
@@ -510,7 +522,7 @@ const AIChat = () => {
               <span>AI 상담</span>
             </div>
             <button
-              onClick={() => window.history.back()}
+              onClick={() => navigate('/chat')}
               className="px-6 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-base font-normal transition-colors"
             >
               뒤로 가기
@@ -529,9 +541,14 @@ const AIChat = () => {
                   <button
                     type="button"
                     onClick={handleEndChat}
-                    className="max-w-[70%] rounded-2xl px-6 py-4 text-base leading-relaxed shadow-md bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 text-red-700 hover:from-red-100 hover:to-red-200 transition-colors"
+                    disabled={isEndingChat}
+                    className={`max-w-[70%] rounded-2xl px-6 py-4 text-base leading-relaxed shadow-md border-2 transition-colors ${
+                      isEndingChat
+                        ? 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-br from-red-50 to-red-100 border-red-300 text-red-700 hover:from-red-100 hover:to-red-200'
+                    }`}
                   >
-                    상담 종료
+                    {isEndingChat ? '종료 처리 중...' : '상담 종료'}
                   </button>
                 )}
               </div>
