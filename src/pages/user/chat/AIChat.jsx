@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
+import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
 // GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)
@@ -31,6 +32,7 @@ const AIChat = () => {
   const [timeNoticeSent, setTimeNoticeSent] = useState(false);
   const [aiThinking, setAiThinking] = useState(false);
   const endRef = useRef(null);
+  const { setActiveCnslId, clearActiveCnslId } = useAiConsultStore();
 
   const useAiApi = Boolean(cnslId && AI_CHAT_API_BASE);
 
@@ -62,6 +64,9 @@ const AIChat = () => {
           startAt: data.cnsl_start_time ? new Date(data.cnsl_start_time) : null,
           endAt: data.cnsl_end_time ? new Date(data.cnsl_end_time) : null,
         });
+        if ((data.cnsl_stat || 'C') === 'C') {
+          setActiveCnslId(data.cnsl_id);
+        }
       } catch (e) {
         console.warn('cnsl_reg 조회 오류:', e);
       }
@@ -184,7 +189,7 @@ const AIChat = () => {
           });
           const data = await res.json().catch(() => null);
           if (res.ok && data?.summary) {
-            summaryForCnsl = data.summary;
+            summaryForCnsl = data.cnsl_content || data.summary;
           } else if (!res.ok) {
             console.warn('AI 요약 생성 실패:', res.status, data);
           }
@@ -206,6 +211,7 @@ const AIChat = () => {
         alert('상담 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
+      clearActiveCnslId();
       alert('상담이 종료되었습니다.');
       navigate('/chat');
     } catch (e) {

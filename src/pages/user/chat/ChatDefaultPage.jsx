@@ -1,5 +1,6 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 
 // TODO: DB 연동 가이드
 // 이 페이지는 채팅 타입 선택 화면입니다 (AI 상담 vs 상담사 상담)
@@ -20,6 +21,15 @@ import { Link } from 'react-router-dom';
 //    - 예약 가능한 상담사 수 표시
 
 const ChatDefaultPage = () => {
+  const navigate = useNavigate();
+  const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
+
+  useEffect(() => {
+    if (activeCnslId) {
+      navigate(`/chat/withai/${activeCnslId}`, { replace: true });
+    }
+  }, [activeCnslId, navigate]);
+
   return (
     <div className="w-full">
       {/* MOBILE */}
