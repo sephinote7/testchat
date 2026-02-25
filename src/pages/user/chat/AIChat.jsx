@@ -434,7 +434,7 @@ const AIChat = () => {
         </header>
         <main className="px-[18px] pt-4 flex-1 overflow-y-auto pb-[132px]">
           {loading ? (
-            <div className="flex justify-center py-8 text-gray-500">대화 불러오는 중...</div>
+            <div className="flex justify-center py-8 text-gray-500">불러오는 중...</div>
           ) : (
             <div className="flex flex-col gap-3 pb-6">
               {messages.map((message) => (
@@ -552,7 +552,8 @@ const AIChat = () => {
             </div>
             <button
               onClick={() => navigate('/chat', { state: { fromBack: true } })}
-              className="px-6 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-base font-normal transition-colors"
+              disabled={isEndingChat}
+              className="px-6 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-base font-normal transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/20"
             >
               뒤로 가기
             </button>
@@ -584,7 +585,7 @@ const AIChat = () => {
             </div>
             <main className="flex-1 overflow-y-auto px-12 py-8 bg-gradient-to-b from-gray-50 to-white">
               {loading ? (
-                <div className="flex justify-center py-12 text-gray-500">대화 불러오는 중...</div>
+                <div className="flex justify-center py-12 text-gray-500">불러오는 중...</div>
               ) : (
                 <div className="flex flex-col gap-6 max-w-[1100px] mx-auto">
                   {messages.map((message) => (
