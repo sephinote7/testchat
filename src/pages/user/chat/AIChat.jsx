@@ -215,8 +215,11 @@ const AIChat = () => {
             headers: { 'X-User-Email': userEmail },
           });
           const data = await res.json().catch(() => null);
-          if (res.ok && data?.summary) {
-            summaryForCnsl = data.cnsl_content || data.summary;
+          if (res.ok && data) {
+            // cnsl_content(cnsl_reg용), summary(ai_msg용)는 백엔드에서 text로 반환됨. 문자열만 사용.
+            const cc = typeof data.cnsl_content === 'string' ? data.cnsl_content.trim() : '';
+            const sm = typeof data.summary === 'string' ? data.summary.trim() : '';
+            summaryForCnsl = cc || sm || null;
           } else if (!res.ok) {
             console.warn('AI 요약 생성 실패:', res.status, data);
           }
