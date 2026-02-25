@@ -471,9 +471,14 @@ const AIChat = () => {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="메시지를 입력하세요"
-              className="flex-1 h-10 rounded-[12px] border border-[#dbe3f1] px-3 text-[13px] bg-white"
+              disabled={isEndingChat}
+              className="flex-1 h-10 rounded-[12px] border border-[#dbe3f1] px-3 text-[13px] bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
-            <button type="submit" className="h-10 px-4 rounded-[12px] bg-[#2ed3c6] text-white text-[13px] font-semibold">
+            <button
+              type="submit"
+              disabled={isEndingChat}
+              className="h-10 px-4 rounded-[12px] bg-[#2ed3c6] text-white text-[13px] font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
               전송
             </button>
           </div>
@@ -613,11 +618,13 @@ const AIChat = () => {
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   placeholder="메시지를 입력하세요..."
-                  className="flex-1 h-14 rounded-xl border-2 border-gray-300 px-6 text-base bg-white focus:outline-none focus:border-[#2ed3c6] transition-colors placeholder:text-gray-400"
+                  disabled={isEndingChat}
+                  className="flex-1 h-14 rounded-xl border-2 border-gray-300 px-6 text-base bg-white focus:outline-none focus:border-[#2ed3c6] transition-colors placeholder:text-gray-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
                 <button
                   type="submit"
-                  className="h-14 px-10 rounded-xl bg-gradient-to-r from-[#2ed3c6] to-[#26b8ad] text-white text-base font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+                  disabled={isEndingChat}
+                  className="h-14 px-10 rounded-xl bg-gradient-to-r from-[#2ed3c6] to-[#26b8ad] text-white text-base font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   전송
                 </button>
