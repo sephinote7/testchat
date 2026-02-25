@@ -47,7 +47,7 @@ function mapMemberRow(row) {
  *
  * 라우트 예시:
  * <Route
- *   path="/chat/visualchat/:chatId"
+ *   path="/chat/visualchat/:id"
  *   element={
  *     <ProtectedRoute allowRoles={['USER']}>
  *       <VisualChat />
@@ -55,13 +55,12 @@ function mapMemberRow(row) {
  *   }
  * />
  *
- * - chat_msg 테이블의 chat_id를 URL 파라미터(chatId)로 사용
- * - 해당 row의 member_id / cnsler_id(이메일 문자열)를 기준으로
- *   로그인 사용자가 USER 인지 SYSTEM 인지 판별
- * - member 테이블의 member_id(PK, varchar=이메일) 기준으로 두 참여자 정보 조회
+ * - URL 파라미터 id = cnsl_id (상담 등록 ID)
+ * - chat_msg 테이블을 cnsl_id로 조회하여 member_id / cnsler_id 획득
+ * - member 테이블 기준으로 두 참여자 정보 조회
  */
 const VisualChat = () => {
-  const { chatId } = useParams();
+  const { id: cnslId } = useParams();
   const navigate = useNavigate();
 
   const [me, setMe] = useState(null);
@@ -70,7 +69,7 @@ const VisualChat = () => {
   const [errorMsg, setErrorMsg] = useState('');
 
   // 채팅 ID 입력 및 통화/요약 상태
-  const [chatIdInput, setChatIdInput] = useState(chatId || '');
+  const [chatIdInput, setChatIdInput] = useState(cnslId || '');
   const [isCallActive, setIsCallActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
@@ -93,7 +92,7 @@ const VisualChat = () => {
 
   useEffect(() => {
     const init = async () => {
-      if (!chatId) {
+      if (!cnslId) {
         setErrorMsg('유효하지 않은 상담방입니다.');
         setLoading(false);
         return;
@@ -116,12 +115,13 @@ const VisualChat = () => {
         }
         const currentEmail = user.email;
 
-        // 2) chat_msg 에서 현재 채팅방 정보 조회
+        // 2) chat_msg 에서 cnsl_id로 채팅방 정보 조회
         const { data: chatRow, error: chatError } = await supabase
           .from('chat_msg')
-          .select('chat_id, member_id, cnsler_id')
-          .eq('chat_id', chatId)
-          .single();
+          .select('chat_id, cnsl_id, member_id, cnsler_id')
+          .eq('cnsl_id', cnslId)
+          .limit(1)
+          .maybeSingle();
 
         if (chatError || !chatRow) {
           console.error('chat_msg 조회 실패', chatError);
@@ -194,20 +194,20 @@ const VisualChat = () => {
     };
 
     init();
-  }, [chatId]);
+  }, [cnslId]);
 
-  // URL 파라미터 변경 시 채팅 ID 입력값 동기화
+  // URL 파라미터 변경 시 입력값 동기화
   useEffect(() => {
-    setChatIdInput(chatId || '');
-  }, [chatId]);
+    setChatIdInput(cnslId || '');
+  }, [cnslId]);
 
-  // 채팅 목록 API 조회 (명세: GET /api/cnsl/{cnslId}/chat). chatId를 cnslId로 사용.
+  // 채팅 목록 API 조회 (명세: GET /api/cnsl/{cnslId}/chat)
   const fetchChatMessages = async () => {
-    if (!chatId || !me?.email) return;
+    if (!cnslId || !me?.email) return;
     const base = import.meta.env.VITE_API_BASE_URL || '';
     if (!base) return;
     try {
-      const res = await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
+      const res = await fetch(`${base.replace(/\/$/, '')}/cnsl/${cnslId}/chat`, {
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;
@@ -236,9 +236,9 @@ const VisualChat = () => {
 
   // 방 입장 후 채팅 목록 로드 (API 사용 시)
   useEffect(() => {
-    if (!me || !chatId) return;
+    if (!me || !cnslId) return;
     fetchChatMessages();
-  }, [chatId, me?.email]);
+  }, [cnslId, me?.email]);
 
   // 메인 비디오: remoteStream 우선, 없으면 mediaStream. PIP: mediaStream(통화 중일 때만)
   useEffect(() => {
@@ -497,7 +497,7 @@ const VisualChat = () => {
 
   /** AI 요약 생성 후 백엔드에만 저장. 화면에는 표시하지 않음. 차후 조회 시 chat_msg.summary로 확인 */
   const saveSummaryInBackground = async () => {
-    if (!chatId || !me?.email || !recordedChunksRef.current?.length) return;
+    if (!cnslId || !me?.email || !recordedChunksRef.current?.length) return;
     const base = import.meta.env.VITE_API_BASE_URL || '';
     const summarizeUrl = import.meta.env.VITE_SUMMARIZE_API_URL || 'http://localhost:8000/api/summarize';
     try {
@@ -523,7 +523,7 @@ const VisualChat = () => {
       const data = await summaryRes.json();
       const summaryText = data.summary || '';
       if (!summaryText || !base) return;
-      await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
+      await fetch(`${base.replace(/\/$/, '')}/cnsl/${cnslId}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -570,7 +570,7 @@ const VisualChat = () => {
       return;
     }
     setErrorMsg('');
-    navigate(`/chat/visualchat/${trimmed}`);
+    navigate(`/chat/visualchat/${trimmed}`); // trimmed = cnsl_id
   };
 
   const handleChatSubmit = async (event) => {
@@ -584,7 +584,7 @@ const VisualChat = () => {
     if (apiBase) {
       try {
         const res = await fetch(
-          `${apiBase.replace(/\/$/, '')}/cnsl/${chatId}/chat`,
+          `${apiBase.replace(/\/$/, '')}/cnsl/${cnslId}/chat`,
           {
             method: 'POST',
             headers: {
@@ -945,10 +945,10 @@ const VisualChat = () => {
   );
 };
 
-// chatId 변경 시 리마운트해 연결 시 해당 방이 확실히 로드되도록 함
+// cnslId 변경 시 리마운트해 연결 시 해당 방이 확실히 로드되도록 함
 export function VisualChatRoute() {
-  const { chatId } = useParams();
-  return <VisualChat key={chatId ?? 'new'} />;
+  const { id: cnslId } = useParams();
+  return <VisualChat key={cnslId ?? 'new'} />;
 }
 
 export default VisualChat;
