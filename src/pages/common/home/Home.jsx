@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 import useAuth from '../../../hooks/useAuth';
 import DashBoard from '../../admin/DashBoard';
 import CounselorDefaultPage from '../../system/info/CounselorDefaultPage';
@@ -30,6 +31,8 @@ const scoreRecommend = (p) => p.likes * 3 + p.comments * 5 + p.views * 0.1;
 
 const Home = () => {
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
   const [communityMode, setCommunityMode] = useState('realtime'); // realtime | week | month | recommend
 
   const communityTopPosts = useMemo(() => {
@@ -108,10 +111,11 @@ const Home = () => {
 
             {/* TODO: DB 연동 시 각 상담 유형별 라우팅 및 필터링 */}
             <section className="flex flex-col gap-[14px]">
-              {/* 고민 상담 → AI 상담 */}
-              <Link
-                to="/chat/withai"
-                className="flex items-center justify-center gap-4 px-4 py-[22px] rounded-[14px] text-white no-underline shadow-[0_8px_16px_rgba(0,0,0,0.08)] bg-gradient-to-r from-[#2ed3c6] to-[#26b8ad]"
+              {/* 고민 상담 → AI 상담 (진행 중 상담 있으면 바로 해당 상담으로) */}
+              <button
+                type="button"
+                onClick={() => navigate(activeCnslId ? `/chat/withai/${activeCnslId}` : '/chat/withai')}
+                className="flex items-center justify-center gap-4 px-4 py-[22px] rounded-[14px] text-white no-underline shadow-[0_8px_16px_rgba(0,0,0,0.08)] bg-gradient-to-r from-[#2ed3c6] to-[#26b8ad] w-full border-0 cursor-pointer"
               >
                 <div className="w-16 h-16 rounded-full border-2 border-white/70 flex items-center justify-center font-bold text-2xl bg-white/10">
                   <span>💬</span>
@@ -121,7 +125,7 @@ const Home = () => {
                   <p className="text-[13px] font-medium">혼자서 풀지 못하던 고민,</p>
                   <p className="text-[13px] font-medium">지금 마음부터 가볍게 정리해보세요.</p>
                 </div>
-              </Link>
+              </button>
 
               {/* 커리어 상담 → 상담사 찾기 (커리어) */}
               <Link
@@ -273,10 +277,11 @@ const Home = () => {
             <section className="mb-8">
               <h3 className="text-[20px] font-bold text-[#111827] mb-4">지금 나에게 필요한 상담은 무엇인가요?</h3>
               <div className="grid grid-cols-3 gap-5">
-                {/* 고민 상담 → AI 상담 */}
-                <Link
-                  to="/chat/withai"
-                  className="bg-gradient-to-br from-[#2ed3c6] to-[#26b8ad] rounded-[20px] p-8 text-white shadow-[0_8px_24px_rgba(46,211,198,0.25)] hover:shadow-[0_12px_32px_rgba(46,211,198,0.35)] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px]"
+                {/* 고민 상담 → AI 상담 (진행 중 상담 있으면 바로 해당 상담으로) */}
+                <button
+                  type="button"
+                  onClick={() => navigate(activeCnslId ? `/chat/withai/${activeCnslId}` : '/chat/withai')}
+                  className="bg-gradient-to-br from-[#2ed3c6] to-[#26b8ad] rounded-[20px] p-8 text-white shadow-[0_8px_24px_rgba(46,211,198,0.25)] hover:shadow-[0_12px_32px_rgba(46,211,198,0.35)] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px] border-0 cursor-pointer"
                 >
                   <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-[52px] mb-4">
                     💬
@@ -287,7 +292,7 @@ const Home = () => {
                     <br />
                     지금 마음부터 가볍게 정리해보세요.
                   </p>
-                </Link>
+                </button>
 
                 {/* 커리어 상담 → 상담사 찾기 (커리어) */}
                 <Link

@@ -27,7 +27,7 @@ const Nav = () => {
   if (user.role === 'USER') {
     MENUS.push(
       { label: '홈', to: '/' },
-      { label: '상담', to: '/chat' },
+      { label: '상담', to: { pathname: '/chat', state: { fromNav: true } } },
       { label: '게시판', to: '/board' },
       { label: 'INFO', to: '/info' },
       { label: user.isLogin ? '마이페이지' : '로그인', to: user.isLogin ? '/mypage' : '/member/signin' }

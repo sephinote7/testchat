@@ -27,18 +27,18 @@ const ChatDefaultPage = () => {
   const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
   const clearActiveCnslId = useAiConsultStore((s) => s.clearActiveCnslId);
   const [resetting, setResetting] = useState(false);
-  const fromBackRef = useRef(Boolean(location.state?.fromBack));
+  const skipRedirectRef = useRef(Boolean(location.state?.fromBack || location.state?.fromNav));
 
-  // 뒤로 가기로 온 경우에는 리다이렉트 하지 않음 → 채팅창 비움 현상 방지
+  // 뒤로 가기 또는 Nav바 상담 클릭으로 온 경우 리다이렉트 하지 않음
   useEffect(() => {
-    if (location.state?.fromBack) {
-      fromBackRef.current = true;
+    if (location.state?.fromBack || location.state?.fromNav) {
+      skipRedirectRef.current = true;
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state?.fromBack, location.pathname, navigate]);
+  }, [location.state?.fromBack, location.state?.fromNav, location.pathname, navigate]);
 
   useEffect(() => {
-    if (activeCnslId && !fromBackRef.current) {
+    if (activeCnslId && !skipRedirectRef.current) {
       navigate(`/chat/withai/${activeCnslId}`, { replace: true });
     }
   }, [activeCnslId, navigate]);
