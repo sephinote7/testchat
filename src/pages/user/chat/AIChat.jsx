@@ -170,15 +170,70 @@ const AIChat = () => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
 
-  // 상담 종료 20분 전 안내
+  const handleEndChat = async () => {
+    if (!cnslId) return;
+    try {
+      let summaryForCnsl = null;
+
+      // 1) msg_data로 AI 요약 생성 후 ai_msg.summary 저장 (반드시 먼저 호출)
+      if (AI_CHAT_API_BASE && userEmail) {
+        try {
+          const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}/summary`, {
+            method: 'POST',
+            headers: { 'X-User-Email': userEmail },
+          });
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.summary) {
+            summaryForCnsl = data.summary;
+          } else if (!res.ok) {
+            console.warn('AI 요약 생성 실패:', res.status, data);
+          }
+        } catch (e) {
+          console.warn('AI 요약 생성 실패:', e);
+        }
+      }
+
+      // 2) cnsl_reg: cnsl_stat=D, cnsl_content=요약(한 줄)으로 업데이트
+      const updatePayload = { cnsl_stat: 'D' };
+      if (summaryForCnsl) updatePayload.cnsl_content = summaryForCnsl;
+
+      const { error } = await supabase
+        .from('cnsl_reg')
+        .update(updatePayload)
+        .eq('cnsl_id', cnslId);
+      if (error) {
+        console.error('상담 종료 실패:', error);
+        alert('상담 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      alert('상담이 종료되었습니다.');
+      navigate('/chat');
+    } catch (e) {
+      console.error('상담 종료 중 오류:', e);
+      alert('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  };
+
+  const handleEndChatRef = useRef(handleEndChat);
+  handleEndChatRef.current = handleEndChat;
+
+  // 상담 종료 20분 전 안내 / 1시간 경과 시 자동 종료
   useEffect(() => {
-    if (!cnslInfo?.endAt) return;
+    if (!cnslInfo?.endAt || cnslInfo?.stat === 'D') return;
 
     const checkRemaining = () => {
       const now = new Date();
       const diffMs = cnslInfo.endAt.getTime() - now.getTime();
       const diffMin = diffMs / 60000;
-      if (diffMin <= 20 && diffMin > 0 && !timeNoticeSent) {
+
+      if (diffMin <= 0) {
+        setTimeNoticeSent(true);
+        alert('상담 시간(1시간)이 종료되었습니다. 상담을 마무리합니다.');
+        handleEndChatRef.current?.();
+        return;
+      }
+
+      if (diffMin <= 20 && !timeNoticeSent) {
         setMessages((prev) => [
           ...prev,
           {
@@ -191,7 +246,6 @@ const AIChat = () => {
       }
     };
 
-    // 처음 한 번 즉시 체크
     checkRemaining();
     const interval = setInterval(checkRemaining, 60 * 1000);
     return () => clearInterval(interval);
@@ -229,12 +283,12 @@ const AIChat = () => {
           member_id: email,
           cnsler_id: null,
           cnsl_tp: '3', // AI 즉시 상담
-          cnsl_cate: 'DAILY',
+          cnsl_cate: '1', // AI 상담 카테고리 고정
           cnsl_dt: cnslDt,
           cnsl_start_time: cnslStartTime,
           cnsl_end_time: cnslEndTime,
           cnsl_title: 'AI 즉시 상담',
-          cnsl_content: 'AI 즉시 상담 요청',
+          cnsl_content: null, // 종료 시 요약으로 채움
           cnsl_stat: 'C', // 진행 중
           cnsl_todo_yn: 'Y',
         })
@@ -261,26 +315,6 @@ const AIChat = () => {
       window.history.back();
     } else {
       navigate('/chat');
-    }
-  };
-
-  const handleEndChat = async () => {
-    if (!cnslId) return;
-    try {
-      const { error } = await supabase
-        .from('cnsl_reg')
-        .update({ cnsl_stat: 'D' })
-        .eq('cnsl_id', cnslId);
-      if (error) {
-        console.error('상담 종료 실패:', error);
-        alert('상담 종료에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-        return;
-      }
-      alert('상담이 종료되었습니다.');
-      navigate('/chat');
-    } catch (e) {
-      console.error('상담 종료 중 오류:', e);
-      alert('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     }
   };
 
