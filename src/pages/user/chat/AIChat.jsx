@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 
@@ -37,13 +37,30 @@ const AIChat = () => {
   const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
 
   const useAiApi = Boolean(cnslId && AI_CHAT_API_BASE);
+  const shouldRedirectToActive = !cnslId && activeCnslId;
 
-  // cnslId 없이 /chat/withai 진입 시 진행 중 상담이 있으면 해당 상담으로 복귀
+  // cnslId 없을 때 DB에서 진행 중(C) AI 상담 조회 → store 보강 (메인/새 탭/리프레시 대비)
   useEffect(() => {
-    if (!cnslId && activeCnslId) {
-      navigate(`/chat/withai/${activeCnslId}`, { replace: true });
-    }
-  }, [cnslId, activeCnslId, navigate]);
+    if (cnslId || !userEmail) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_id')
+          .eq('member_id', userEmail)
+          .eq('cnsl_tp', '3')
+          .eq('cnsl_stat', 'C')
+          .order('cnsl_id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.cnsl_id) {
+          setActiveCnslId(data.cnsl_id);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [cnslId, userEmail, setActiveCnslId]);
 
   useEffect(() => {
     (async () => {
@@ -338,6 +355,10 @@ const AIChat = () => {
 
   const loading = useAiApi && loadingChat;
 
+  if (shouldRedirectToActive) {
+    return <Navigate to={`/chat/withai/${activeCnslId}`} replace />;
+  }
+
   return (
     <>
       {/* MOBILE */}
@@ -522,7 +543,7 @@ const AIChat = () => {
               <span>AI 상담</span>
             </div>
             <button
-              onClick={() => navigate('/chat')}
+              onClick={() => navigate('/chat', { state: { fromBack: true } })}
               className="px-6 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-base font-normal transition-colors"
             >
               뒤로 가기
