@@ -293,20 +293,50 @@ const VisualChat = () => {
     fetchChatMessages();
   }, [chatId, me?.email]);
 
+  // Supabase realtime: chat_msg INSERT 시 상대방 메시지 실시간 반영
+  useEffect(() => {
+    if (!chatId || !me?.email) return;
+    const cnslIdNum = parseInt(chatId, 10);
+    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
+
+    const channel = supabase
+      .channel(`chat_msg:${chatId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_msg',
+          filter: `cnsl_id=eq.${cnslIdNum}`,
+        },
+        () => {
+          fetchChatMessages();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chatId, me?.email]);
+
   // 메인 비디오: remoteStream 우선, 없으면 mediaStream. PIP: mediaStream(통화 중일 때만)
+  // 통화 중일 때 양쪽 모두 상대 영상 노출 (로컬은 muted로 재생)
   useEffect(() => {
     const mainStream = remoteStream ?? mediaStream;
     const mainTargets = [videoRefMobile.current, videoRefPc.current];
     mainTargets.forEach((el) => {
-      if (el) {
+      if (el && mainStream) {
         el.srcObject = mainStream;
-        if (mainStream) el.play().catch(() => {});
+        el.muted = !remoteStream; // 상대 영상이면 unmute, 내 영상이면 mute(에코 방지)
+        el.play().catch(() => {});
       }
     });
     const pipTargets = [remoteVideoRefMobile.current, remoteVideoRefPc.current];
     pipTargets.forEach((el) => {
       if (el && mediaStream) {
         el.srcObject = mediaStream;
+        el.muted = true;
         el.play().catch(() => {});
       }
     });
@@ -463,12 +493,11 @@ const VisualChat = () => {
 
   const attachStreamToVideos = (stream) => {
     [videoRefMobile.current, videoRefPc.current].forEach((videoEl) => {
-      if (videoEl) {
+      if (videoEl && stream) {
         // eslint-disable-next-line no-param-reassign
         videoEl.srcObject = stream;
-        videoEl.play().catch(() => {
-          // autoplay 에러는 무시
-        });
+        videoEl.muted = true; // 로컬 스트림은 반드시 mute (에코 방지)
+        videoEl.play().catch(() => {});
       }
     });
   };
@@ -1030,8 +1059,8 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 상단·하단 50px 간격, 채팅 영역 350px (메시지 영역 +50px) */}
-              <footer className="shrink-0 h-[350px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl mt-[50px]">
+              {/* 상단·하단 50px 간격, 채팅 영역 370px (메시지 영역 +20px) */}
+              <footer className="shrink-0 h-[370px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl mt-[50px]">
                 <div className="flex-1 min-h-0 flex flex-col">
                   <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col h-full">
                     <h3 className="text-2xl font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb] shrink-0">
