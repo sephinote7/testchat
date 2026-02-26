@@ -741,53 +741,52 @@ const VisualChat = () => {
 
         {/* 메인: 상대 정보 + 영상 (방 번호/통화 연결은 하단 컨트롤 바에만) */}
         <main className="flex-1 flex flex-col px-[16px] pt-4 pb-24 gap-4">
-          {/* 상담 정보 + 상대 정보 + 영상 */}
-          <section className="flex-1 flex flex-col gap-3">
-            {cnslInfo && (
-              <div className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-3 text-[12px]">
-                <h2 className="text-[11px] font-semibold text-[#6b7280] mb-1">상담 정보</h2>
-                {cnslInfo.title && <p className="font-medium text-gray-800 mb-0.5">제목: {cnslInfo.title}</p>}
-                {cnslInfo.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
-                {cnslInfo.content && <p className="text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
-              </div>
-            )}
-            <h2 className="text-[13px] text-[#4b5563] font-semibold">
-              {roleDisplayLabel(peerRoleLabel)} 정보
-            </h2>
-            <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-3 text-[12px] text-[#374151]">
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold ${
-                    peerRoleLabel === 'SYSTEM'
-                      ? 'bg-[#eef2ff] text-[#4f46e5]'
-                      : 'bg-[#ecfdf5] text-[#047857]'
-                  }`}
-                >
-                  {roleDisplayLabel(peerRoleLabel)}
-                </span>
-                <span className="font-semibold text-[13px]">
-                  {peer.nickname}
-                </span>
-              </div>
-              {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                <p className="mt-1 leading-relaxed whitespace-pre-line">
-                  {systemMember.profile}
-                </p>
+          {/* 상담 정보 + 상대 정보 (고정 높이, 스크롤) + 영상 */}
+          <section className="flex-1 flex flex-col gap-3 min-h-0">
+            <div className="h-[200px] overflow-y-auto flex flex-col gap-3 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb]">
+              {cnslInfo && (
+                <div className="shrink-0">
+                  <h2 className="text-2xl font-semibold text-gray-800 mb-1">상담 정보</h2>
+                  {cnslInfo.title && <p className="text-[12px] font-medium text-gray-800 mb-0.5">제목: {cnslInfo.title}</p>}
+                  {cnslInfo.requesterNick && <p className="text-[12px] text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
+                  {cnslInfo.content && <p className="text-[12px] text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
+                </div>
               )}
-              {peerRoleLabel === 'USER' && (
-                <>
-                  {peer.mbti && (
-                    <p className="text-[11px] text-[#6b7280] mb-1">
-                      MBTI: {peer.mbti}
-                    </p>
-                  )}
-                  {peer.persona && (
-                    <p className="leading-relaxed whitespace-pre-line">
-                      {peer.persona}
-                    </p>
-                  )}
-                </>
-              )}
+              <div className="shrink-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span
+                    className={`inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold ${
+                      peerRoleLabel === 'SYSTEM'
+                        ? 'bg-[#eef2ff] text-[#4f46e5]'
+                        : 'bg-[#ecfdf5] text-[#047857]'
+                    }`}
+                  >
+                    {roleDisplayLabel(peerRoleLabel)}
+                  </span>
+                  <span className="font-semibold text-2xl text-gray-800">
+                    {peer.nickname}
+                  </span>
+                </div>
+                {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
+                  <p className="text-[12px] mt-1 leading-relaxed whitespace-pre-line text-[#374151]">
+                    {systemMember.profile}
+                  </p>
+                )}
+                {peerRoleLabel === 'USER' && (
+                  <>
+                    {peer.mbti && (
+                      <p className="text-[11px] text-[#6b7280] mb-1">
+                        MBTI: {peer.mbti}
+                      </p>
+                    )}
+                    {peer.persona && (
+                      <p className="text-[12px] leading-relaxed whitespace-pre-line text-[#374151]">
+                        {peer.persona}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="relative w-full aspect-4/3 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden">
@@ -807,8 +806,8 @@ const VisualChat = () => {
               )}
             </div>
 
-            {/* 하단 채팅 영역 */}
-            <section className="mt-2 flex flex-col gap-2 h-40">
+            {/* 하단 채팅 영역 - 최소 280px */}
+            <section className="mt-2 flex flex-col gap-2 min-h-[280px]">
               <div className="flex-1 overflow-y-auto border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]">
                 {chatMessages.length === 0 ? (
                   <p className="text-[11px] text-[#9ca3af]">
@@ -933,31 +932,32 @@ const VisualChat = () => {
           <main className="flex-1 flex min-h-0 pt-2 pb-4 overflow-hidden flex-col">
             <div className="w-full flex-1 flex flex-col bg-white rounded-b-2xl shadow-2xl overflow-hidden min-h-0">
               <section className="flex shrink-0 gap-4 p-4">
-                {/* 좌측 정보창 480px: 상담 정보 + 상담자/상담사 정보 */}
+                {/* 좌측 정보창 480px: 상담 정보 + 상담자/상담사 정보 (1:1 비율, 스크롤) */}
                 <div
-                  className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
-                  style={{ minHeight: 320 }}
+                  className="w-[480px] shrink-0 h-[600px] flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
                 >
-                  {/* 상담 정보 */}
-                  {cnslInfo && (
-                    <div className="px-4 py-3 border-b border-[#e5e7eb]">
-                      <h3 className="text-xs font-semibold text-[#6b7280] mb-2">상담 정보</h3>
-                      {cnslInfo.title && (
-                        <p className="text-sm font-medium text-gray-800 mb-1">제목: {cnslInfo.title}</p>
-                      )}
-                      {cnslInfo.requesterNick && (
-                        <p className="text-xs text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>
-                      )}
-                      {cnslInfo.content && (
-                        <p className="text-sm text-[#374151] leading-relaxed whitespace-pre-line">
-                          {cnslInfo.content}
-                        </p>
-                      )}
+                  {/* 상담 정보 - 1:1 비율 */}
+                  {cnslInfo ? (
+                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-b border-[#e5e7eb]">
+                      <h3 className="text-2xl font-semibold text-gray-800 px-4 py-3 shrink-0">상담 정보</h3>
+                      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 text-sm text-[#374151]">
+                        {cnslInfo.title && (
+                          <p className="font-medium text-gray-800 mb-1">제목: {cnslInfo.title}</p>
+                        )}
+                        {cnslInfo.requesterNick && (
+                          <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>
+                        )}
+                        {cnslInfo.content && (
+                          <p className="leading-relaxed whitespace-pre-line">
+                            {cnslInfo.content}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {/* 상담자/상담사 정보 */}
-                  <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2">
+                  ) : null}
+                  {/* 상담자/상담사 정보 - 1:1 비율 */}
+                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                    <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2 shrink-0">
                       <span
                         className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
                           peerRoleLabel === 'SYSTEM'
@@ -967,11 +967,11 @@ const VisualChat = () => {
                       >
                         {roleDisplayLabel(peerRoleLabel)}
                       </span>
-                      <span className="font-semibold text-[15px]">
+                      <span className="font-semibold text-2xl text-gray-800">
                         {peer.nickname}
                       </span>
                     </div>
-                    <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
                       {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
                         <p className="leading-relaxed whitespace-pre-line">
                           {systemMember.profile}
@@ -1049,10 +1049,10 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 하단: 채팅 영역 - 화상 외 나머지 높이 채움 */}
-              <footer className="flex-1 min-h-0 flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+              {/* 하단: 채팅 영역 - 최소 280px, 화상 외 나머지 높이 채움 */}
+              <footer className="flex-1 min-h-[280px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
                 <div className="flex-1 min-h-0 flex flex-col gap-2">
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col flex-1 min-h-0">
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col flex-1 min-h-[280px]">
                     <h3 className="text-2xl font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb] shrink-0">
                       채팅
                     </h3>
