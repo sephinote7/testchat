@@ -85,19 +85,26 @@ const VisualChat = () => {
   const [deviceError, setDeviceError] = useState(false);
   const [peerError, setPeerError] = useState('');
   const mediaRecorderRef = useRef(null);
+  const videoRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const videoRecordedChunksRef = useRef([]);
+  const hadVideoRecordingRef = useRef(false);
   const videoRefMobile = useRef(null);
   const videoRefPc = useRef(null);
   const remoteVideoRefMobile = useRef(null);
   const remoteVideoRefPc = useRef(null);
   const peerRef = useRef(null);
   const currentCallRef = useRef(null);
+  const updateCnslStatRef = useRef(null);
 
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   // 상담 정보 (cnsl_reg)
   const [cnslInfo, setCnslInfo] = useState(null);
+  // 통화 종료 후: 완료 메시지, 영상 다운로드 모달
+  const [callEnded, setCallEnded] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -287,13 +294,40 @@ const VisualChat = () => {
     }
   };
 
+  // 방 입장 시 callEnded·모달·녹화 플래그 초기화
+  useEffect(() => {
+    setCallEnded(false);
+    setShowDownloadModal(false);
+    hadVideoRecordingRef.current = false;
+  }, [chatId]);
+
   // 방 입장 후 채팅 목록 로드 (API 사용 시)
   useEffect(() => {
     if (!me || !chatId) return;
     fetchChatMessages();
   }, [chatId, me?.email]);
 
-  // Supabase realtime: chat_msg INSERT 시 상대방 메시지 실시간 반영
+  /** cnsl_stat 업데이트 (C=진행중, D=완료) */
+  const updateCnslStat = async (stat) => {
+    if (!chatId || !me?.email) return;
+    const base = import.meta.env.VITE_API_BASE_URL || '';
+    if (!base) return;
+    try {
+      await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/stat`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Email': me.email,
+        },
+        body: JSON.stringify({ cnslStat: stat }),
+      });
+    } catch (e) {
+      console.warn('cnsl_stat 업데이트 실패:', e);
+    }
+  };
+  updateCnslStatRef.current = updateCnslStat;
+
+  // Supabase realtime + 폴링 폴백: Render 등에서 realtime 미동작 시 폴링으로 채팅 동기화
   useEffect(() => {
     if (!chatId || !me?.email) return;
     const cnslIdNum = parseInt(chatId, 10);
@@ -309,20 +343,30 @@ const VisualChat = () => {
           table: 'chat_msg',
           filter: `cnsl_id=eq.${cnslIdNum}`,
         },
-        () => {
-          fetchChatMessages();
+        () => fetchChatMessages(),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'chat_msg',
+          filter: `cnsl_id=eq.${cnslIdNum}`,
         },
+        () => fetchChatMessages(),
       )
       .subscribe();
 
+    const pollInterval = setInterval(fetchChatMessages, 4000);
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [chatId, me?.email]);
 
-  // 메인 비디오: remoteStream 우선, 없으면 mediaStream. PIP: mediaStream(통화 중일 때만)
-  // 통화 중일 때 양쪽 모두 상대 영상 노출 (로컬은 muted로 재생)
+  // 메인 비디오: callEnded면 스트림 적용 안 함(초기화됨)
   useEffect(() => {
+    if (callEnded) return;
     const mainStream = remoteStream ?? mediaStream;
     const mainTargets = [videoRefMobile.current, videoRefPc.current];
     mainTargets.forEach((el) => {
@@ -340,7 +384,7 @@ const VisualChat = () => {
         el.play().catch(() => {});
       }
     });
-  }, [mediaStream, remoteStream]);
+  }, [mediaStream, remoteStream, callEnded]);
 
   // PeerJS: me/other 확정 시 Peer 생성, 수신 콜 처리
   useEffect(() => {
@@ -382,8 +426,23 @@ const VisualChat = () => {
         }
         setMediaStream(stream);
         setIsCallActive(true);
+        setCallEnded(false);
         setRemoteStream(null);
         call.answer(stream);
+        updateCnslStatRef.current?.('C');
+        if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
+          hadVideoRecordingRef.current = true;
+          const mime = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+          const vRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 500000 });
+          videoRecordedChunksRef.current = [];
+          vRec.ondataavailable = (e) => {
+            if (e.data?.size) videoRecordedChunksRef.current.push(e.data);
+          };
+          vRec.start(1000);
+          videoRecorderRef.current = vRec;
+        } else {
+          hadVideoRecordingRef.current = false;
+        }
         call.on('stream', (remote) => {
           setRemoteStream(remote);
         });
@@ -536,7 +595,9 @@ const VisualChat = () => {
       setMediaStream(stream);
       setRemoteStream(null);
       setIsCallActive(true);
+      setCallEnded(false);
       setHasRecording(false);
+      updateCnslStat('C');
       attachStreamToVideos(stream);
       setTimeout(() => attachStreamToVideos(stream), 0);
 
@@ -569,7 +630,7 @@ const VisualChat = () => {
         setErrorMsg('상대방 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
       }
 
-      // 오디오 장치가 있는 경우에만 녹음 시도
+      // 오디오 녹음 (요약/STT용)
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
         const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
         recordedChunksRef.current = [];
@@ -587,6 +648,22 @@ const VisualChat = () => {
         recorder.start();
         mediaRecorderRef.current = recorder;
         setIsRecording(true);
+      }
+      // 영상 녹화 (다운로드용)
+      if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
+        hadVideoRecordingRef.current = true;
+        const mime = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+        const vRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 500000 });
+        videoRecordedChunksRef.current = [];
+        vRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            videoRecordedChunksRef.current.push(event.data);
+          }
+        };
+        vRecorder.start(1000);
+        videoRecorderRef.current = vRecorder;
+      } else {
+        hadVideoRecordingRef.current = false;
       }
     } catch (error) {
       console.error('통화 시작 실패:', error);
@@ -646,19 +723,31 @@ const VisualChat = () => {
       if (!summaryRes.ok) return;
       const data = await summaryRes.json();
       const summaryText = data.summary || '';
-      if (!summaryText || !base) return;
-      await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Email': me.email,
-        },
-        body: JSON.stringify({
-          role: 'summary',
-          content: summaryText,
-          summary: summaryText,
-        }),
-      });
+      const msgDataList = Array.isArray(data.msg_data) ? data.msg_data : [];
+      if (!base) return;
+      if (msgDataList.length > 0) {
+        await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat/summary-full`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': me.email,
+          },
+          body: JSON.stringify({ summary: summaryText, msg_data: msgDataList }),
+        });
+      } else if (summaryText) {
+        await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': me.email,
+          },
+          body: JSON.stringify({
+            role: 'summary',
+            content: summaryText,
+            summary: summaryText,
+          }),
+        });
+      }
     } catch (err) {
       console.warn('AI 요약 저장 실패:', err);
     }
@@ -667,6 +756,7 @@ const VisualChat = () => {
   const handleEndCall = () => {
     if (!isCallActive) return;
 
+    updateCnslStat('D');
     if (currentCallRef.current) {
       currentCallRef.current.close();
       currentCallRef.current = null;
@@ -676,6 +766,9 @@ const VisualChat = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
     }
+    if (videoRecorderRef.current && videoRecorderRef.current.state !== 'inactive') {
+      videoRecorderRef.current.stop();
+    }
 
     if (mediaStream) {
       mediaStream.getTracks().forEach((track) => track.stop());
@@ -683,7 +776,19 @@ const VisualChat = () => {
     }
 
     setIsCallActive(false);
-    // 녹음이 있으면 요약 생성 후 백엔드에만 저장(UI 미표시)
+    setCallEnded(true);
+    if (hadVideoRecordingRef.current) {
+      setTimeout(() => setShowDownloadModal(true), 300);
+    }
+
+    [videoRefMobile.current, videoRefPc.current, remoteVideoRefMobile.current, remoteVideoRefPc.current].forEach(
+      (el) => {
+        if (el) {
+          el.srcObject = null;
+        }
+      },
+    );
+
     setTimeout(() => {
       if (recordedChunksRef.current.length > 0) {
         saveSummaryInBackground();
@@ -822,6 +927,10 @@ const VisualChat = () => {
             </div>
 
             <div className="relative w-full aspect-4/3 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden">
+              {callEnded ? (
+                <p className="text-white/90 text-base font-medium">상담 완료되었습니다.</p>
+              ) : (
+                <>
               <video
                 ref={videoRefMobile}
                 className="w-full h-full object-cover"
@@ -835,6 +944,8 @@ const VisualChat = () => {
                   playsInline
                   muted
                 />
+              )}
+                </>
               )}
             </div>
 
@@ -1010,6 +1121,10 @@ const VisualChat = () => {
 
                 {/* 우측 화상 영역: 600px 고정 */}
                 <div className="group relative flex-1 min-w-0 h-[600px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                  {callEnded ? (
+                    <p className="text-white/90 text-lg font-medium">상담 완료되었습니다.</p>
+                  ) : (
+                    <>
                   <video
                     ref={videoRefPc}
                     className="w-full h-full object-cover"
@@ -1049,6 +1164,8 @@ const VisualChat = () => {
                       )}
                     </div>
                   </div>
+                    </>
+                  )}
                 </div>
               </section>
 
@@ -1111,6 +1228,46 @@ const VisualChat = () => {
           </main>
         </div>
       </div>
+
+      {/* 통화 종료 후 영상 다운로드 모달 (PC/모바일 공통) */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">영상 다운로드</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              통화 영상을 로컬에 저장할 수 있습니다.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const chunks = videoRecordedChunksRef.current;
+                  if (chunks.length > 0) {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `상담녹화_${chatId}_${Date.now()}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }
+                  setShowDownloadModal(false);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-main-02 text-white font-semibold text-sm"
+              >
+                다운로드
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDownloadModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
