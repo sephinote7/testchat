@@ -174,8 +174,12 @@ const VisualChat = () => {
           return;
         }
 
-        const myRow = memberRows.find((m) => (m.email ?? m.member_id) === currentEmail);
-        const partnerRow = memberRows.find((m) => (m.email ?? m.member_id) === partnerEmail);
+        const myRow = memberRows.find(
+          (m) => (m.email ?? m.member_id) === currentEmail,
+        );
+        const partnerRow = memberRows.find(
+          (m) => (m.email ?? m.member_id) === partnerEmail,
+        );
 
         if (!myRow || !partnerRow) {
           setErrorMsg('상담 참여자 정보를 찾을 수 없습니다.');
@@ -224,27 +228,37 @@ const VisualChat = () => {
     const base = import.meta.env.VITE_API_BASE_URL || '';
     if (!base) return;
     try {
-      const res = await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`, {
-        headers: { Accept: 'application/json' },
-      });
+      const res = await fetch(
+        `${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`,
+        {
+          headers: { Accept: 'application/json' },
+        },
+      );
       if (!res.ok) return;
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setChatMessages(
         list.map((msg) => {
           const senderEmail =
-            (msg.role || '').toLowerCase() === 'counselor' ? msg.cnslerId : msg.memberId;
+            (msg.role || '').toLowerCase() === 'counselor'
+              ? msg.cnslerId
+              : msg.memberId;
           const nickname =
-            senderEmail === me.email ? me.nickname : (other?.nickname ?? senderEmail ?? '');
+            senderEmail === me.email
+              ? me.nickname
+              : (other?.nickname ?? senderEmail ?? '');
           const createdAt = msg.createdAt ?? msg.created_at;
           return {
             id: msg.chatId ?? `msg-${createdAt ?? Date.now()}`,
-            role: (msg.role || '').toLowerCase() === 'counselor' ? 'SYSTEM' : 'USER',
+            role:
+              (msg.role || '').toLowerCase() === 'counselor'
+                ? 'SYSTEM'
+                : 'USER',
             nickname: nickname || (msg.role === 'SYSTEM' ? 'SYSTEM' : 'USER'),
             text: msg.content ?? '',
             timestamp: createdAt ? new Date(createdAt).getTime() : Date.now(),
           };
-        })
+        }),
       );
     } catch (err) {
       console.warn('채팅 목록 조회 실패:', err);
@@ -298,10 +312,18 @@ const VisualChat = () => {
       try {
         let stream = null;
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
         } catch {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true }).catch(() => null);
-          if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+          stream = await navigator.mediaDevices
+            .getUserMedia({ video: true })
+            .catch(() => null);
+          if (!stream)
+            stream = await navigator.mediaDevices
+              .getUserMedia({ audio: true })
+              .catch(() => null);
         }
         if (!stream) {
           setErrorMsg('카메라/마이크를 사용할 수 없습니다.');
@@ -330,7 +352,9 @@ const VisualChat = () => {
       const msg = err?.message || String(err);
       setPeerError(msg);
       if (err?.type === 'peer-unavailable') {
-        setErrorMsg('상대방이 아직 대기 중이 아닙니다. 상대가 같은 방에 들어온 뒤 다시 시도해 주세요.');
+        setErrorMsg(
+          '상대방이 아직 대기 중이 아닙니다. 상대가 같은 방에 들어온 뒤 다시 시도해 주세요.',
+        );
       }
     });
 
@@ -351,13 +375,17 @@ const VisualChat = () => {
       <>
         {/* MOBILE */}
         <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex items-center justify-center">
-          <p className="text-sm text-gray-500">상담 정보를 불러오는 중입니다...</p>
+          <p className="text-sm text-gray-500">
+            상담 정보를 불러오는 중입니다...
+          </p>
         </div>
 
         {/* PC */}
         <div className="hidden lg:flex w-full min-h-screen bg-main-01 items-center justify-center">
           <div className="bg-white rounded-3xl shadow-2xl px-16 py-12 text-center">
-            <p className="text-lg text-gray-600">상담 정보를 불러오는 중입니다...</p>
+            <p className="text-lg text-gray-600">
+              상담 정보를 불러오는 중입니다...
+            </p>
           </div>
         </div>
       </>
@@ -387,13 +415,17 @@ const VisualChat = () => {
       <>
         {/* MOBILE */}
         <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex items-center justify-center">
-          <p className="text-sm text-gray-500">상담 참여자 정보를 찾을 수 없습니다.</p>
+          <p className="text-sm text-gray-500">
+            상담 참여자 정보를 찾을 수 없습니다.
+          </p>
         </div>
 
         {/* PC */}
         <div className="hidden lg:flex w-full min-h-screen bg-main-01 items-center justify-center">
           <div className="bg-white rounded-3xl shadow-2xl px-16 py-12 text-center">
-            <p className="text-lg text-gray-600">상담 참여자 정보를 찾을 수 없습니다.</p>
+            <p className="text-lg text-gray-600">
+              상담 참여자 정보를 찾을 수 없습니다.
+            </p>
           </div>
         </div>
       </>
@@ -412,11 +444,9 @@ const VisualChat = () => {
       if (videoEl) {
         // eslint-disable-next-line no-param-reassign
         videoEl.srcObject = stream;
-        videoEl
-          .play()
-          .catch(() => {
-            // autoplay 에러는 무시
-          });
+        videoEl.play().catch(() => {
+          // autoplay 에러는 무시
+        });
       }
     });
   };
@@ -432,7 +462,10 @@ const VisualChat = () => {
 
       // 제약을 최소화해 NotFoundError 감소: 먼저 audio+video(true만), 실패 시 video만, 마지막으로 audio만
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: true,
+        });
       } catch (err) {
         console.warn('오디오+비디오 실패, 비디오만 재시도:', err);
         try {
@@ -446,7 +479,9 @@ const VisualChat = () => {
           } catch (audioErr) {
             console.error('오디오 요청도 실패:', audioErr);
             setDeviceError(true);
-            setErrorMsg('카메라/마이크를 연결하고 브라우저 권한을 허용해 주세요.');
+            setErrorMsg(
+              '카메라/마이크를 연결하고 브라우저 권한을 허용해 주세요.',
+            );
             setIsCallActive(false);
             setMediaStream(null);
             return;
@@ -474,7 +509,9 @@ const VisualChat = () => {
           }
         } catch (err) {
           console.error('PeerJS 발신 실패:', err);
-          setErrorMsg('상대방 연결에 실패했습니다. 상대가 같은 방에 있는지 확인해 주세요.');
+          setErrorMsg(
+            '상대방 연결에 실패했습니다. 상대가 같은 방에 있는지 확인해 주세요.',
+          );
         }
       }
 
@@ -500,7 +537,10 @@ const VisualChat = () => {
     } catch (error) {
       console.error('통화 시작 실패:', error);
       // 장치 없음 에러는 한 번만 안내
-      if (error?.name === 'NotFoundError' || String(error?.message || '').includes('Requested device')) {
+      if (
+        error?.name === 'NotFoundError' ||
+        String(error?.message || '').includes('Requested device')
+      ) {
         setDeviceError(true);
         setErrorMsg('사용 가능한 카메라/마이크 장치를 찾을 수 없습니다.');
       } else {
@@ -516,7 +556,9 @@ const VisualChat = () => {
   const saveSummaryInBackground = async () => {
     if (!chatId || !me?.email || !recordedChunksRef.current?.length) return;
     const base = import.meta.env.VITE_API_BASE_URL || '';
-    const summarizeUrl = import.meta.env.VITE_SUMMARIZE_API_URL || 'http://localhost:8000/api/summarize';
+    const summarizeUrl =
+      import.meta.env.VITE_SUMMARIZE_API_URL ||
+      'http://localhost:8000/api/summarize';
     try {
       const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
       const formData = new FormData();
@@ -531,11 +573,22 @@ const VisualChat = () => {
         text: msg.text,
         timestamp: String(msg.timestamp || Date.now()),
       }));
-      formData.append('msg_data', JSON.stringify([
-        ...chatLogsPayload,
-        { type: 'chat', speaker: me.role === 'SYSTEM' ? 'cnsler' : 'user', text: '화상 상담 세션', timestamp: String(Date.now()) },
-      ]));
-      const summaryRes = await fetch(summarizeUrl, { method: 'POST', body: formData });
+      formData.append(
+        'msg_data',
+        JSON.stringify([
+          ...chatLogsPayload,
+          {
+            type: 'chat',
+            speaker: me.role === 'SYSTEM' ? 'cnsler' : 'user',
+            text: '화상 상담 세션',
+            timestamp: String(Date.now()),
+          },
+        ]),
+      );
+      const summaryRes = await fetch(summarizeUrl, {
+        method: 'POST',
+        body: formData,
+      });
       if (!summaryRes.ok) return;
       const data = await summaryRes.json();
       const summaryText = data.summary || '';
@@ -546,7 +599,11 @@ const VisualChat = () => {
           'Content-Type': 'application/json',
           'X-User-Email': me.email,
         },
-        body: JSON.stringify({ role: 'summary', content: summaryText, summary: summaryText }),
+        body: JSON.stringify({
+          role: 'summary',
+          content: summaryText,
+          summary: summaryText,
+        }),
       });
     } catch (err) {
       console.warn('AI 요약 저장 실패:', err);
@@ -609,7 +666,7 @@ const VisualChat = () => {
               'X-User-Email': me.email ?? '',
             },
             body: JSON.stringify({ role: roleForApi, content: trimmed }),
-          }
+          },
         );
         if (!res.ok) {
           setErrorMsg('메시지 전송에 실패했습니다.');
@@ -624,7 +681,10 @@ const VisualChat = () => {
             role: me.role,
             nickname: me.nickname ?? '',
             text: trimmed,
-            timestamp: (saved.createdAt ?? saved.created_at) ? new Date(saved.createdAt ?? saved.created_at).getTime() : now,
+            timestamp:
+              (saved.createdAt ?? saved.created_at)
+                ? new Date(saved.createdAt ?? saved.created_at).getTime()
+                : now,
           },
         ]);
       } catch (err) {
@@ -675,18 +735,26 @@ const VisualChat = () => {
                 >
                   {peerRoleLabel}
                 </span>
-                <span className="font-semibold text-[13px]">{peer.nickname}</span>
+                <span className="font-semibold text-[13px]">
+                  {peer.nickname}
+                </span>
               </div>
               {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                <p className="mt-1 leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
+                <p className="mt-1 leading-relaxed whitespace-pre-line">
+                  {systemMember.profile}
+                </p>
               )}
               {peerRoleLabel === 'USER' && (
                 <>
                   {peer.mbti && (
-                    <p className="text-[11px] text-[#6b7280] mb-1">MBTI: {peer.mbti}</p>
+                    <p className="text-[11px] text-[#6b7280] mb-1">
+                      MBTI: {peer.mbti}
+                    </p>
                   )}
                   {peer.persona && (
-                    <p className="leading-relaxed whitespace-pre-line">{peer.persona}</p>
+                    <p className="leading-relaxed whitespace-pre-line">
+                      {peer.persona}
+                    </p>
                   )}
                 </>
               )}
@@ -713,7 +781,9 @@ const VisualChat = () => {
             <section className="mt-2 flex flex-col gap-2 h-40">
               <div className="flex-1 overflow-y-auto border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]">
                 {chatMessages.length === 0 ? (
-                  <p className="text-[11px] text-[#9ca3af]">여기에 채팅이 표시됩니다.</p>
+                  <p className="text-[11px] text-[#9ca3af]">
+                    여기에 채팅이 표시됩니다.
+                  </p>
                 ) : (
                   <div className="flex flex-col gap-1">
                     {chatMessages.map((msg) => (
@@ -724,7 +794,8 @@ const VisualChat = () => {
                         }`}
                       >
                         <span className="font-semibold mr-1">
-                          {msg.nickname || (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                          {msg.nickname ||
+                            (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
                         </span>
                         <span className="text-[#4b5563]">{msg.text}</span>
                       </div>
@@ -732,7 +803,10 @@ const VisualChat = () => {
                   </div>
                 )}
               </div>
-              <form onSubmit={handleChatSubmit} className="flex items-center gap-2">
+              <form
+                onSubmit={handleChatSubmit}
+                className="flex items-center gap-2"
+              >
                 <input
                   type="text"
                   value={chatInput}
@@ -780,11 +854,15 @@ const VisualChat = () => {
                 isCallActive
                   ? 'bg-[#ef4444] text-white'
                   : isMeSystem
-                  ? 'bg-main-02 text-white'
-                  : 'bg-[#e5e7eb] text-[#9ca3af] cursor-not-allowed'
+                    ? 'bg-main-02 text-white'
+                    : 'bg-[#e5e7eb] text-[#9ca3af] cursor-not-allowed'
               }`}
             >
-              {isCallActive ? '통화 종료' : isMeSystem ? '통화 시작' : '상담사만 통화 시작 가능'}
+              {isCallActive
+                ? '통화 종료'
+                : isMeSystem
+                  ? '통화 시작'
+                  : '상담사만 통화 시작 가능'}
             </button>
           </div>
         </footer>
@@ -801,7 +879,8 @@ const VisualChat = () => {
               </div>
               <div className="flex flex-col">
                 <span>
-                  {peer.nickname} {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
+                  {peer.nickname}{' '}
+                  {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
                 </span>
                 <span className="text-sm font-normal opacity-90">
                   실시간 화상 상담이 진행 중입니다.
@@ -839,19 +918,27 @@ const VisualChat = () => {
                     >
                       {peerRoleLabel}
                     </span>
-                    <span className="font-semibold text-[15px]">{peer.nickname}</span>
+                    <span className="font-semibold text-[15px]">
+                      {peer.nickname}
+                    </span>
                   </div>
                   <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
                     {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                      <p className="leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
+                      <p className="leading-relaxed whitespace-pre-line">
+                        {systemMember.profile}
+                      </p>
                     )}
                     {peerRoleLabel === 'USER' && (
                       <>
                         {peer.mbti && (
-                          <p className="text-[12px] text-[#6b7280] mb-2">MBTI: {peer.mbti}</p>
+                          <p className="text-[12px] text-[#6b7280] mb-2">
+                            MBTI: {peer.mbti}
+                          </p>
                         )}
                         {peer.persona && (
-                          <p className="leading-relaxed whitespace-pre-line">{peer.persona}</p>
+                          <p className="leading-relaxed whitespace-pre-line">
+                            {peer.persona}
+                          </p>
                         )}
                       </>
                     )}
@@ -921,7 +1008,9 @@ const VisualChat = () => {
                     </h3>
                     <div className="h-[160px] overflow-y-auto px-4 py-2 flex flex-col gap-1">
                       {chatMessages.length === 0 ? (
-                        <p className="text-xs text-[#9ca3af]">메시지를 입력해 주세요.</p>
+                        <p className="text-xs text-[#9ca3af]">
+                          메시지를 입력해 주세요.
+                        </p>
                       ) : (
                         chatMessages.map((msg) => (
                           <div
@@ -929,14 +1018,18 @@ const VisualChat = () => {
                             className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
                           >
                             <span className="font-semibold mr-1">
-                              {msg.nickname || (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                              {msg.nickname ||
+                                (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
                             </span>
                             <span className="text-[#4b5563]">{msg.text}</span>
                           </div>
                         ))
                       )}
                     </div>
-                    <form onSubmit={handleChatSubmit} className="flex gap-2 p-3 border-t border-[#e5e7eb]">
+                    <form
+                      onSubmit={handleChatSubmit}
+                      className="flex gap-2 p-3 border-t border-[#e5e7eb]"
+                    >
                       <input
                         type="text"
                         value={chatInput}
@@ -969,4 +1062,3 @@ export function VisualChatRoute() {
 }
 
 export default VisualChat;
-
