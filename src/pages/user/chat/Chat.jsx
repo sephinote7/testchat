@@ -3,7 +3,7 @@ import AIChat from './AIChat';
 import ChatDefaultPage from './ChatDefaultPage';
 import { Route, Routes } from 'react-router-dom';
 import Counselor from './Counselor';
-import VisualChat from './visualchat';
+import VisualChat from './Visualchat';
 
 const Chat = () => {
   return (
