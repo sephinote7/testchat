@@ -223,8 +223,7 @@ const VisualChat = () => {
   // 채팅 목록 API 조회 (명세: GET /api/cnsl/{cnslId}/chat)
   const fetchChatMessages = async () => {
     if (!cnslId || !me?.email) return;
-    const base = import.meta.env.VITE_API_BASE_URL || '';
-    if (!base) return;
+    const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
     try {
       const res = await fetch(`${base.replace(/\/$/, '')}/cnsl/${cnslId}/chat`, {
         headers: { Accept: 'application/json' },
@@ -253,10 +252,14 @@ const VisualChat = () => {
     }
   };
 
-  // 방 입장 후 채팅 목록 로드 (API 사용 시)
+  // 방 입장 후 채팅 목록 로드 + 5초마다 폴링 (상대 메시지 갱신)
+  const fetchChatMessagesRef = useRef(fetchChatMessages);
+  fetchChatMessagesRef.current = fetchChatMessages;
   useEffect(() => {
     if (!me || !cnslId) return;
-    fetchChatMessages();
+    fetchChatMessagesRef.current();
+    const interval = setInterval(() => fetchChatMessagesRef.current(), 5000);
+    return () => clearInterval(interval);
   }, [cnslId, me?.email]);
 
   // 메인 비디오: remoteStream 우선, 없으면 mediaStream. PIP: mediaStream(통화 중일 때만)
@@ -427,14 +430,10 @@ const VisualChat = () => {
 
   const attachStreamToVideos = (stream) => {
     [videoRefMobile.current, videoRefPc.current].forEach((videoEl) => {
-      if (videoEl) {
-        // eslint-disable-next-line no-param-reassign
+      if (videoEl && stream) {
         videoEl.srcObject = stream;
-        videoEl
-          .play()
-          .catch(() => {
-            // autoplay 에러는 무시
-          });
+        videoEl.muted = true;
+        videoEl.play().catch(() => {});
       }
     });
   };
@@ -484,6 +483,7 @@ const VisualChat = () => {
       setHasRecording(false);
       attachStreamToVideos(stream);
       setTimeout(() => attachStreamToVideos(stream), 0);
+      setTimeout(() => attachStreamToVideos(stream), 100);
 
       // PeerJS: cnsl_id 기반 방에서 상대방에게 발신
       const remoteId = getRoomPeerId(cnslId, peer?.email ?? other?.email);
@@ -640,13 +640,12 @@ const VisualChat = () => {
     const trimmed = chatInput.trim();
     if (!trimmed || !me) return;
 
-    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
     const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user'; // 명세: user / counselor
 
-    if (apiBase) {
-      try {
-        const res = await fetch(
-          `${apiBase.replace(/\/$/, '')}/cnsl/${cnslId}/chat`,
+    try {
+      const res = await fetch(
+          `${apiBase}/cnsl/${cnslId}/chat`,
           {
             method: 'POST',
             headers: {
@@ -672,25 +671,11 @@ const VisualChat = () => {
             timestamp: (saved.createdAt ?? saved.created_at) ? new Date(saved.createdAt ?? saved.created_at).getTime() : now,
           },
         ]);
-      } catch (err) {
-        console.error('채팅 전송 오류:', err);
-        setErrorMsg('메시지 전송 중 오류가 발생했습니다.');
-        return;
-      }
-    } else {
-      const now = Date.now();
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: `local-${now}`,
-          role: me.role,
-          nickname: me.nickname ?? '',
-          text: trimmed,
-          timestamp: now,
-        },
-      ]);
+      setChatInput('');
+    } catch (err) {
+      console.error('채팅 전송 오류:', err);
+      setErrorMsg('메시지 전송 중 오류가 발생했습니다.');
     }
-    setChatInput('');
   };
 
   return (
@@ -875,7 +860,7 @@ const VisualChat = () => {
           {/* 메인: 상담 진행 중 바로 아래 붙이기 (rounded 상단 제거) */}
           <main className="flex-1 flex min-h-0 pb-4 -mt-0.5">
             <div className="w-full max-w-[1520px] flex-1 flex bg-white rounded-b-2xl shadow-2xl overflow-hidden flex-col">
-              <section className="flex-1 flex flex-nowrap min-h-0 gap-4 p-4">
+              <section className="flex-1 flex flex-nowrap min-h-0 gap-4 p-4 overflow-hidden">
                 {/* 좌측 정보창: 480px 고정, 상담사/상담자 정보(상단 50%) + 상담 내용(하단 50%) 1:1 비율 */}
                 <div
                   className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] h-[600px]"
@@ -925,8 +910,8 @@ const VisualChat = () => {
                   )}
                 </div>
 
-                {/* 우측 화상 영역: 1000px 고정, 600px 높이 */}
-                <div className="w-[1000px] shrink-0 h-[600px] rounded-2xl overflow-hidden flex flex-col">
+                {/* 우측 화상 영역: 남은 공간 채우기(flex-1), 우측 짤림 방지 min-w-0 */}
+                <div className="flex-1 min-w-0 h-[600px] shrink-0 rounded-2xl overflow-hidden flex flex-col">
                 <div className="group relative w-full h-full min-h-[600px] bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
@@ -980,11 +965,11 @@ const VisualChat = () => {
               {/* 하단: 채팅 영역 300px, AIChat 스타일 (화자 이름 상단 / 내용 하단) */}
               <footer className="shrink-0 border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
                 <div className="max-w-[1520px] mx-auto flex flex-col">
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col h-[300px]">
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col h-[400px]">
                     <h3 className="shrink-0 px-4 py-3 border-b border-[#e5e7eb] font-semibold text-gray-800" style={{ fontSize: '24px' }}>
                       채팅
                     </h3>
-                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-4">
+                    <div className="flex-1 min-h-[300px] overflow-y-auto px-4 py-3 flex flex-col gap-4">
                       {chatMessages.length === 0 ? (
                         <p className="text-sm text-[#9ca3af]">메시지를 입력해 주세요.</p>
                       ) : (
