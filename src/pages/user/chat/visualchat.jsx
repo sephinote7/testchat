@@ -3,10 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Peer from 'peerjs';
 import { supabase } from '../../../lib/supabase';
 
-// PeerJS ID: member_id/cnsler_id(이메일) 기반. 서버 호환을 위해 @ . 치환
+// PeerJS ID: cnsl_id 기반 방 매칭. 서버 호환을 위해 @ . 치환
 function sanitizePeerId(email) {
   if (!email || typeof email !== 'string') return '';
   return email.replace(/@/g, '_at_').replace(/\./g, '_');
+}
+function getRoomPeerId(cnslId, email) {
+  const base = sanitizePeerId(email);
+  return base ? `cnsl_${cnslId}_${base}` : '';
 }
 
 // DB role → UI role 정규화: member / cnsler → USER / SYSTEM
@@ -65,6 +69,8 @@ const VisualChat = () => {
 
   const [me, setMe] = useState(null);
   const [other, setOther] = useState(null);
+  const [cnslReg, setCnslReg] = useState(null); // cnsl_reg: cnsl_title, cnsl_content, member_id, cnsl_start_time
+  const [bookerNickname, setBookerNickname] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -85,6 +91,7 @@ const VisualChat = () => {
   const remoteVideoRefPc = useRef(null);
   const peerRef = useRef(null);
   const currentCallRef = useRef(null);
+  const [peerReady, setPeerReady] = useState(false);
 
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
@@ -174,17 +181,27 @@ const VisualChat = () => {
         let finalOther = { ...otherMapped };
 
         if (isMemberSide) {
-          // 로그인 사용자가 member_id → USER
           finalMe.role = 'USER';
           finalOther.role = 'SYSTEM';
         } else if (isCnslerSide) {
-          // 로그인 사용자가 cnsler_id → SYSTEM
           finalMe.role = 'SYSTEM';
           finalOther.role = 'USER';
         }
 
         setMe(finalMe);
         setOther(finalOther);
+
+        // 6) cnsl_reg 조회 (상담 내용)
+        const { data: cnslRow } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_title, cnsl_content, member_id, cnsl_start_time, cnsl_dt')
+          .eq('cnsl_id', cnslId)
+          .maybeSingle();
+        if (cnslRow) {
+          setCnslReg(cnslRow);
+          const bookerRow = memberRows.find((m) => (m.email ?? m.member_id) === cnslRow.member_id);
+          setBookerNickname(bookerRow?.nickname ?? cnslRow.member_id ?? '');
+        }
       } catch (error) {
         console.error('VisualChat 초기화 오류', error);
         setErrorMsg('상담 정보를 불러오는 중 오류가 발생했습니다.');
@@ -259,10 +276,10 @@ const VisualChat = () => {
     });
   }, [mediaStream, remoteStream]);
 
-  // PeerJS: me/other 확정 시 Peer 생성, 수신 콜 처리
+  // PeerJS: cnsl_id 기반 방 매칭. me/other 확정 시 Peer 생성, 수신 콜 처리
   useEffect(() => {
-    if (!me?.email || !other?.email) return;
-    const myId = sanitizePeerId(me.email);
+    if (!cnslId || !me?.email || !other?.email) return;
+    const myId = getRoomPeerId(cnslId, me.email);
     if (!myId) return;
 
     const peer = new Peer(myId, {
@@ -274,6 +291,7 @@ const VisualChat = () => {
 
     peer.on('open', () => {
       setPeerError('');
+      setPeerReady(true);
     });
 
     peer.on('call', async (call) => {
@@ -318,6 +336,7 @@ const VisualChat = () => {
     });
 
     return () => {
+      setPeerReady(false);
       if (currentCallRef.current) {
         currentCallRef.current.close();
         currentCallRef.current = null;
@@ -326,7 +345,7 @@ const VisualChat = () => {
       peerRef.current = null;
       setRemoteStream(null);
     };
-  }, [me?.email, other?.email]);
+  }, [cnslId, me?.email, other?.email]);
 
   // 공통 로딩 / 에러 뷰
   if (loading) {
@@ -385,10 +404,11 @@ const VisualChat = () => {
 
   const isMeUser = me.role === 'USER';
   const isMeSystem = me.role === 'SYSTEM';
-  const userMember = isMeUser ? me : other;
-  const systemMember = isMeUser ? other : me;
+  const userMember = isMeUser ? me : other;   // 상담자
+  const systemMember = isMeUser ? other : me; // 상담사
   const peer = isMeUser ? systemMember : userMember;
-  const peerRoleLabel = isMeUser ? 'SYSTEM' : 'USER';
+  const roleDisplayLabel = (role) => (role === 'USER' ? '상담자' : '상담사');
+  const peerRoleLabel = peer?.role;
 
   const attachStreamToVideos = (stream) => {
     [videoRefMobile.current, videoRefPc.current].forEach((videoEl) => {
@@ -406,6 +426,10 @@ const VisualChat = () => {
 
   const handleStartCall = async () => {
     if (!isMeSystem || isCallActive || deviceError) return;
+    if (!peerReady) {
+      setErrorMsg('연결 대기 중입니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
 
     setErrorMsg('');
 
@@ -444,21 +468,23 @@ const VisualChat = () => {
       attachStreamToVideos(stream);
       setTimeout(() => attachStreamToVideos(stream), 0);
 
-      // PeerJS: 상대방(USER)에게 발신
-      const remoteId = sanitizePeerId(other?.email);
-      if (peerRef.current && remoteId) {
-        try {
-          const call = peerRef.current.call(remoteId, stream);
-          if (call) {
-            currentCallRef.current = call;
-            call.on('stream', (remote) => setRemoteStream(remote));
-            call.on('close', () => setRemoteStream(null));
-            call.on('error', () => setRemoteStream(null));
-          }
-        } catch (err) {
-          console.error('PeerJS 발신 실패:', err);
-          setErrorMsg('상대방 연결에 실패했습니다. 상대가 같은 방에 있는지 확인해 주세요.');
+      // PeerJS: cnsl_id 기반 방에서 상대방에게 발신
+      const remoteId = getRoomPeerId(cnslId, peer?.email ?? other?.email);
+      if (!peerRef.current || !remoteId) {
+        setErrorMsg('연결 준비가 되지 않았습니다.');
+        return;
+      }
+      try {
+        const call = peerRef.current.call(remoteId, stream);
+        if (call) {
+          currentCallRef.current = call;
+          call.on('stream', (remote) => setRemoteStream(remote));
+          call.on('close', () => setRemoteStream(null));
+          call.on('error', () => setRemoteStream(null));
         }
+      } catch (err) {
+        console.error('PeerJS 발신 실패:', err);
+        setErrorMsg('상대방 연결에 실패했습니다. 상대가 같은 상담방에 입장했는지 확인해 주세요.');
       }
 
       // 오디오 장치가 있는 경우에만 녹음 시도
@@ -640,42 +666,59 @@ const VisualChat = () => {
           화상 상담
         </header>
 
-        {/* 메인: 상대 정보 + 영상 (방 번호/통화 연결은 하단 컨트롤 바에만) */}
-        <main className="flex-1 flex flex-col px-[16px] pt-4 pb-24 gap-4">
-          {/* 상대 정보 + 영상 */}
-          <section className="flex-1 flex flex-col gap-3">
-            <h2 className="text-[13px] text-[#4b5563] font-semibold">
-              {peerRoleLabel === 'SYSTEM' ? '상담사 정보' : '내담자 정보'}
-            </h2>
-            <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-3 text-[12px] text-[#374151]">
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold ${
-                    peerRoleLabel === 'SYSTEM'
-                      ? 'bg-[#eef2ff] text-[#4f46e5]'
-                      : 'bg-[#ecfdf5] text-[#047857]'
-                  }`}
-                >
-                  {peerRoleLabel}
-                </span>
-                <span className="font-semibold text-[13px]">{peer.nickname}</span>
+        {/* 메인: 50px 여백 + 상담사 정보 상단, 상담 내용 하단, 영상 */}
+        <main className="flex-1 flex flex-col px-[16px] pt-[50px] pb-24 gap-4">
+          <section className="flex-1 flex flex-col gap-3 min-h-0">
+            {/* 상담사 정보 (상단) */}
+            {/* 상담사/상담자 정보 (상단) */}
+            <div className="flex flex-col gap-2 shrink-0">
+              <div>
+                <h2 className="text-[13px] text-[#4b5563] font-semibold mb-1">상담사 정보</h2>
+                <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-3 text-[12px] text-[#374151]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold bg-[#eef2ff] text-[#4f46e5]">상담사</span>
+                    <span className="font-semibold text-[13px]">{systemMember.nickname}</span>
+                  </div>
+                  {systemMember.profile && (
+                    <p className="mt-1 leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
+                  )}
+                </div>
               </div>
-              {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                <p className="mt-1 leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
-              )}
-              {peerRoleLabel === 'USER' && (
-                <>
-                  {peer.mbti && (
-                    <p className="text-[11px] text-[#6b7280] mb-1">MBTI: {peer.mbti}</p>
+              <div>
+                <h2 className="text-[13px] text-[#4b5563] font-semibold mb-1">상담자 정보</h2>
+                <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-3 text-[12px] text-[#374151]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold bg-[#ecfdf5] text-[#047857]">상담자</span>
+                    <span className="font-semibold text-[13px]">{userMember.nickname}</span>
+                  </div>
+                  {userMember.mbti && <p className="text-[11px] text-[#6b7280] mb-1">MBTI: {userMember.mbti}</p>}
+                  {userMember.persona && (
+                    <p className="mt-1 leading-relaxed whitespace-pre-line">{userMember.persona}</p>
                   )}
-                  {peer.persona && (
-                    <p className="leading-relaxed whitespace-pre-line">{peer.persona}</p>
-                  )}
-                </>
-              )}
+                </div>
+              </div>
             </div>
 
-            <div className="relative w-full aspect-4/3 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden">
+            {/* 상담 내용 (하단, 스크롤) */}
+            {cnslReg && (
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <h2 className="text-[13px] text-[#4b5563] font-semibold mb-1">상담 내용</h2>
+                <div className="flex-1 overflow-y-auto rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-3 text-[12px] text-[#374151]">
+                  {cnslReg.cnsl_title && (
+                    <p className="font-semibold mb-1">제목 : {cnslReg.cnsl_title}</p>
+                  )}
+                  {bookerNickname && (
+                    <p className="text-[11px] text-[#6b7280] mb-2">예약자 : {bookerNickname}</p>
+                  )}
+                  {cnslReg.cnsl_content && (
+                    <p className="leading-relaxed whitespace-pre-line">{cnslReg.cnsl_content}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 영상 영역 - 미실행 시에도 높이 최대 유지 */}
+            <div className="relative w-full min-h-[240px] flex-1 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden shrink-0">
               <video
                 ref={videoRefMobile}
                 className="w-full h-full object-cover"
@@ -707,7 +750,7 @@ const VisualChat = () => {
                         }`}
                       >
                         <span className="font-semibold mr-1">
-                          {msg.nickname || (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                          {msg.nickname || roleDisplayLabel(msg.role)}
                         </span>
                         <span className="text-[#4b5563]">{msg.text}</span>
                       </div>
@@ -737,28 +780,10 @@ const VisualChat = () => {
         {/* 하단 컨트롤 바: 모바일 Nav(하단 탭) 위에 오도록 bottom-14 사용 */}
         <footer className="fixed bottom-14 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-4">
           <div className="flex items-center gap-2 bg-white/90 backdrop-blur border border-[#e5e7eb] rounded-2xl px-3 py-3 shadow-lg">
-            {isMeSystem && (
-              <>
-                <input
-                  type="text"
-                  value={chatIdInput}
-                  onChange={(e) => setChatIdInput(e.target.value)}
-                  placeholder="방 번호"
-                  className="w-20 h-9 rounded-full border border-[#dbe3f1] px-2 text-[12px] bg-white text-center"
-                />
-                <button
-                  type="button"
-                  onClick={handleChatIdConnect}
-                  className="h-9 px-3 rounded-full text-[12px] font-semibold bg-[#3b82f6] text-white shrink-0"
-                >
-                  통화 연결
-                </button>
-              </>
-            )}
             <button
               type="button"
               onClick={isCallActive ? handleEndCall : handleStartCall}
-              disabled={!isMeSystem && !isCallActive}
+              disabled={(!isMeSystem && !isCallActive) || (isMeSystem && !isCallActive && !peerReady)}
               className={`flex-1 h-10 rounded-full text-[13px] font-semibold ${
                 isCallActive
                   ? 'bg-[#ef4444] text-white'
@@ -767,7 +792,7 @@ const VisualChat = () => {
                   : 'bg-[#e5e7eb] text-[#9ca3af] cursor-not-allowed'
               }`}
             >
-              {isCallActive ? '통화 종료' : isMeSystem ? '통화 시작' : '상담사만 통화 시작 가능'}
+              {isCallActive ? '통화 종료' : isMeSystem ? (peerReady ? '통화 시작' : '연결 대기 중...') : '상담사만 통화 시작 가능'}
             </button>
           </div>
         </footer>
@@ -784,7 +809,7 @@ const VisualChat = () => {
               </div>
               <div className="flex flex-col">
                 <span>
-                  {peer.nickname} {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
+                  {peer.nickname} {peerRoleLabel === 'SYSTEM' ? '상담사' : '상담자'}
                 </span>
                 <span className="text-sm font-normal opacity-90">
                   실시간 화상 상담이 진행 중입니다.
@@ -803,46 +828,55 @@ const VisualChat = () => {
             </div>
           </header>
 
-          {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 500px 고정 */}
-          <main className="flex-1 flex min-h-0 py-4">
+          {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 500px 고정, 헤더 50px 여백 */}
+          <main className="flex-1 flex min-h-0 pt-[50px] pb-4">
             <div className="w-full max-w-[1520px] flex-1 flex bg-white rounded-2xl shadow-2xl overflow-hidden flex-col">
               <section className="flex-1 flex min-h-0 gap-4 p-4">
-                {/* 좌측 정보창 480px, 스크롤 */}
+                {/* 좌측 정보창 480px: 상담사/상담자 정보 상단, 상담 내용 하단, 스크롤 */}
                 <div
                   className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
                   style={{ minHeight: 320 }}
                 >
-                  <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
-                        peerRoleLabel === 'SYSTEM'
-                          ? 'bg-[#eef2ff] text-[#4f46e5]'
-                          : 'bg-[#ecfdf5] text-[#047857]'
-                      }`}
-                    >
-                      {peerRoleLabel}
-                    </span>
-                    <span className="font-semibold text-[15px]">{peer.nickname}</span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
-                    {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                      <p className="leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
-                    )}
-                    {peerRoleLabel === 'USER' && (
-                      <>
-                        {peer.mbti && (
-                          <p className="text-[12px] text-[#6b7280] mb-2">MBTI: {peer.mbti}</p>
-                        )}
-                        {peer.persona && (
-                          <p className="leading-relaxed whitespace-pre-line">{peer.persona}</p>
-                        )}
-                      </>
+                  {/* 상담사 정보 */}
+                  <div className="shrink-0 border-b border-[#e5e7eb]">
+                    <div className="px-4 py-2 text-[11px] font-semibold text-[#6b7280]">상담사 정보</div>
+                    <div className="px-4 pb-3 flex items-center gap-2">
+                      <span className="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-semibold bg-[#eef2ff] text-[#4f46e5]">상담사</span>
+                      <span className="font-semibold text-[15px]">{systemMember.nickname}</span>
+                    </div>
+                    {systemMember.profile && (
+                      <div className="px-4 pb-3 text-sm leading-relaxed whitespace-pre-line">{systemMember.profile}</div>
                     )}
                   </div>
+                  {/* 상담자 정보 */}
+                  <div className="shrink-0 border-b border-[#e5e7eb]">
+                    <div className="px-4 py-2 text-[11px] font-semibold text-[#6b7280]">상담자 정보</div>
+                    <div className="px-4 pb-3 flex items-center gap-2">
+                      <span className="inline-flex px-2.5 py-[3px] rounded-full text-[11px] font-semibold bg-[#ecfdf5] text-[#047857]">상담자</span>
+                      <span className="font-semibold text-[15px]">{userMember.nickname}</span>
+                    </div>
+                    {(userMember.mbti || userMember.persona) && (
+                      <div className="px-4 pb-3 text-sm text-[#374151]">
+                        {userMember.mbti && <p className="text-[12px] text-[#6b7280] mb-1">MBTI: {userMember.mbti}</p>}
+                        {userMember.persona && <p className="leading-relaxed whitespace-pre-line">{userMember.persona}</p>}
+                      </div>
+                    )}
+                  </div>
+                  {/* 상담 내용 (cnsl_title, cnsl_content, 예약자) */}
+                  {cnslReg && (
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                      <div className="px-4 py-2 text-[11px] font-semibold text-[#6b7280]">상담 내용</div>
+                      <div className="px-4 pb-4 text-sm text-[#374151]">
+                        {cnslReg.cnsl_title && <p className="font-semibold mb-1">제목: {cnslReg.cnsl_title}</p>}
+                        {bookerNickname && <p className="text-[12px] text-[#6b7280] mb-2">예약자: {bookerNickname}</p>}
+                        {cnslReg.cnsl_content && <p className="leading-relaxed whitespace-pre-line">{cnslReg.cnsl_content}</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* 우측 화상 영역: PC 높이 500px 고정, 호버 시 플로팅 버튼 + 반투명 어둡게 */}
-                <div className="group relative flex-1 min-w-0 h-[500px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                {/* 우측 화상 영역: PC min-h 500px, 미실행 시에도 높이 유지 */}
+                <div className="group relative flex-1 min-w-0 min-h-[500px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
                     className="w-full h-full object-cover"
@@ -863,22 +897,13 @@ const VisualChat = () => {
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
                     <div className="flex items-center gap-3">
                       {!isCallActive && isMeSystem && (
-                        <>
-                          <input
-                            type="text"
-                            value={chatIdInput}
-                            onChange={(e) => setChatIdInput(e.target.value)}
-                            placeholder="방 번호"
-                            className="w-24 h-12 rounded-full border border-gray-300 px-3 text-sm bg-white text-center shadow-lg"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleChatIdConnect}
-                            className="h-12 px-6 rounded-full text-sm font-semibold shadow-lg bg-[#3b82f6] text-white hover:bg-[#2563eb]"
-                          >
-                            통화 연결
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          onClick={handleStartCall}
+                          className="h-12 px-8 rounded-full text-sm font-semibold shadow-lg bg-main-02 text-white hover:opacity-90"
+                        >
+                          통화 시작
+                        </button>
                       )}
                       {isCallActive && (
                         <button
@@ -912,7 +937,7 @@ const VisualChat = () => {
                             className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
                           >
                             <span className="font-semibold mr-1">
-                              {msg.nickname || (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                              {msg.nickname || roleDisplayLabel(msg.role)}
                             </span>
                             <span className="text-[#4b5563]">{msg.text}</span>
                           </div>
