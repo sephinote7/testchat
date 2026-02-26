@@ -842,9 +842,9 @@ const VisualChat = () => {
         </footer>
       </div>
 
-      {/* PC 레이아웃: 페이지 1920, 내부 컨텐츠 1520px */}
+      {/* PC 레이아웃: 화면 전체, 컨텐츠 1520px */}
       <div className="hidden lg:flex w-full min-h-screen bg-main-01">
-        <div className="w-full max-w-[1520px] mx-auto flex flex-col px-4 pt-6">
+        <div className="w-full max-w-[1520px] min-w-0 mx-auto flex flex-col px-4 pt-6 flex-1">
           {/* 상단 헤더 - 앱 최상단 네비와 간격(pt-6) */}
           <header className="bg-linear-to-r from-main-02 to-[#1d4ed8] h-20 flex items-center justify-between text-white font-bold text-2xl shadow-lg rounded-t-2xl rounded-b-none px-8">
             <div className="flex items-center gap-4">
@@ -977,42 +977,48 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 하단: 채팅 영역만 */}
-              <footer className="border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
-                <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
-                  {/* 채팅 영역 - 고정 높이 + 스크롤 */}
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col">
-                    <h3 className="text-sm font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb]">
+              {/* 하단: 채팅 영역 300px, AIChat 스타일 (화자 이름 상단 / 내용 하단) */}
+              <footer className="shrink-0 border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+                <div className="max-w-[1520px] mx-auto flex flex-col">
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col h-[300px]">
+                    <h3 className="shrink-0 px-4 py-3 border-b border-[#e5e7eb] font-semibold text-gray-800" style={{ fontSize: '24px' }}>
                       채팅
                     </h3>
-                    <div className="h-[160px] overflow-y-auto px-4 py-2 flex flex-col gap-1">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-4">
                       {chatMessages.length === 0 ? (
-                        <p className="text-xs text-[#9ca3af]">메시지를 입력해 주세요.</p>
+                        <p className="text-sm text-[#9ca3af]">메시지를 입력해 주세요.</p>
                       ) : (
                         chatMessages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
-                          >
-                            <span className="font-semibold mr-1">
+                          <div key={msg.id} className="flex flex-col gap-1">
+                            <p className={`text-sm font-medium text-gray-600 ${msg.role === me.role ? 'text-right' : 'text-left'}`}>
                               {msg.nickname || roleDisplayLabel(msg.role)}
-                            </span>
-                            <span className="text-[#4b5563]">{msg.text}</span>
+                            </p>
+                            <div className={`flex ${msg.role === me.role ? 'justify-end' : 'justify-start'}`}>
+                              <div
+                                className={`max-w-[70%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
+                                  msg.role === me.role
+                                    ? 'bg-gradient-to-br from-[#e9f7ff] to-[#dbeafe] border-2 border-[#2f80ed]/30 text-[#1d4ed8]'
+                                    : 'bg-gradient-to-br from-[#f0fffd] to-[#e6fffe] border-2 border-[#2ed3c6]/30 text-[#0f766e]'
+                                }`}
+                              >
+                                {msg.text}
+                              </div>
+                            </div>
                           </div>
                         ))
                       )}
                     </div>
-                    <form onSubmit={handleChatSubmit} className="flex gap-2 p-3 border-t border-[#e5e7eb]">
+                    <form onSubmit={handleChatSubmit} className="shrink-0 flex items-center gap-4 px-4 py-4 bg-white border-t border-[#e5e7eb]">
                       <input
                         type="text"
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
-                        placeholder="메시지를 입력하세요"
-                        className="flex-1 h-10 rounded-xl border border-[#dbe3f1] px-3 text-sm bg-white"
+                        placeholder="메시지를 입력하세요..."
+                        className="flex-1 h-12 rounded-xl border-2 border-gray-300 px-5 text-base bg-white focus:outline-none focus:border-main-02 transition-colors placeholder:text-gray-400"
                       />
                       <button
                         type="submit"
-                        className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold"
+                        className="h-12 px-8 rounded-xl bg-main-02 text-white text-base font-semibold shadow-lg hover:opacity-90 transition-opacity shrink-0"
                       >
                         전송
                       </button>
