@@ -25,6 +25,11 @@ function normalizeRole(rawRole) {
   return rawRole.toUpperCase();
 }
 
+// 역할 표시: USER → 상담자, SYSTEM → 상담사
+function roleDisplayLabel(role) {
+  return role === 'USER' ? '상담자' : '상담사';
+}
+
 // member row → UI에서 사용하기 좋은 형태로 매핑
 // Supabase member: id, email 등. 이메일은 row.email 또는 row.member_id
 function mapMemberRow(row) {
@@ -91,6 +96,8 @@ const VisualChat = () => {
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
+  // 상담 정보 (cnsl_reg)
+  const [cnslInfo, setCnslInfo] = useState(null);
 
   useEffect(() => {
     const init = async () => {
@@ -206,6 +213,21 @@ const VisualChat = () => {
 
         setMe(finalMe);
         setOther(finalOther);
+
+        // 6) 상담 정보(cnsl_reg) 조회: 좌측 패널 표시용
+        const { data: cnslReg } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_title, cnsl_content, member_id')
+          .eq('cnsl_id', cnslIdNum)
+          .maybeSingle();
+        if (cnslReg) {
+          const reqNick = memberRows.find((m) => (m.email ?? m.member_id) === cnslReg.member_id)?.nickname;
+          setCnslInfo({
+            title: cnslReg.cnsl_title || '',
+            content: cnslReg.cnsl_content || '',
+            requesterNick: reqNick || cnslReg.member_id || '',
+          });
+        }
       } catch (error) {
         console.error('VisualChat 초기화 오류', error);
         setErrorMsg('상담 정보를 불러오는 중 오류가 발생했습니다.');
@@ -719,10 +741,18 @@ const VisualChat = () => {
 
         {/* 메인: 상대 정보 + 영상 (방 번호/통화 연결은 하단 컨트롤 바에만) */}
         <main className="flex-1 flex flex-col px-[16px] pt-4 pb-24 gap-4">
-          {/* 상대 정보 + 영상 */}
+          {/* 상담 정보 + 상대 정보 + 영상 */}
           <section className="flex-1 flex flex-col gap-3">
+            {cnslInfo && (
+              <div className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-3 text-[12px]">
+                <h2 className="text-[11px] font-semibold text-[#6b7280] mb-1">상담 정보</h2>
+                {cnslInfo.title && <p className="font-medium text-gray-800 mb-0.5">제목: {cnslInfo.title}</p>}
+                {cnslInfo.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
+                {cnslInfo.content && <p className="text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
+              </div>
+            )}
             <h2 className="text-[13px] text-[#4b5563] font-semibold">
-              {peerRoleLabel === 'SYSTEM' ? '상담사 정보' : '내담자 정보'}
+              {roleDisplayLabel(peerRoleLabel)} 정보
             </h2>
             <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-3 text-[12px] text-[#374151]">
               <div className="flex items-center gap-2 mb-1">
@@ -733,7 +763,7 @@ const VisualChat = () => {
                       : 'bg-[#ecfdf5] text-[#047857]'
                   }`}
                 >
-                  {peerRoleLabel}
+                  {roleDisplayLabel(peerRoleLabel)}
                 </span>
                 <span className="font-semibold text-[13px]">
                   {peer.nickname}
@@ -794,8 +824,7 @@ const VisualChat = () => {
                         }`}
                       >
                         <span className="font-semibold mr-1">
-                          {msg.nickname ||
-                            (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
+                          {msg.nickname || roleDisplayLabel(msg.role)}
                         </span>
                         <span className="text-[#4b5563]">{msg.text}</span>
                       </div>
@@ -835,7 +864,8 @@ const VisualChat = () => {
                   value={chatIdInput}
                   onChange={(e) => setChatIdInput(e.target.value)}
                   placeholder="방 번호"
-                  className="w-20 h-9 rounded-full border border-[#dbe3f1] px-2 text-[12px] bg-white text-center"
+                  className="sr-only"
+                  aria-hidden
                 />
                 <button
                   type="button"
@@ -880,7 +910,7 @@ const VisualChat = () => {
               <div className="flex flex-col">
                 <span>
                   {peer.nickname}{' '}
-                  {peerRoleLabel === 'SYSTEM' ? '상담사' : '내담자'}
+                  {roleDisplayLabel(peerRoleLabel)}
                 </span>
                 <span className="text-sm font-normal opacity-90">
                   실시간 화상 상담이 진행 중입니다.
@@ -899,54 +929,74 @@ const VisualChat = () => {
             </div>
           </header>
 
-          {/* 메인: 좌측 정보 + 우측 화상, 하단 채팅 고정 노출 */}
-          <main className="flex-1 flex min-h-0 pt-2 pb-4 overflow-hidden">
+          {/* 메인: 좌측 정보 + 우측 화상(600px), 하단 채팅 나머지 높이 채움 */}
+          <main className="flex-1 flex min-h-0 pt-2 pb-4 overflow-hidden flex-col">
             <div className="w-full flex-1 flex flex-col bg-white rounded-b-2xl shadow-2xl overflow-hidden min-h-0">
-              <section className="flex-1 flex min-h-0 gap-4 p-4 overflow-auto">
-                {/* 좌측 정보창 480px, 스크롤 */}
+              <section className="flex shrink-0 gap-4 p-4">
+                {/* 좌측 정보창 480px: 상담 정보 + 상담자/상담사 정보 */}
                 <div
                   className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
                   style={{ minHeight: 320 }}
                 >
-                  <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
-                        peerRoleLabel === 'SYSTEM'
-                          ? 'bg-[#eef2ff] text-[#4f46e5]'
-                          : 'bg-[#ecfdf5] text-[#047857]'
-                      }`}
-                    >
-                      {peerRoleLabel}
-                    </span>
-                    <span className="font-semibold text-[15px]">
-                      {peer.nickname}
-                    </span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
-                    {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
-                      <p className="leading-relaxed whitespace-pre-line">
-                        {systemMember.profile}
-                      </p>
-                    )}
-                    {peerRoleLabel === 'USER' && (
-                      <>
-                        {peer.mbti && (
-                          <p className="text-[12px] text-[#6b7280] mb-2">
-                            MBTI: {peer.mbti}
-                          </p>
-                        )}
-                        {peer.persona && (
-                          <p className="leading-relaxed whitespace-pre-line">
-                            {peer.persona}
-                          </p>
-                        )}
-                      </>
-                    )}
+                  {/* 상담 정보 */}
+                  {cnslInfo && (
+                    <div className="px-4 py-3 border-b border-[#e5e7eb]">
+                      <h3 className="text-xs font-semibold text-[#6b7280] mb-2">상담 정보</h3>
+                      {cnslInfo.title && (
+                        <p className="text-sm font-medium text-gray-800 mb-1">제목: {cnslInfo.title}</p>
+                      )}
+                      {cnslInfo.requesterNick && (
+                        <p className="text-xs text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>
+                      )}
+                      {cnslInfo.content && (
+                        <p className="text-sm text-[#374151] leading-relaxed whitespace-pre-line">
+                          {cnslInfo.content}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {/* 상담자/상담사 정보 */}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
+                          peerRoleLabel === 'SYSTEM'
+                            ? 'bg-[#eef2ff] text-[#4f46e5]'
+                            : 'bg-[#ecfdf5] text-[#047857]'
+                        }`}
+                      >
+                        {roleDisplayLabel(peerRoleLabel)}
+                      </span>
+                      <span className="font-semibold text-[15px]">
+                        {peer.nickname}
+                      </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
+                      {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
+                        <p className="leading-relaxed whitespace-pre-line">
+                          {systemMember.profile}
+                        </p>
+                      )}
+                      {peerRoleLabel === 'USER' && (
+                        <>
+                          {peer.mbti && (
+                            <p className="text-[12px] text-[#6b7280] mb-2">
+                              MBTI: {peer.mbti}
+                            </p>
+                          )}
+                          {peer.persona && (
+                            <p className="leading-relaxed whitespace-pre-line">
+                              {peer.persona}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* 우측 화상 영역: PC 높이 500px 고정, 호버 시 플로팅 버튼 + 반투명 어둡게 */}
-                <div className="group relative flex-1 min-w-0 h-[500px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                {/* 우측 화상 영역: PC 600px 고정, 호버 시 플로팅 버튼 */}
+                <div className="group relative flex-1 min-w-0 h-[600px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
                     className="w-full h-full object-cover"
@@ -973,7 +1023,8 @@ const VisualChat = () => {
                             value={chatIdInput}
                             onChange={(e) => setChatIdInput(e.target.value)}
                             placeholder="방 번호"
-                            className="w-24 h-12 rounded-full border border-gray-300 px-3 text-sm bg-white text-center shadow-lg"
+                            className="sr-only"
+                            aria-hidden
                           />
                           <button
                             type="button"
@@ -998,15 +1049,14 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 하단: 채팅 영역 - shrink-0으로 항상 노출, 잘림 방지 */}
-              <footer className="shrink-0 border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
-                <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
-                  {/* 채팅 영역 - 고정 높이 + 스크롤 */}
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col">
-                    <h3 className="text-sm font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb]">
+              {/* 하단: 채팅 영역 - 화상 외 나머지 높이 채움 */}
+              <footer className="flex-1 min-h-0 flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+                <div className="flex-1 min-h-0 flex flex-col gap-2">
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col flex-1 min-h-0">
+                    <h3 className="text-2xl font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb] shrink-0">
                       채팅
                     </h3>
-                    <div className="h-[160px] overflow-y-auto px-4 py-2 flex flex-col gap-1">
+                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 flex flex-col gap-3">
                       {chatMessages.length === 0 ? (
                         <p className="text-xs text-[#9ca3af]">
                           메시지를 입력해 주세요.
@@ -1015,20 +1065,27 @@ const VisualChat = () => {
                         chatMessages.map((msg) => (
                           <div
                             key={msg.id}
-                            className={`text-sm ${msg.role === me.role ? 'text-right' : 'text-left'}`}
+                            className={`flex flex-col gap-1 ${msg.role === me.role ? 'items-end' : 'items-start'}`}
                           >
-                            <span className="font-semibold mr-1">
-                              {msg.nickname ||
-                                (msg.role === 'USER' ? 'USER' : 'SYSTEM')}
-                            </span>
-                            <span className="text-[#4b5563]">{msg.text}</span>
+                            <p className={`text-[11px] text-[#6b7280] ${msg.role === me.role ? 'text-right' : 'text-left'}`}>
+                              {msg.nickname || roleDisplayLabel(msg.role)}
+                            </p>
+                            <div
+                              className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-5 border ${
+                                msg.role === me.role
+                                  ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]'
+                                  : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
                           </div>
                         ))
                       )}
                     </div>
                     <form
                       onSubmit={handleChatSubmit}
-                      className="flex gap-2 p-3 border-t border-[#e5e7eb]"
+                      className="flex gap-2 p-3 border-t border-[#e5e7eb] shrink-0"
                     >
                       <input
                         type="text"
