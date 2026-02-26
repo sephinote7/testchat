@@ -61,9 +61,7 @@ function mapMemberRow(row) {
  * - member 테이블의 member_id(PK, varchar=이메일) 기준으로 두 참여자 정보 조회
  */
 const VisualChat = () => {
-  // 라우트 path="visualchat/:id" → param name은 id. URL 값(39)은 cnsl_id 기준
-  const { id } = useParams();
-  const chatId = id;
+  const { chatId } = useParams();
   const navigate = useNavigate();
 
   const [me, setMe] = useState(null);
@@ -118,38 +116,21 @@ const VisualChat = () => {
         }
         const currentEmail = user.email;
 
-        // 2) chat_msg 에서 현재 채팅방 정보 조회 (URL의 id는 cnsl_id 기준)
-        const cnslIdNum = parseInt(chatId, 10);
-        if (isNaN(cnslIdNum) || cnslIdNum <= 0) {
-          setErrorMsg('유효하지 않은 상담방입니다.');
+        // 2) chat_msg 에서 현재 채팅방 정보 조회
+        const { data: chatRow, error: chatError } = await supabase
+          .from('chat_msg')
+          .select('chat_id, member_id, cnsler_id')
+          .eq('chat_id', chatId)
+          .single();
+
+        if (chatError || !chatRow) {
+          console.error('chat_msg 조회 실패', chatError);
+          setErrorMsg('해당 상담방 정보를 찾을 수 없습니다.');
           setLoading(false);
           return;
         }
-        let member_id, cnsler_id;
-        const { data: chatRow, error: chatError } = await supabase
-          .from('chat_msg')
-          .select('chat_id, cnsl_id, member_id, cnsler_id')
-          .eq('cnsl_id', cnslIdNum)
-          .maybeSingle();
 
-        if (chatRow) {
-          member_id = chatRow.member_id;
-          cnsler_id = chatRow.cnsler_id;
-        } else {
-          // chat_msg 없으면 cnsl_reg에서 참여자 조회 (첫 입장 시)
-          const { data: cnslRow, error: cnslErr } = await supabase
-            .from('cnsl_reg')
-            .select('member_id, cnsler_id')
-            .eq('cnsl_id', cnslIdNum)
-            .maybeSingle();
-          if (cnslErr || !cnslRow) {
-            setErrorMsg('해당 상담방 정보를 찾을 수 없습니다.');
-            setLoading(false);
-            return;
-          }
-          member_id = cnslRow.member_id;
-          cnsler_id = cnslRow.cnsler_id;
-        }
+        const { member_id, cnsler_id } = chatRow;
 
         // 3) 로그인 사용자가 이 상담방에 속해 있는지 확인 (이메일 기준)
         const isMemberSide = member_id === currentEmail;
@@ -792,11 +773,11 @@ const VisualChat = () => {
         </footer>
       </div>
 
-      {/* PC 레이아웃: 100vh 내 전체 화면, 채팅 영역 잘리지 않도록 */}
-      <div className="hidden lg:flex w-full h-screen max-h-screen overflow-hidden bg-main-01">
-        <div className="w-full max-w-[1520px] min-h-0 mx-auto flex flex-col px-4 py-4 flex-1">
+      {/* PC 레이아웃: 페이지 1920, 내부 컨텐츠 1520px */}
+      <div className="hidden lg:flex w-full min-h-screen bg-main-01">
+        <div className="w-full max-w-[1520px] mx-auto flex flex-col px-4">
           {/* 상단 헤더 */}
-          <header className="shrink-0 bg-linear-to-r from-main-02 to-[#1d4ed8] h-20 flex items-center justify-between text-white font-bold text-2xl shadow-lg rounded-t-2xl px-8">
+          <header className="bg-linear-to-r from-main-02 to-[#1d4ed8] h-20 flex items-center justify-between text-white font-bold text-2xl shadow-lg rounded-t-2xl px-8">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
                 {peer.nickname?.slice(0, 1) || '상'}
@@ -822,10 +803,10 @@ const VisualChat = () => {
             </div>
           </header>
 
-          {/* 메인: 좌측 정보 + 우측 화상, 하단 채팅 고정 노출 */}
-          <main className="flex-1 flex min-h-0 pt-2 pb-4 overflow-hidden">
-            <div className="w-full flex-1 flex flex-col bg-white rounded-b-2xl shadow-2xl overflow-hidden min-h-0">
-              <section className="flex-1 flex min-h-0 gap-4 p-4 overflow-auto">
+          {/* 메인: 좌측 480px 정보(스크롤) + 우측 화상 500px 고정 */}
+          <main className="flex-1 flex min-h-0 py-4">
+            <div className="w-full max-w-[1520px] flex-1 flex bg-white rounded-2xl shadow-2xl overflow-hidden flex-col">
+              <section className="flex-1 flex min-h-0 gap-4 p-4">
                 {/* 좌측 정보창 480px, 스크롤 */}
                 <div
                   className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
@@ -913,8 +894,8 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 하단: 채팅 영역 - shrink-0으로 항상 노출, 잘림 방지 */}
-              <footer className="shrink-0 border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+              {/* 하단: 채팅 영역만 */}
+              <footer className="border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
                 <div className="max-w-[1520px] mx-auto flex flex-col gap-4">
                   {/* 채팅 영역 - 고정 높이 + 스크롤 */}
                   <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col">
