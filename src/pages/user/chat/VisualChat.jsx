@@ -888,9 +888,9 @@ const VisualChat = () => {
         </footer>
       </div>
 
-      {/* PC 레이아웃: 100vh 내 전체 화면, 채팅 영역 잘림 방지 */}
-      <div className="hidden lg:flex w-full h-screen max-h-screen overflow-hidden bg-main-01">
-        <div className="w-full max-w-[1520px] min-h-0 mx-auto flex flex-col px-4 py-4 flex-1">
+      {/* PC 레이아웃: 정보+화상 600px, 채팅 300px 고정 (100vh 제한 없음) */}
+      <div className="hidden lg:flex w-full bg-main-01">
+          <div className="w-full max-w-[1520px] mx-auto flex flex-col px-4 py-4">
           {/* 상단 헤더 */}
           <header className="shrink-0 bg-linear-to-r from-main-02 to-[#1d4ed8] h-20 flex items-center justify-between text-white font-bold text-2xl shadow-lg rounded-t-2xl px-8">
             <div className="flex items-center gap-4">
@@ -919,11 +919,11 @@ const VisualChat = () => {
             </div>
           </header>
 
-          {/* 메인: 좌측 정보+화상(축소 가능), 하단 채팅 고정(잘림 방지) */}
-          <main className="flex-1 flex min-h-0 pt-2 pb-4 overflow-hidden flex-col">
-            <div className="w-full flex-1 flex flex-col min-h-0 bg-white rounded-b-2xl shadow-2xl overflow-hidden">
-              <section className="flex shrink-0 gap-4 p-4">
-                {/* 좌측 정보창 480px: 상담 정보 + 상담자/상담사 정보 (1:1 비율, 600px) */}
+          {/* 메인: 정보+화상 600px 고정, 채팅 300px 고정 (초과 시 스크롤) */}
+          <main className="flex shrink-0 flex-col pt-2 pb-4">
+            <div className="w-full flex flex-col bg-white rounded-b-2xl shadow-2xl overflow-hidden">
+              <section className="flex shrink-0 gap-4 p-4 h-[600px]">
+                {/* 좌측 정보창 480px × 600px 고정 */}
                 <div
                   className="w-[480px] shrink-0 h-[600px] flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
                 >
@@ -946,8 +946,8 @@ const VisualChat = () => {
                       </div>
                     </div>
                   ) : null}
-                  {/* 상담자/상담사 정보 - 1:1 비율 */}
-                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  {/* 상담자/상담사 정보 - 1:1 비율, 최소 높이로 내용 잘림 방지 */}
+                  <div className="flex-1 min-h-[180px] flex flex-col overflow-hidden">
                     <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2 shrink-0">
                       <span
                         className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
@@ -986,7 +986,7 @@ const VisualChat = () => {
                   </div>
                 </div>
 
-                {/* 우측 화상 영역: 600px 고정, 호버 시 플로팅 버튼 */}
+                {/* 우측 화상 영역: 600px 고정 */}
                 <div className="group relative flex-1 min-w-0 h-[600px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
@@ -1030,8 +1030,8 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 하단: 채팅 영역 - 300px 고정, 메시지 영역만 flex로 확장 */}
-              <footer className="shrink-0 h-[300px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+              {/* 상단·하단 50px 간격, 채팅 영역 350px (메시지 영역 +50px) */}
+              <footer className="shrink-0 h-[350px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl mt-[50px]">
                 <div className="flex-1 min-h-0 flex flex-col">
                   <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col h-full">
                     <h3 className="text-2xl font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb] shrink-0">
