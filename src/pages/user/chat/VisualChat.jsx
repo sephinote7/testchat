@@ -105,6 +105,7 @@ const VisualChat = () => {
   // 통화 종료 후: 완료 메시지, 영상 다운로드 모달
   const [callEnded, setCallEnded] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloadClicked, setDownloadClicked] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -260,7 +261,10 @@ const VisualChat = () => {
       const res = await fetch(
         `${base.replace(/\/$/, '')}/cnsl/${chatId}/chat`,
         {
-          headers: { Accept: 'application/json' },
+          headers: {
+            Accept: 'application/json',
+            'X-User-Email': me.email,
+          },
         },
       );
       if (!res.ok) return;
@@ -298,6 +302,7 @@ const VisualChat = () => {
   useEffect(() => {
     setCallEnded(false);
     setShowDownloadModal(false);
+    setDownloadClicked(false);
     hadVideoRecordingRef.current = false;
   }, [chatId]);
 
@@ -430,10 +435,31 @@ const VisualChat = () => {
         setRemoteStream(null);
         call.answer(stream);
         updateCnslStatRef.current?.('C');
+        const hasAudio = stream.getAudioTracks().length > 0;
+        if (hasAudio && typeof MediaRecorder !== 'undefined') {
+          const audRec = new MediaRecorder(stream, {
+            mimeType: 'audio/webm',
+            audioBitsPerSecond: 32000,
+          });
+          recordedChunksRef.current = [];
+          audRec.ondataavailable = (e) => {
+            if (e.data?.size) recordedChunksRef.current.push(e.data);
+          };
+          audRec.onstop = () => {
+            if (recordedChunksRef.current.length > 0) setHasRecording(true);
+          };
+          audRec.start();
+          mediaRecorderRef.current = audRec;
+          setIsRecording(true);
+        }
         if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
           hadVideoRecordingRef.current = true;
           const mime = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
-          const vRec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 500000 });
+          const vRec = new MediaRecorder(stream, {
+            mimeType: mime,
+            videoBitsPerSecond: 2500000,
+            audioBitsPerSecond: 128000,
+          });
           videoRecordedChunksRef.current = [];
           vRec.ondataavailable = (e) => {
             if (e.data?.size) videoRecordedChunksRef.current.push(e.data);
@@ -630,9 +656,12 @@ const VisualChat = () => {
         setErrorMsg('상대방 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
       }
 
-      // 오디오 녹음 (요약/STT용)
+      // 오디오 녹음 (요약/STT용, 부하 최소화)
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
-        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        const recorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm',
+          audioBitsPerSecond: 32000,
+        });
         recordedChunksRef.current = [];
         recorder.ondataavailable = (event) => {
           if (event.data && event.data.size > 0) {
@@ -653,7 +682,11 @@ const VisualChat = () => {
       if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
         hadVideoRecordingRef.current = true;
         const mime = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
-        const vRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 500000 });
+        const vRecorder = new MediaRecorder(stream, {
+          mimeType: mime,
+          videoBitsPerSecond: 2500000,
+          audioBitsPerSecond: 128000,
+        });
         videoRecordedChunksRef.current = [];
         vRecorder.ondataavailable = (event) => {
           if (event.data && event.data.size > 0) {
@@ -683,21 +716,23 @@ const VisualChat = () => {
     }
   };
 
-  /** AI 요약 생성 후 백엔드에만 저장. 화면에는 표시하지 않음. 차후 조회 시 chat_msg.summary로 확인 */
+  /** 채팅 내역 + 마이크 입력(오디오) STT로 저장 */
   const saveSummaryInBackground = async () => {
-    if (!chatId || !me?.email || !recordedChunksRef.current?.length) return;
+    if (!chatId || !me?.email) return;
+    const audioChunks = recordedChunksRef.current;
+    if (!audioChunks?.length) return;
     const base = import.meta.env.VITE_API_BASE_URL || '';
     const summarizeUrl =
       import.meta.env.VITE_SUMMARIZE_API_URL ||
       'http://localhost:8000/api/summarize';
     try {
-      const blob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
       const formData = new FormData();
-      if (me.role === 'SYSTEM') {
-        formData.append('audio_cnsler', blob, 'cnsler.webm');
-      } else {
-        formData.append('audio_user', blob, 'user.webm');
-      }
+      formData.append(
+        me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
+        blob,
+        (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
+      );
       const chatLogsPayload = chatMessages.map((msg) => ({
         type: 'chat',
         speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
@@ -1233,36 +1268,53 @@ const VisualChat = () => {
       {showDownloadModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">영상 다운로드</h3>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">영상 녹화</h3>
             <p className="text-sm text-gray-600 mb-4">
               통화 영상을 로컬에 저장할 수 있습니다.
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={downloadClicked}
+                  onClick={() => {
+                    const chunks = videoRecordedChunksRef.current;
+                    if (chunks.length > 0) {
+                      const blob = new Blob(chunks, { type: 'video/webm' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `상담녹화_${chatId}_${Date.now()}.webm`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                    setDownloadClicked(true);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl font-semibold text-sm ${
+                    downloadClicked
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-main-02 text-white hover:opacity-90'
+                  }`}
+                >
+                  {downloadClicked ? '다운로드 완료' : '다운로드'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDownloadModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50"
+                >
+                  닫기
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => {
-                  const chunks = videoRecordedChunksRef.current;
-                  if (chunks.length > 0) {
-                    const blob = new Blob(chunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `상담녹화_${chatId}_${Date.now()}.webm`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }
                   setShowDownloadModal(false);
+                  navigate('/chat');
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-main-02 text-white font-semibold text-sm"
+                className="w-full py-2.5 rounded-xl border-2 border-main-02 text-main-02 font-semibold text-sm hover:bg-main-02/5"
               >
-                다운로드
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowDownloadModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm"
-              >
-                닫기
+                홈으로 돌아가기
               </button>
             </div>
           </div>
