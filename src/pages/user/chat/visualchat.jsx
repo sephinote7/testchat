@@ -61,7 +61,9 @@ function mapMemberRow(row) {
  * - member 테이블의 member_id(PK, varchar=이메일) 기준으로 두 참여자 정보 조회
  */
 const VisualChat = () => {
-  const { chatId } = useParams();
+  // 라우트 path="visualchat/:id" → param name은 id. URL 값(39)은 cnsl_id 기준
+  const { id } = useParams();
+  const chatId = id;
   const navigate = useNavigate();
 
   const [me, setMe] = useState(null);
@@ -116,21 +118,38 @@ const VisualChat = () => {
         }
         const currentEmail = user.email;
 
-        // 2) chat_msg 에서 현재 채팅방 정보 조회
-        const { data: chatRow, error: chatError } = await supabase
-          .from('chat_msg')
-          .select('chat_id, member_id, cnsler_id')
-          .eq('chat_id', chatId)
-          .single();
-
-        if (chatError || !chatRow) {
-          console.error('chat_msg 조회 실패', chatError);
-          setErrorMsg('해당 상담방 정보를 찾을 수 없습니다.');
+        // 2) chat_msg 에서 현재 채팅방 정보 조회 (URL의 id는 cnsl_id 기준)
+        const cnslIdNum = parseInt(chatId, 10);
+        if (isNaN(cnslIdNum) || cnslIdNum <= 0) {
+          setErrorMsg('유효하지 않은 상담방입니다.');
           setLoading(false);
           return;
         }
+        let member_id, cnsler_id;
+        const { data: chatRow, error: chatError } = await supabase
+          .from('chat_msg')
+          .select('chat_id, cnsl_id, member_id, cnsler_id')
+          .eq('cnsl_id', cnslIdNum)
+          .maybeSingle();
 
-        const { member_id, cnsler_id } = chatRow;
+        if (chatRow) {
+          member_id = chatRow.member_id;
+          cnsler_id = chatRow.cnsler_id;
+        } else {
+          // chat_msg 없으면 cnsl_reg에서 참여자 조회 (첫 입장 시)
+          const { data: cnslRow, error: cnslErr } = await supabase
+            .from('cnsl_reg')
+            .select('member_id, cnsler_id')
+            .eq('cnsl_id', cnslIdNum)
+            .maybeSingle();
+          if (cnslErr || !cnslRow) {
+            setErrorMsg('해당 상담방 정보를 찾을 수 없습니다.');
+            setLoading(false);
+            return;
+          }
+          member_id = cnslRow.member_id;
+          cnsler_id = cnslRow.cnsler_id;
+        }
 
         // 3) 로그인 사용자가 이 상담방에 속해 있는지 확인 (이메일 기준)
         const isMemberSide = member_id === currentEmail;
