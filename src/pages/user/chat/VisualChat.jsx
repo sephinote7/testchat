@@ -518,23 +518,33 @@ const VisualChat = () => {
       attachStreamToVideos(stream);
       setTimeout(() => attachStreamToVideos(stream), 0);
 
-      // PeerJS: 상대방(USER)에게 발신
+      // PeerJS: 상대방(USER)에게 발신 (peer open 대기 후 호출)
       const remoteId = sanitizePeerId(other?.email);
-      if (peerRef.current && remoteId) {
-        try {
-          const call = peerRef.current.call(remoteId, stream);
-          if (call) {
-            currentCallRef.current = call;
-            call.on('stream', (remote) => setRemoteStream(remote));
-            call.on('close', () => setRemoteStream(null));
-            call.on('error', () => setRemoteStream(null));
+      const peer = peerRef.current;
+      if (peer && remoteId) {
+        const doCall = () => {
+          try {
+            const call = peer.call(remoteId, stream);
+            if (call) {
+              currentCallRef.current = call;
+              call.on('stream', (remote) => setRemoteStream(remote));
+              call.on('close', () => setRemoteStream(null));
+              call.on('error', () => setRemoteStream(null));
+            }
+          } catch (err) {
+            console.error('PeerJS 발신 실패:', err);
+            setErrorMsg(
+              '상대방 연결에 실패했습니다. 상대가 같은 방에 있는지 확인해 주세요.',
+            );
           }
-        } catch (err) {
-          console.error('PeerJS 발신 실패:', err);
-          setErrorMsg(
-            '상대방 연결에 실패했습니다. 상대가 같은 방에 있는지 확인해 주세요.',
-          );
+        };
+        if (peer.open) {
+          doCall();
+        } else {
+          peer.once('open', doCall);
         }
+      } else if (!remoteId) {
+        setErrorMsg('상대방 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
       }
 
       // 오디오 장치가 있는 경우에만 녹음 시도
@@ -912,10 +922,10 @@ const VisualChat = () => {
           {/* 메인: 좌측 정보+화상(축소 가능), 하단 채팅 고정(잘림 방지) */}
           <main className="flex-1 flex min-h-0 pt-2 pb-4 overflow-hidden flex-col">
             <div className="w-full flex-1 flex flex-col min-h-0 bg-white rounded-b-2xl shadow-2xl overflow-hidden">
-              <section className="flex-1 min-h-0 flex gap-4 p-4">
-                {/* 좌측 정보창 480px: 상담 정보 + 상담자/상담사 정보 (1:1 비율, h-full로 축소 가능) */}
+              <section className="flex shrink-0 gap-4 p-4">
+                {/* 좌측 정보창 480px: 상담 정보 + 상담자/상담사 정보 (1:1 비율, 600px) */}
                 <div
-                  className="w-[480px] shrink-0 h-full min-h-[200px] flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
+                  className="w-[480px] shrink-0 h-[600px] flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb]"
                 >
                   {/* 상담 정보 - 1:1 비율 */}
                   {cnslInfo ? (
@@ -976,8 +986,8 @@ const VisualChat = () => {
                   </div>
                 </div>
 
-                {/* 우측 화상 영역: h-full로 채움, 호버 시 플로팅 버튼 */}
-                <div className="group relative flex-1 min-w-0 min-h-[200px] h-full rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
+                {/* 우측 화상 영역: 600px 고정, 호버 시 플로팅 버튼 */}
+                <div className="group relative flex-1 min-w-0 h-[600px] shrink-0 rounded-2xl bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
                     className="w-full h-full object-cover"
@@ -998,23 +1008,13 @@ const VisualChat = () => {
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
                     <div className="flex items-center gap-3">
                       {!isCallActive && isMeSystem && (
-                        <>
-                          <input
-                            type="text"
-                            value={chatIdInput}
-                            onChange={(e) => setChatIdInput(e.target.value)}
-                            placeholder="방 번호"
-                            className="sr-only"
-                            aria-hidden
-                          />
-                          <button
-                            type="button"
-                            onClick={handleChatIdConnect}
-                            className="h-12 px-6 rounded-full text-sm font-semibold shadow-lg bg-[#3b82f6] text-white hover:bg-[#2563eb]"
-                          >
-                            통화 연결
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          onClick={handleStartCall}
+                          className="h-12 px-8 rounded-full text-sm font-semibold shadow-lg bg-[#3b82f6] text-white hover:bg-[#2563eb]"
+                        >
+                          통화 시작
+                        </button>
                       )}
                       {isCallActive && (
                         <button
@@ -1030,10 +1030,10 @@ const VisualChat = () => {
                 </div>
               </section>
 
-              {/* 하단: 채팅 영역 - shrink-0으로 고정, 최소 280px, 잘림 방지 */}
-              <footer className="shrink-0 min-h-[280px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
-                <div className="flex-1 min-h-0 flex flex-col gap-2">
-                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col flex-1 min-h-[280px]">
+              {/* 하단: 채팅 영역 - 300px 고정, 메시지 영역만 flex로 확장 */}
+              <footer className="shrink-0 h-[300px] flex flex-col border-t-2 border-gray-100 bg-white px-6 py-4 rounded-b-2xl">
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden flex flex-col h-full">
                     <h3 className="text-2xl font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb] shrink-0">
                       채팅
                     </h3>
