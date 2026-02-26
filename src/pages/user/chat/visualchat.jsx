@@ -875,31 +875,20 @@ const VisualChat = () => {
           {/* 메인: 상담 진행 중 바로 아래 붙이기 (rounded 상단 제거) */}
           <main className="flex-1 flex min-h-0 pb-4 -mt-0.5">
             <div className="w-full max-w-[1520px] flex-1 flex bg-white rounded-b-2xl shadow-2xl overflow-hidden flex-col">
-              <section className="flex-1 flex min-h-0 gap-4 p-4">
-                {/* 좌측 정보창: 상담자=상담사+상담내용, 상담사=상담자+상담내용, 1:1 높이, 스크롤 */}
+              <section className="flex-1 flex flex-nowrap min-h-0 gap-4 p-4">
+                {/* 좌측 정보창: 480px 고정, 상담사/상담자 정보(상단 50%) + 상담 내용(하단 50%) 1:1 비율 */}
                 <div
-                  className="flex-1 min-w-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] h-[600px]"
+                  className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] h-[600px]"
                 >
-                  {/* 상담 내용 (공통, 상단) */}
-                  {cnslReg && (
-                    <div className="shrink-0 overflow-y-auto max-h-[40%] border-b border-[#e5e7eb]">
-                      <div className="px-4 py-2 text-[13px] font-semibold text-[#6b7280]">상담 내용</div>
-                      <div className="px-4 pb-4 text-[15px] text-[#374151]">
-                        {cnslReg.cnsl_title && <p className="font-bold text-[17px] mb-2">제목: {cnslReg.cnsl_title}</p>}
-                        {bookerNickname && <p className="text-[14px] text-[#6b7280] mb-2">예약자: {bookerNickname}</p>}
-                        {cnslReg.cnsl_content && <p className="leading-relaxed whitespace-pre-line text-[14px]">{cnslReg.cnsl_content}</p>}
-                      </div>
-                    </div>
-                  )}
-                  {/* 상담자에게는 상담사 정보만, 상담사에게는 상담자 정보만 */}
-                  <div className="flex-1 overflow-y-auto min-h-0">
+                  {/* 상담자=상담사 정보, 상담사=상담자 정보 (상단, 50% 높이) */}
+                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-b border-[#e5e7eb]">
                     {isMeUser && (
                       <>
-                        <div className="px-4 py-2 text-[13px] font-semibold text-[#6b7280]">상담사 정보</div>
-                        <div className="px-4 pb-4">
-                          <div className="flex items-center gap-2 mb-2">
+                        <div className="px-4 py-3 text-[18px] font-semibold text-[#374151]">상담사 정보</div>
+                        <div className="flex-1 overflow-y-auto px-4 pb-4">
+                          <div className="flex items-center gap-2 mb-4">
                             <span className="inline-flex px-2.5 py-[3px] rounded-full text-[13px] font-semibold bg-[#eef2ff] text-[#4f46e5]">상담사</span>
-                            <span className="font-bold text-[17px]">{systemMember.nickname}</span>
+                            <span className="font-bold text-[18px]">{systemMember.nickname}</span>
                           </div>
                           {systemMember.profile && (
                             <p className="text-[15px] leading-relaxed whitespace-pre-line">{systemMember.profile}</p>
@@ -909,13 +898,13 @@ const VisualChat = () => {
                     )}
                     {isMeSystem && (
                       <>
-                        <div className="px-4 py-2 text-[13px] font-semibold text-[#6b7280]">상담자 정보</div>
-                        <div className="px-4 pb-4">
-                          <div className="flex items-center gap-2 mb-2">
+                        <div className="px-4 py-3 text-[18px] font-semibold text-[#374151]">상담자 정보</div>
+                        <div className="flex-1 overflow-y-auto px-4 pb-4">
+                          <div className="flex items-center gap-2 mb-4">
                             <span className="inline-flex px-2.5 py-[3px] rounded-full text-[13px] font-semibold bg-[#ecfdf5] text-[#047857]">상담자</span>
-                            <span className="font-bold text-[17px]">{userMember.nickname}</span>
+                            <span className="font-bold text-[18px]">{userMember.nickname}</span>
                           </div>
-                          {userMember.mbti && <p className="text-[14px] text-[#6b7280] mb-1">MBTI: {userMember.mbti}</p>}
+                          {userMember.mbti && <p className="text-[14px] text-[#6b7280] mb-3">MBTI: {userMember.mbti}</p>}
                           {userMember.persona && (
                             <p className="text-[15px] leading-relaxed whitespace-pre-line">{userMember.persona}</p>
                           )}
@@ -923,10 +912,21 @@ const VisualChat = () => {
                       </>
                     )}
                   </div>
+                  {/* 상담 내용 (하단, 50% 높이) */}
+                  {cnslReg && (
+                    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                      <div className="px-4 py-3 text-[18px] font-semibold text-[#374151]">상담 내용</div>
+                      <div className="flex-1 overflow-y-auto px-4 pb-4">
+                        {cnslReg.cnsl_title && <p className="font-bold text-[18px] mb-4">제목: {cnslReg.cnsl_title}</p>}
+                        {bookerNickname && <p className="text-[15px] text-[#6b7280] mb-4">예약자: {bookerNickname}</p>}
+                        {cnslReg.cnsl_content && <p className="leading-relaxed whitespace-pre-line text-[15px]">{cnslReg.cnsl_content}</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* 우측 화상 영역: 600px 고정, 상담 종료 시 안내 오버레이 */}
-                <div className="flex-1 min-w-0 h-[600px] shrink-0 rounded-2xl overflow-hidden flex flex-col">
+                {/* 우측 화상 영역: 1000px 고정, 600px 높이 */}
+                <div className="w-[1000px] shrink-0 h-[600px] rounded-2xl overflow-hidden flex flex-col">
                 <div className="group relative w-full h-full min-h-[600px] bg-[#020617] overflow-hidden flex items-center justify-center">
                   <video
                     ref={videoRefPc}
