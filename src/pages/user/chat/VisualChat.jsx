@@ -362,24 +362,23 @@ const VisualChat = () => {
     peer.on('call', async (call) => {
       currentCallRef.current = call;
       try {
-        let stream = null;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: true,
-          });
-        } catch {
-          stream = await navigator.mediaDevices
-            .getUserMedia({ video: true })
-            .catch(() => null);
-          if (!stream)
-            stream = await navigator.mediaDevices
-              .getUserMedia({ audio: true })
-              .catch(() => null);
-        }
+        // 카메라 필수, 음성 선택: 먼저 비디오만 시도 → 성공 시 오디오 추가 시도
+        let stream = await navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .catch(() => null);
         if (!stream) {
-          setErrorMsg('카메라/마이크를 사용할 수 없습니다.');
+          setErrorMsg('카메라를 사용할 수 없습니다. 카메라 연결 및 권한을 확인해 주세요.');
           return;
+        }
+        try {
+          const withAudio = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+          stream.getTracks().forEach((t) => t.stop());
+          stream = withAudio;
+        } catch {
+          // 오디오 실패 시 비디오만으로 진행
         }
         setMediaStream(stream);
         setIsCallActive(true);
@@ -508,36 +507,30 @@ const VisualChat = () => {
     setErrorMsg('');
 
     try {
-      let stream = null;
-      let canRecordAudio = true;
-
-      // 제약을 최소화해 NotFoundError 감소: 먼저 audio+video(true만), 실패 시 video만, 마지막으로 audio만
+      // 카메라 필수, 음성 선택: 비디오 먼저 시도 → 성공 시 오디오 추가 시도
+      let stream = await navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .catch(() => null);
+      if (!stream) {
+        setDeviceError(true);
+        setErrorMsg(
+          '카메라를 사용할 수 없습니다. 카메라 연결 및 브라우저 권한을 확인해 주세요.',
+        );
+        setIsCallActive(false);
+        setMediaStream(null);
+        return;
+      }
+      let canRecordAudio = false;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+        const withAudio = await navigator.mediaDevices.getUserMedia({
           video: true,
+          audio: true,
         });
-      } catch (err) {
-        console.warn('오디오+비디오 실패, 비디오만 재시도:', err);
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          canRecordAudio = false;
-        } catch (videoErr) {
-          console.warn('비디오 실패, 오디오만 재시도:', videoErr);
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            canRecordAudio = true;
-          } catch (audioErr) {
-            console.error('오디오 요청도 실패:', audioErr);
-            setDeviceError(true);
-            setErrorMsg(
-              '카메라/마이크를 연결하고 브라우저 권한을 허용해 주세요.',
-            );
-            setIsCallActive(false);
-            setMediaStream(null);
-            return;
-          }
-        }
+        stream.getTracks().forEach((t) => t.stop());
+        stream = withAudio;
+        canRecordAudio = true;
+      } catch {
+        // 오디오 실패 시 비디오만으로 진행
       }
 
       setMediaStream(stream);
@@ -603,7 +596,7 @@ const VisualChat = () => {
         String(error?.message || '').includes('Requested device')
       ) {
         setDeviceError(true);
-        setErrorMsg('사용 가능한 카메라/마이크 장치를 찾을 수 없습니다.');
+        setErrorMsg('사용 가능한 카메라 장치를 찾을 수 없습니다.');
       } else {
         setErrorMsg('통화 시작 중 오류가 발생했습니다.');
       }
