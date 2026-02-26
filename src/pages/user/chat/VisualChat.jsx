@@ -710,7 +710,7 @@ const VisualChat = () => {
 
   return (
     <>
-      {/* MOBILE 레이아웃: 가로 390 기준, 컨텐츠 폭 358 근처 */}
+      {/* MOBILE 레이아웃: 가로 390 기준, 컨텐츠 폭 358 근처. */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
         {/* 상단 헤더 */}
         <header className="bg-main-02 h-16 flex items-center justify-center text-white font-bold text-lg">
