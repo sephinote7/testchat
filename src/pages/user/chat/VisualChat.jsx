@@ -261,6 +261,18 @@ const VisualChat = () => {
           cnsler_id = cnslRow.cnsler_id;
         }
 
+        // 2.5) cnsl_stat 확인: D(완료)면 재진입 차단. A,C(진행중)만 진입 허용
+        const { data: cnslRegRow } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_stat, cnsl_title, cnsl_content, member_id')
+          .eq('cnsl_id', cnslIdNum)
+          .maybeSingle();
+        if (cnslRegRow?.cnsl_stat === 'D') {
+          setErrorMsg('완료된 상담은 재진입할 수 없습니다.');
+          setLoading(false);
+          return;
+        }
+
         // 3) 로그인 사용자가 이 상담방에 속해 있는지 확인 (이메일 기준)
         const isMemberSide = member_id === currentEmail;
         const isCnslerSide = cnsler_id === currentEmail;
@@ -319,18 +331,13 @@ const VisualChat = () => {
         setMe(finalMe);
         setOther(finalOther);
 
-        // 6) 상담 정보(cnsl_reg) 조회: 좌측 패널 표시용
-        const { data: cnslReg } = await supabase
-          .from('cnsl_reg')
-          .select('cnsl_title, cnsl_content, member_id')
-          .eq('cnsl_id', cnslIdNum)
-          .maybeSingle();
-        if (cnslReg) {
-          const reqNick = memberRows.find((m) => (m.email ?? m.member_id) === cnslReg.member_id)?.nickname;
+        // 6) 상담 정보(cnsl_reg): 2.5에서 조회한 cnslRegRow 사용
+        if (cnslRegRow) {
+          const reqNick = memberRows.find((m) => (m.email ?? m.member_id) === cnslRegRow.member_id)?.nickname;
           setCnslInfo({
-            title: cnslReg.cnsl_title || '',
-            content: cnslReg.cnsl_content || '',
-            requesterNick: reqNick || cnslReg.member_id || '',
+            title: cnslRegRow.cnsl_title || '',
+            content: cnslRegRow.cnsl_content || '',
+            requesterNick: reqNick || cnslRegRow.member_id || '',
           });
         }
       } catch (error) {
