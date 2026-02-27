@@ -286,6 +286,7 @@ const CounselorChat = () => {
     if (isNaN(cnslIdNum) || !me?.email) return false;
 
     // Supabase 우선 (CORS/API 장애 시에도 상담 시작·종료 정상 작동)
+    // stat: A=대기, C=진행중, E=종료중(양쪽 동기화), D=완료
     const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
     if (!error) {
       setCnslStat(stat);
@@ -407,11 +408,13 @@ const CounselorChat = () => {
     setIsEnding(true);
     setEndError('');
     try {
+      await updateCnslStatApi('E'); // E=종료 중, Realtime으로 상대방에게 즉시 전파
       await saveSummaryAndMsgData();
       const ok = await updateCnslStatApi('D');
       if (ok) setShowEndModal(true);
       else setEndError('상담 종료 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } catch (err) {
+      await updateCnslStatApi('C'); // 실패 시 진행 중으로 복구
       setEndError('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setIsEnding(false);
@@ -539,9 +542,10 @@ const CounselorChat = () => {
   const peer = other || { nickname: '상담사', profile: '' };
   const infoToShow = other;
   const infoLabel = other?.role === 'SYSTEM' ? '상담사 정보' : '상담자 정보';
-  const isInputDisabled = cnslStat !== 'C';
+  const isInputDisabled = cnslStat !== 'C' || isEnding;
   const isBeforeStart = cnslStat === 'A';
   const isEnded = cnslStat === 'D';
+  const isEndingState = cnslStat === 'E' || isEnding; // E=종료 중 (양쪽 동기화)
 
   if (loading) {
     return (
@@ -574,9 +578,9 @@ const CounselorChat = () => {
                 상담 시작
               </button>
             )}
-            {!isEnded && !isBeforeStart && (
-              <button type="button" onClick={handleEndCounseling} disabled={isEnding} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform disabled:opacity-70">
-                {isEnding ? '처리 중...' : '상담 종료'}
+            {!isEnded && !isBeforeStart && !isEndingState && (
+              <button type="button" onClick={handleEndCounseling} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform">
+                상담 종료
               </button>
             )}
           </div>
@@ -611,6 +615,8 @@ const CounselorChat = () => {
             <div ref={chatScrollRefMobile} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-2 flex flex-col gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {isEnded ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 처리되었습니다.</p>
+              ) : isEndingState ? (
+                <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 중...</p>
               ) : isStarting ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 시작 중...</p>
               ) : isBeforeStart && me?.role === 'USER' ? (
@@ -668,9 +674,9 @@ const CounselorChat = () => {
                   상담 시작
                 </button>
               )}
-              {!isEnded && !isBeforeStart && (
-                <button type="button" onClick={handleEndCounseling} disabled={isEnding} className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30 disabled:opacity-70">
-                  {isEnding ? '처리 중...' : '상담 종료'}
+              {!isEnded && !isBeforeStart && !isEndingState && (
+                <button type="button" onClick={handleEndCounseling} className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30">
+                  상담 종료
                 </button>
               )}
             </div>
@@ -713,6 +719,8 @@ const CounselorChat = () => {
               >
                 {isEnded ? (
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 종료 처리되었습니다.</p>
+                ) : isEndingState ? (
+                  <p className="text-base text-[#6b7280] py-8 text-center">상담 종료 중...</p>
                 ) : isStarting ? (
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 시작 중...</p>
                 ) : isBeforeStart && me?.role === 'USER' ? (
