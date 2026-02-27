@@ -49,6 +49,8 @@ const CounselorChat = () => {
   const [cnslInfo, setCnslInfo] = useState(null);
   const [summary, setSummary] = useState(null);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [isEnding, setIsEnding] = useState(false);
+  const [endError, setEndError] = useState('');
 
   const chatScrollRefMobile = useRef(null);
   const chatScrollRefPc = useRef(null);
@@ -401,11 +403,19 @@ const CounselorChat = () => {
   };
 
   const handleEndCounseling = async () => {
-    if (cnslStat !== 'C') return;
-    await saveSummaryAndMsgData();
-    const ok = await updateCnslStatApi('D');
-    if (ok) setShowEndModal(true);
-    else setCnslStat('C');
+    if (cnslStat !== 'C' || isEnding) return;
+    setIsEnding(true);
+    setEndError('');
+    try {
+      await saveSummaryAndMsgData();
+      const ok = await updateCnslStatApi('D');
+      if (ok) setShowEndModal(true);
+      else setEndError('상담 종료 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } catch (err) {
+      setEndError('상담 종료 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsEnding(false);
+    }
   };
 
   const handleCloseEndModal = () => {
@@ -555,7 +565,7 @@ const CounselorChat = () => {
   return (
     <>
       {/* MOBILE */}
-      <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
+      <div className="lg:hidden w-full max-w-[390px] h-screen max-h-[100dvh] mx-auto bg-white flex flex-col overflow-hidden">
         <header className="bg-[#2f80ed] h-16 flex items-center justify-between px-4 text-white font-bold text-lg">
           <span>{peer.nickname} 상담</span>
           <div className="flex gap-2">
@@ -565,14 +575,14 @@ const CounselorChat = () => {
               </button>
             )}
             {!isEnded && !isBeforeStart && (
-              <button type="button" onClick={handleEndCounseling} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform">
-                상담 종료
+              <button type="button" onClick={handleEndCounseling} disabled={isEnding} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform disabled:opacity-70">
+                {isEnding ? '처리 중...' : '상담 종료'}
               </button>
             )}
           </div>
         </header>
           <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-hidden">
-          <section className="shrink-0 flex flex-col rounded-2xl border border-[#e5e7eb] overflow-hidden bg-[#f9fafb] min-h-[140px] max-h-[28vh]">
+          <section className="shrink-0 flex flex-col rounded-2xl border border-[#e5e7eb] overflow-hidden bg-[#f9fafb] min-h-[210px] max-h-[42vh]">
             <div className="flex-1 min-h-0 flex flex-col overflow-y-auto border-b border-[#e5e7eb] p-3">
               {cnslInfo && (
                 <>
@@ -596,7 +606,8 @@ const CounselorChat = () => {
               )}
             </div>
           </section>
-          <div className="flex-1 min-h-0 flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
+          <div className="flex-1 min-h-[120px] flex flex-col gap-0 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
+            {endError && <p className="shrink-0 text-xs text-red-600 px-3 py-1 bg-red-50">{endError}</p>}
             <div ref={chatScrollRefMobile} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-2 flex flex-col gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {isEnded ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 처리되었습니다.</p>
@@ -639,8 +650,8 @@ const CounselorChat = () => {
       </div>
 
       {/* PC: 좌측 정보 패널(채팅창 높이 맞춤), 우측 채팅 영역 */}
-      <div className="hidden lg:flex w-full min-h-screen bg-[#f3f7ff]">
-        <div className="w-full max-w-[1520px] mx-auto flex flex-col px-4 py-4">
+      <div className="hidden lg:flex w-full h-screen max-h-[100dvh] bg-[#f3f7ff] overflow-hidden">
+        <div className="w-full max-w-[1520px] mx-auto flex flex-col px-4 py-4 min-h-0 overflow-hidden">
           <header className="shrink-0 bg-gradient-to-r from-[#2f80ed] to-[#1d4ed8] h-20 flex items-center justify-between text-white font-bold text-2xl shadow-lg rounded-t-2xl px-8">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
@@ -658,8 +669,8 @@ const CounselorChat = () => {
                 </button>
               )}
               {!isEnded && !isBeforeStart && (
-                <button type="button" onClick={handleEndCounseling} className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30">
-                  상담 종료
+                <button type="button" onClick={handleEndCounseling} disabled={isEnding} className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30 disabled:opacity-70">
+                  {isEnding ? '처리 중...' : '상담 종료'}
                 </button>
               )}
             </div>
@@ -693,11 +704,12 @@ const CounselorChat = () => {
             </div>
 
             {/* 우측 채팅 영역 */}
-            <div className="flex-1 min-w-0 flex flex-col rounded-2xl border border-[#e5e7eb] bg-white shadow-lg overflow-hidden min-h-0">
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-2xl border border-[#e5e7eb] bg-white shadow-lg overflow-hidden">
               <h3 className="text-xl font-semibold text-gray-800 px-6 py-4 border-b border-[#e5e7eb] shrink-0">채팅</h3>
+              {endError && <p className="shrink-0 text-sm text-red-600 px-6 py-2 bg-red-50">{endError}</p>}
               <div
                 ref={chatScrollRefPc}
-                className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col gap-3"
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-4 flex flex-col gap-3"
               >
                 {isEnded ? (
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 종료 처리되었습니다.</p>
