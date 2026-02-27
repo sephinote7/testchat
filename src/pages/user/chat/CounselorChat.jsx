@@ -278,22 +278,36 @@ const CounselorChat = () => {
   fetchChatMessagesRef.current = fetchChatMessages;
 
   const updateCnslStatApi = async (stat) => {
+    const cnslIdNum = parseInt(cnsl_id, 10);
+    if (isNaN(cnslIdNum) || !me?.email) return false;
+
     const base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-    if (!base || !me?.email) return false;
-    const apiBase = base.endsWith('/api') ? base : `${base}/api`;
-    try {
-      const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/stat`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email },
-        body: JSON.stringify({ cnslStat: stat }),
-      });
-      if (res.ok) {
-        setCnslStat(stat);
-        return true;
+    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
+
+    if (apiBase) {
+      try {
+        const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/stat`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email },
+          body: JSON.stringify({ cnslStat: stat }),
+          mode: 'cors',
+        });
+        if (res.ok) {
+          setCnslStat(stat);
+          return true;
+        }
+        console.warn('cnsl_stat API 실패:', res.status);
+      } catch (e) {
+        console.warn('cnsl_stat API 호출 실패:', e);
       }
-    } catch (e) {
-      console.warn('cnsl_stat 업데이트 실패:', e);
     }
+
+    const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
+    if (!error) {
+      setCnslStat(stat);
+      return true;
+    }
+    console.warn('cnsl_stat Supabase 업데이트 실패:', error);
     return false;
   };
 
@@ -457,7 +471,8 @@ const CounselorChat = () => {
 
   const peerRoleLabel = other?.role || 'USER';
   const peer = other || { nickname: '상담사', profile: '' };
-  const memberInfo = me?.role === 'USER' ? me : other;
+  const infoToShow = other;
+  const infoLabel = other?.role === 'SYSTEM' ? '상담사 정보' : '상담자 정보';
   const isInputDisabled = cnslStat !== 'C';
   const isBeforeStart = cnslStat === 'A';
   const isEnded = cnslStat === 'D';
@@ -489,7 +504,7 @@ const CounselorChat = () => {
           <span>{peer.nickname} 상담</span>
           <div className="flex gap-2">
             {me?.role === 'SYSTEM' && isBeforeStart && (
-              <button type="button" onClick={handleStartCounseling} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold">
+              <button type="button" onClick={handleStartCounseling} className="h-8 px-3 rounded-lg bg-main-02 text-white text-sm font-semibold shadow">
                 상담 시작
               </button>
             )}
@@ -501,7 +516,7 @@ const CounselorChat = () => {
           </div>
         </header>
         <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-y-auto">
-          <section className="shrink-0 flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb] max-h-[200px] overflow-y-auto">
+          <section className="shrink-0 flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb] overflow-y-auto" style={{ maxHeight: 'min(200px, 30vh)' }}>
             {cnslInfo && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-800 mb-1">상담 정보</h2>
@@ -510,12 +525,16 @@ const CounselorChat = () => {
                 {cnslInfo.content && <p className="text-xs text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
               </div>
             )}
-            {memberInfo && (
+            {infoToShow && (
               <div className="border-t border-[#e5e7eb] pt-2 mt-2">
-                <h2 className="text-base font-semibold text-gray-800 mb-1">상담자 정보</h2>
-                <p className="text-sm font-medium text-gray-800">{memberInfo.nickname || memberInfo.email}</p>
-                {memberInfo.mbti && <p className="text-xs text-[#6b7280]">MBTI: {memberInfo.mbti}</p>}
-                {memberInfo.persona && <p className="text-xs text-[#374151] leading-relaxed mt-1">{memberInfo.persona}</p>}
+                <h2 className="text-base font-semibold text-gray-800 mb-1">{infoLabel}</h2>
+                <p className="text-sm font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
+                {infoToShow.mbti && <p className="text-xs text-[#6b7280]">MBTI: {infoToShow.mbti}</p>}
+                {(infoToShow.persona || infoToShow.profile) && (
+                  <div className="mt-1 max-h-[80px] overflow-y-auto text-xs text-[#374151] leading-relaxed">
+                    {infoToShow.persona || infoToShow.profile}
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -574,7 +593,7 @@ const CounselorChat = () => {
             </div>
             <div className="flex items-center gap-3">
               {me?.role === 'SYSTEM' && isBeforeStart && (
-                <button type="button" onClick={handleStartCounseling} className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30">
+                <button type="button" onClick={handleStartCounseling} className="h-10 px-5 rounded-xl bg-main-02 text-white text-sm font-semibold shadow hover:opacity-90">
                   상담 시작
                 </button>
               )}
@@ -583,40 +602,33 @@ const CounselorChat = () => {
                   상담 종료
                 </button>
               )}
-              <Link to="/chat/counselor" className="text-white/90 text-sm hover:underline">
-                상담 목록
-              </Link>
             </div>
           </header>
 
-          <main className="flex-1 flex gap-4 pt-4 min-h-0">
-            {/* 좌측 정보 패널 - 채팅 영역과 동일 높이 */}
-            <div className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] min-h-0 self-stretch">
+          <main className="flex-1 flex gap-4 pt-4 min-h-0 overflow-hidden">
+            {/* 좌측 정보 패널 - 채팅창 높이에 맞춤, 내용 길면 스크롤 */}
+            <div className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] min-h-0">
               {cnslInfo && (
-                <div className="shrink-0 flex flex-col overflow-hidden border-b border-[#e5e7eb]">
-                  <h3 className="text-xl font-semibold text-gray-800 px-4 py-3 shrink-0">상담 정보</h3>
-                  <div className="overflow-y-auto px-4 py-2 text-sm text-[#374151] max-h-[120px]">
+                <div className="shrink-0 border-b border-[#e5e7eb] max-h-[140px] overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">상담 정보</h3>
+                  <div className="px-4 pb-3 text-sm text-[#374151]">
                     {cnslInfo.title && <p className="font-medium text-gray-800 mb-1">{cnslInfo.title}</p>}
                     {cnslInfo.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
                     {cnslInfo.content && <p className="leading-relaxed whitespace-pre-line">{cnslInfo.content}</p>}
                   </div>
                 </div>
               )}
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-b border-[#e5e7eb]">
-                <h3 className="text-lg font-semibold text-gray-800 px-4 py-3 shrink-0">상담자 정보</h3>
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">{infoLabel}</h3>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
-                  {memberInfo && (
+                  {infoToShow && (
                     <>
-                      <p className="font-medium text-gray-800">{memberInfo.nickname || memberInfo.email}</p>
-                      {memberInfo.mbti && <p className="text-[#6b7280] mt-1">MBTI: {memberInfo.mbti}</p>}
-                      {memberInfo.persona && <p className="mt-2 leading-relaxed whitespace-pre-line">{memberInfo.persona}</p>}
+                      <p className="font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
+                      {infoToShow.mbti && <p className="text-[#6b7280] mt-1">MBTI: {infoToShow.mbti}</p>}
+                      {(infoToShow.persona || infoToShow.profile) && (
+                        <p className="mt-2 leading-relaxed whitespace-pre-line">{infoToShow.persona || infoToShow.profile}</p>
+                      )}
                     </>
-                  )}
-                  {peer.profile && (
-                    <div className="mt-4 pt-4 border-t border-[#e5e7eb]">
-                      <p className="text-xs font-semibold text-[#6b7280] mb-1">상담사 프로필</p>
-                      <p className="leading-relaxed whitespace-pre-line">{peer.profile}</p>
-                    </div>
                   )}
                   {summary && (
                     <div className="mt-4 pt-4 border-t border-[#e5e7eb]">
