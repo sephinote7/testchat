@@ -48,6 +48,7 @@ const CounselorChat = () => {
   const [chatInput, setChatInput] = useState('');
   const [cnslInfo, setCnslInfo] = useState(null);
   const [summary, setSummary] = useState(null);
+  const [showEndModal, setShowEndModal] = useState(false);
 
   const chatScrollRefMobile = useRef(null);
   const chatScrollRefPc = useRef(null);
@@ -324,14 +325,44 @@ const CounselorChat = () => {
 
     let summaryText = '';
     let summaryLine = '';
-    if (basePayload.length > 0) {
-      const texts = basePayload.filter((x) => x.text && typeof x.text === 'string').map((x) => x.text).slice(0, 10);
-      summaryText = texts.length > 0 ? texts.join(' ').slice(0, 300) : `상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = texts[0] || summaryText;
-    } else {
-      summaryText = `상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = summaryText;
+    if (basePayload.length > 0 && apiBase) {
+      try {
+        const formData = new FormData();
+        formData.append('msg_data', JSON.stringify(basePayload));
+        const res = await fetch(`${apiBase}/summarize`, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          summaryText = (data.summary || '').slice(0, 300);
+          summaryLine = data.summary_line || '';
+        }
+      } catch (err) {
+        console.warn('summarize API 실패, fallback 사용:', err);
+      }
     }
+    if (!summaryText || !summaryLine) {
+      const texts = basePayload.filter((x) => x.text && typeof x.text === 'string').map((x) => x.text);
+      const full = texts.join(' ').trim();
+      if (full.length > 300) {
+        const cut = full.slice(0, 297);
+        const lastSpace = cut.lastIndexOf(' ');
+        summaryText = (lastSpace > 200 ? cut.slice(0, lastSpace) : cut) + '...';
+      } else {
+        summaryText = full || `상담 (${new Date().toLocaleString('ko-KR')})`;
+      }
+      summaryText = summaryText.slice(0, 300);
+      const userFirst = basePayload.find((x) => (x.speaker || '').toLowerCase() === 'user')?.text?.trim();
+      const core = userFirst || texts[0] || full;
+      summaryLine = core && core.length > 80 ? core.slice(0, 77) + '...' : (core || summaryText.slice(0, 80));
+    }
+    if (!summaryText) {
+      summaryText = `상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
+      summaryLine = summaryLine || summaryText;
+    }
+    if (!summaryLine) summaryLine = summaryText;
 
     if (apiBase) {
       try {
@@ -375,7 +406,13 @@ const CounselorChat = () => {
     if (cnslStat !== 'C') return;
     await saveSummaryAndMsgData();
     const ok = await updateCnslStatApi('D');
-    if (!ok) setCnslStat('C');
+    if (ok) setShowEndModal(true);
+    else setCnslStat('C');
+  };
+
+  const handleCloseEndModal = () => {
+    setShowEndModal(false);
+    navigate('/');
   };
 
   useEffect(() => {
@@ -388,6 +425,11 @@ const CounselorChat = () => {
     scroll(chatScrollRefMobile.current);
     scroll(chatScrollRefPc.current);
   }, [chatMessages]);
+
+  // 상담 종료(cnsl_stat=D) 시 모달 표시 (상담자 화면에서 Realtime/폴링으로 감지)
+  useEffect(() => {
+    if (cnslStat === 'D') setShowEndModal(true);
+  }, [cnslStat]);
 
   useEffect(() => {
     if (!cnsl_id || !me?.email) return;
@@ -459,10 +501,17 @@ const CounselorChat = () => {
     lastLocalAddAtRef.current = now;
     setChatInput('');
 
+    // Supabase 우선 사용 (CORS 등 API 장애 시에도 채팅 정상 작동)
+    try {
+      const ok = await insertChatToSupabase(trimmed);
+      if (ok) return;
+    } catch (err) {
+      console.warn('Supabase 채팅 저장 실패:', err);
+    }
+
     const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
     const base = apiBase.endsWith('/api') ? apiBase : apiBase ? `${apiBase}/api` : '';
     const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
-
     if (base) {
       try {
         const res = await fetch(`${base}/cnsl/${cnsl_id}/chat`, {
@@ -473,14 +522,8 @@ const CounselorChat = () => {
         });
         if (res.ok) return;
       } catch (err) {
-        console.warn('채팅 API 실패, Supabase fallback:', err);
+        console.warn('채팅 API fallback 실패:', err);
       }
-    }
-
-    try {
-      await insertChatToSupabase(trimmed);
-    } catch (err) {
-      console.error('채팅 저장 오류:', err);
     }
   };
 
@@ -702,6 +745,22 @@ const CounselorChat = () => {
           </main>
         </div>
       </div>
+
+      {/* 상담 종료 모달 */}
+      {showEndModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleCloseEndModal}>
+          <div className="mx-4 w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-center text-gray-800 font-medium">상담이 종료되었습니다.</p>
+            <button
+              type="button"
+              onClick={handleCloseEndModal}
+              className="mt-4 w-full rounded-xl bg-main-02 py-3 text-white font-semibold hover:opacity-90"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };
