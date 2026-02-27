@@ -52,6 +52,71 @@ function getSupportedVideoMime() {
   return '';
 }
 
+/** 내 화면 + 상대 화면 합성 녹화 (좌: 내 영상, 우: 상대 영상) */
+function startCompositeVideoRecording(
+  localStream,
+  getRemoteStream,
+  chunksRef,
+  drawIdRef,
+  canvasRef,
+) {
+  if (!localStream?.getVideoTracks().length || typeof MediaRecorder === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 360;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const vLocal = document.createElement('video');
+  vLocal.srcObject = localStream;
+  vLocal.muted = true;
+  vLocal.playsInline = true;
+  vLocal.play().catch(() => {});
+
+  const vRemote = document.createElement('video');
+  vRemote.muted = true;
+  vRemote.playsInline = true;
+
+  const draw = () => {
+    const remote = getRemoteStream();
+    if (remote && !vRemote.srcObject) {
+      vRemote.srcObject = remote;
+      vRemote.play().catch(() => {});
+    }
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const halfW = canvas.width / 2;
+    if (vLocal.readyState >= 2 && vLocal.videoWidth > 0) {
+      ctx.drawImage(vLocal, 0, 0, halfW, canvas.height);
+    }
+    if (vRemote.srcObject && vRemote.readyState >= 2 && vRemote.videoWidth > 0) {
+      ctx.drawImage(vRemote, halfW, 0, halfW, canvas.height);
+    }
+    drawIdRef.current = requestAnimationFrame(draw);
+  };
+  drawIdRef.current = requestAnimationFrame(draw);
+  canvasRef.current = canvas;
+
+  try {
+    const mime = getSupportedVideoMime();
+    const opts = mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : {};
+    const stream = canvas.captureStream(15);
+    if (localStream.getAudioTracks().length) {
+      stream.addTrack(localStream.getAudioTracks()[0]);
+    }
+    const rec = new MediaRecorder(stream, opts);
+    chunksRef.current = [];
+    rec.ondataavailable = (e) => {
+      if (e.data?.size) chunksRef.current.push(e.data);
+    };
+    rec.start(1000);
+    return rec;
+  } catch (e) {
+    if (drawIdRef.current) cancelAnimationFrame(drawIdRef.current);
+    return null;
+  }
+}
+
 // member row → UI에서 사용하기 좋은 형태로 매핑
 // Supabase member: id, email 등. 이메일은 row.email 또는 row.member_id
 function mapMemberRow(row) {
@@ -121,7 +186,10 @@ const VisualChat = () => {
   const callEndCleanupRanRef = useRef(false);
   const runCallEndCleanupRef = useRef(null);
   const mediaStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
   const fetchChatMessagesRef = useRef(null);
+  const compositeDrawIdRef = useRef(null);
+  const compositeCanvasRef = useRef(null);
   const lastLocalAddAtRef = useRef(0);
   const chatScrollRefMobile = useRef(null);
   const chatScrollRefPc = useRef(null);
@@ -463,10 +531,13 @@ const VisualChat = () => {
     };
   }, [chatId, me?.email]);
 
-  // mediaStream ref 동기화 (runCallEndCleanup에서 사용)
+  // mediaStream, remoteStream ref 동기화
   useEffect(() => {
     mediaStreamRef.current = mediaStream;
   }, [mediaStream]);
+  useEffect(() => {
+    remoteStreamRef.current = remoteStream;
+  }, [remoteStream]);
 
   // 메인 비디오: callEnded면 스트림 적용 안 함(초기화됨)
   useEffect(() => {
@@ -554,18 +625,22 @@ const VisualChat = () => {
             console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
           }
         }
+        // 영상 녹화: 내 화면 + 상대 화면 합성
         if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
           try {
-            const mime = getSupportedVideoMime();
-            const opts = mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : {};
-            const vRec = new MediaRecorder(stream, opts);
-            hadVideoRecordingRef.current = true;
-            videoRecordedChunksRef.current = [];
-            vRec.ondataavailable = (e) => {
-              if (e.data?.size) videoRecordedChunksRef.current.push(e.data);
-            };
-            vRec.start(1000);
-            videoRecorderRef.current = vRec;
+            const vRec = startCompositeVideoRecording(
+              stream,
+              () => remoteStreamRef.current,
+              videoRecordedChunksRef,
+              compositeDrawIdRef,
+              compositeCanvasRef,
+            );
+            if (vRec) {
+              hadVideoRecordingRef.current = true;
+              videoRecorderRef.current = vRec;
+            } else {
+              hadVideoRecordingRef.current = false;
+            }
           } catch (e) {
             console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
             hadVideoRecordingRef.current = false;
@@ -789,21 +864,22 @@ const VisualChat = () => {
           console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
         }
       }
-      // 영상 녹화 (다운로드용)
+      // 영상 녹화: 내 화면 + 상대 화면 합성 (다운로드용)
       if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
         try {
-          const mime = getSupportedVideoMime();
-          const opts = mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : {};
-          const vRecorder = new MediaRecorder(stream, opts);
-          hadVideoRecordingRef.current = true;
-          videoRecordedChunksRef.current = [];
-          vRecorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-              videoRecordedChunksRef.current.push(event.data);
-            }
-          };
-          vRecorder.start(1000);
-          videoRecorderRef.current = vRecorder;
+          const vRecorder = startCompositeVideoRecording(
+            stream,
+            () => remoteStreamRef.current,
+            videoRecordedChunksRef,
+            compositeDrawIdRef,
+            compositeCanvasRef,
+          );
+          if (vRecorder) {
+            hadVideoRecordingRef.current = true;
+            videoRecorderRef.current = vRecorder;
+          } else {
+            hadVideoRecordingRef.current = false;
+          }
         } catch (e) {
           console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
           hadVideoRecordingRef.current = false;
@@ -838,21 +914,12 @@ const VisualChat = () => {
       (base ? `${base}/summarize` : '') ||
       'http://localhost:8000/api/summarize';
 
-    const chatLogsPayload = chatMessages.map((msg) => ({
+    const basePayload = chatMessages.map((msg) => ({
       type: 'chat',
       speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
       text: msg.text,
       timestamp: String(msg.timestamp || Date.now()),
     }));
-    const basePayload = [
-      ...chatLogsPayload,
-      {
-        type: 'chat',
-        speaker: me.role === 'SYSTEM' ? 'cnsler' : 'user',
-        text: '화상 상담 세션',
-        timestamp: String(Date.now()),
-      },
-    ];
 
     let summaryText = '';
     let summaryLine = '';
@@ -1021,6 +1088,11 @@ const VisualChat = () => {
       } catch {}
       videoRecorderRef.current = null;
     }
+    if (compositeDrawIdRef.current) {
+      cancelAnimationFrame(compositeDrawIdRef.current);
+      compositeDrawIdRef.current = null;
+    }
+    compositeCanvasRef.current = null;
 
     const stream = mediaStreamRef.current;
     if (stream) {
