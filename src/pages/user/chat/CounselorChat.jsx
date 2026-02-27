@@ -283,9 +283,14 @@ const CounselorChat = () => {
     const cnslIdNum = parseInt(cnsl_id, 10);
     if (isNaN(cnslIdNum) || !me?.email) return false;
 
+    // Supabase 우선 (CORS/API 장애 시에도 상담 시작·종료 정상 작동)
+    const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
+    if (!error) {
+      setCnslStat(stat);
+      return true;
+    }
     const base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
     const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
-
     if (apiBase) {
       try {
         const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/stat`, {
@@ -298,18 +303,11 @@ const CounselorChat = () => {
           setCnslStat(stat);
           return true;
         }
-        console.warn('cnsl_stat API 실패:', res.status);
       } catch (e) {
-        console.warn('cnsl_stat API 호출 실패:', e);
+        console.warn('cnsl_stat API fallback 실패:', e);
       }
     }
-
-    const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
-    if (!error) {
-      setCnslStat(stat);
-      return true;
-    }
-    console.warn('cnsl_stat Supabase 업데이트 실패:', error);
+    console.warn('cnsl_stat 업데이트 실패');
     return false;
   };
 
@@ -567,14 +565,14 @@ const CounselorChat = () => {
               </button>
             )}
             {!isEnded && !isBeforeStart && (
-              <button type="button" onClick={handleEndCounseling} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold">
+              <button type="button" onClick={handleEndCounseling} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform">
                 상담 종료
               </button>
             )}
           </div>
         </header>
-          <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-y-auto">
-          <section className="shrink-0 flex flex-col rounded-2xl border border-[#e5e7eb] overflow-hidden bg-[#f9fafb] min-h-[180px]">
+          <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-hidden">
+          <section className="shrink-0 flex flex-col rounded-2xl border border-[#e5e7eb] overflow-hidden bg-[#f9fafb] min-h-[140px] max-h-[28vh]">
             <div className="flex-1 min-h-0 flex flex-col overflow-y-auto border-b border-[#e5e7eb] p-3">
               {cnslInfo && (
                 <>
@@ -598,8 +596,8 @@ const CounselorChat = () => {
               )}
             </div>
           </section>
-          <div className="flex-1 min-h-[120px] flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
-            <div ref={chatScrollRefMobile} className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
+          <div className="flex-1 min-h-0 flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
+            <div ref={chatScrollRefMobile} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-2 flex flex-col gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {isEnded ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 처리되었습니다.</p>
               ) : isStarting ? (
