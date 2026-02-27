@@ -123,6 +123,8 @@ const VisualChat = () => {
   const mediaStreamRef = useRef(null);
   const fetchChatMessagesRef = useRef(null);
   const lastLocalAddAtRef = useRef(0);
+  const chatScrollRefMobile = useRef(null);
+  const chatScrollRefPc = useRef(null);
 
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
@@ -391,6 +393,15 @@ const VisualChat = () => {
     fetchChatMessages();
   }, [chatId, me?.email]);
 
+  // 채팅 메시지 변경 시 최하단으로 스크롤
+  useEffect(() => {
+    const scrollToBottom = (el) => {
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+    scrollToBottom(chatScrollRefMobile.current);
+    scrollToBottom(chatScrollRefPc.current);
+  }, [chatMessages]);
+
   /** cnsl_stat 업데이트 (C=진행중, D=완료) */
   const updateCnslStat = async (stat) => {
     if (!chatId || !me?.email) return;
@@ -445,7 +456,7 @@ const VisualChat = () => {
       )
       .subscribe();
 
-    const pollInterval = setInterval(onChatChange, 2000);
+    const pollInterval = setInterval(onChatChange, 5000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
@@ -845,19 +856,22 @@ const VisualChat = () => {
 
     let summaryText = '';
     let summaryLine = '';
-    let msgDataList = [];
+    let msgDataList = basePayload;
 
     const audioChunks = recordedChunksRef.current;
-    if (audioChunks?.length && summarizeUrl) {
+    const formData = new FormData();
+    formData.append('msg_data', JSON.stringify(basePayload));
+    if (audioChunks?.length) {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      formData.append(
+        me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
+        blob,
+        (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
+      );
+    }
+
+    if (summarizeUrl) {
       try {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
-        const formData = new FormData();
-        formData.append(
-          me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
-          blob,
-          (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
-        );
-        formData.append('msg_data', JSON.stringify(basePayload));
         const summaryRes = await fetch(summarizeUrl, {
           method: 'POST',
           body: formData,
@@ -867,16 +881,25 @@ const VisualChat = () => {
           const data = await summaryRes.json();
           summaryText = (data.summary || '').slice(0, 300);
           summaryLine = (data.summary_line || '').trim();
-          msgDataList = Array.isArray(data.msg_data) ? data.msg_data : [];
+          msgDataList = Array.isArray(data.msg_data) ? data.msg_data : basePayload;
         }
       } catch (e) {
-        console.warn('STT/요약 API 실패:', e);
+        console.warn('요약 API 실패:', e);
       }
     }
-    if (!summaryText) {
-      summaryText = `화상 상담 종료 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
+
+    if (!summaryText && basePayload.length > 0) {
+      const texts = basePayload
+        .filter((x) => x.text && typeof x.text === 'string')
+        .map((x) => x.text)
+        .slice(0, 10);
+      summaryText = texts.length > 0
+        ? texts.join(' ').slice(0, 300)
+        : `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
+      summaryLine = texts[0] || summaryText;
+    } else if (!summaryText) {
+      summaryText = `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
       summaryLine = summaryText;
-      msgDataList = basePayload;
     }
 
     const summaryPayload = JSON.stringify({
@@ -1129,11 +1152,57 @@ const VisualChat = () => {
           화상 상담
         </header>
 
-        {/* 메인: 상대 정보 + 영상 (방 번호/통화 연결은 하단 컨트롤 바에만) */}
-        <main className="flex-1 flex flex-col px-[16px] pt-4 pb-24 gap-4">
-          {/* 상담 정보 + 상대 정보 (고정 높이, 스크롤) + 영상 */}
-          <section className="flex-1 flex flex-col gap-3 min-h-0">
-            <div className="h-[200px] overflow-y-auto flex flex-col gap-3 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb]">
+        {/* 메인: 화상(sticky) + 상담정보 + 채팅. 스크롤 시 화상이 상단 고정 */}
+        <main className="flex-1 flex flex-col px-[16px] pt-4 pb-20 gap-3 min-h-0 overflow-y-auto">
+          {/* 화상 영역: sticky, 통화 종료 버튼 우측 */}
+          <div className="sticky top-0 z-10 shrink-0 rounded-2xl overflow-hidden bg-[#020617]">
+            <div className="relative w-full aspect-4/3 flex items-center justify-center text-white text-sm">
+              {callEnded ? (
+                <p className="text-white/90 text-base font-medium">상담 완료되었습니다.</p>
+              ) : (
+                <>
+                  <video
+                    ref={videoRefMobile}
+                    className="w-full h-full object-cover"
+                    playsInline
+                    muted={!remoteStream}
+                  />
+                  {remoteStream && (
+                    <video
+                      ref={remoteVideoRefMobile}
+                      className="absolute bottom-2 right-2 w-24 aspect-video object-cover rounded-lg border-2 border-white shadow-lg bg-black"
+                      playsInline
+                      muted
+                    />
+                  )}
+                  {/* 통화 종료 버튼: 화상 우측 */}
+                  <div className="absolute top-2 right-2 flex flex-col gap-2">
+                    {isCallActive ? (
+                      <button
+                        type="button"
+                        onClick={handleEndCall}
+                        className="h-9 px-4 rounded-full text-[12px] font-semibold shadow-lg bg-[#ef4444] text-white"
+                      >
+                        통화 종료
+                      </button>
+                    ) : isMeSystem ? (
+                      <button
+                        type="button"
+                        onClick={handleStartCall}
+                        className="h-9 px-4 rounded-full text-[12px] font-semibold shadow-lg bg-main-02 text-white"
+                      >
+                        통화 시작
+                      </button>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* 상담 정보 + 상대 정보 */}
+          <section className="shrink-0 flex flex-col gap-3">
+            <div className="max-h-[180px] overflow-y-auto flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb]">
               {cnslInfo && (
                 <div className="shrink-0">
                   <h2 className="text-2xl font-semibold text-gray-800 mb-1">상담 정보</h2>
@@ -1179,49 +1248,37 @@ const VisualChat = () => {
               </div>
             </div>
 
-            <div className="relative w-full aspect-4/3 rounded-2xl bg-[#020617] flex items-center justify-center text-white text-sm overflow-hidden">
-              {callEnded ? (
-                <p className="text-white/90 text-base font-medium">상담 완료되었습니다.</p>
-              ) : (
-                <>
-              <video
-                ref={videoRefMobile}
-                className="w-full h-full object-cover"
-                playsInline
-                muted={!remoteStream}
-              />
-              {remoteStream && (
-                <video
-                  ref={remoteVideoRefMobile}
-                  className="absolute bottom-2 right-2 w-24 aspect-video object-cover rounded-lg border-2 border-white shadow-lg bg-black"
-                  playsInline
-                  muted
-                />
-              )}
-                </>
-              )}
-            </div>
-
-            {/* 하단 채팅 영역 - 최소 280px */}
-            <section className="mt-2 flex flex-col gap-2 min-h-[280px]">
-              <div className="flex-1 overflow-y-auto border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]">
+            {/* 채팅 영역 */}
+            <div className="flex flex-col gap-2 min-h-[160px]">
+              <div
+                ref={chatScrollRefMobile}
+                className="flex-1 min-h-[120px] max-h-[200px] overflow-y-auto border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]"
+              >
                 {chatMessages.length === 0 ? (
-                  <p className="text-[11px] text-[#9ca3af]">
+                  <p className="text-[10px] text-[#9ca3af]">
                     여기에 채팅이 표시됩니다.
                   </p>
                 ) : (
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-2">
                     {chatMessages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`text-[11px] ${
-                          msg.role === me.role ? 'text-right' : 'text-left'
+                        className={`flex flex-col gap-0.5 ${
+                          msg.role === me.role ? 'items-end' : 'items-start'
                         }`}
                       >
-                        <span className="font-semibold mr-1">
+                        <p className="text-[10px] font-medium text-[#6b7280]">
                           {msg.nickname || roleDisplayLabel(msg.role)}
-                        </span>
-                        <span className="text-[#4b5563]">{msg.text}</span>
+                        </p>
+                        <div
+                          className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-tight border ${
+                            msg.role === me.role
+                              ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]'
+                              : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1229,7 +1286,7 @@ const VisualChat = () => {
               </div>
               <form
                 onSubmit={handleChatSubmit}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 shrink-0"
               >
                 <input
                   type="text"
@@ -1255,33 +1312,9 @@ const VisualChat = () => {
                   전송
                 </button>
               </form>
-            </section>
+            </div>
           </section>
         </main>
-
-        {/* 하단 컨트롤 바: 모바일 Nav(하단 탭) 위에 오도록 bottom-14 사용 */}
-        <footer className="fixed bottom-14 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-4">
-          <div className="flex items-center gap-2 bg-white/90 backdrop-blur border border-[#e5e7eb] rounded-2xl px-3 py-3 shadow-lg">
-            <button
-              type="button"
-              onClick={isCallActive ? handleEndCall : handleStartCall}
-              disabled={!isMeSystem && !isCallActive}
-              className={`flex-1 h-10 rounded-full text-[13px] font-semibold ${
-                isCallActive
-                  ? 'bg-[#ef4444] text-white'
-                  : isMeSystem
-                    ? 'bg-main-02 text-white'
-                    : 'bg-[#e5e7eb] text-[#9ca3af] cursor-not-allowed'
-              }`}
-            >
-              {isCallActive
-                ? '통화 종료'
-                : isMeSystem
-                  ? '통화 시작'
-                  : '상담사만 통화 시작 가능'}
-            </button>
-          </div>
-        </footer>
       </div>
 
       {/* PC 레이아웃: 정보+화상 600px, 채팅 300px 고정 (100vh 제한 없음) */}
@@ -1439,7 +1472,10 @@ const VisualChat = () => {
                     <h3 className="text-2xl font-semibold text-gray-800 px-4 py-2 border-b border-[#e5e7eb] shrink-0">
                       채팅
                     </h3>
-                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 flex flex-col gap-3">
+                    <div
+                      ref={chatScrollRefPc}
+                      className="flex-1 min-h-0 overflow-y-auto px-4 py-2 flex flex-col gap-3"
+                    >
                       {chatMessages.length === 0 ? (
                         <p className="text-xs text-[#9ca3af]">
                           메시지를 입력해 주세요.
