@@ -122,6 +122,7 @@ const VisualChat = () => {
   const runCallEndCleanupRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const fetchChatMessagesRef = useRef(null);
+  const lastLocalAddAtRef = useRef(0);
 
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
@@ -338,7 +339,8 @@ const VisualChat = () => {
 
     try {
       let list = [];
-      if (base) {
+      list = await fetchFromSupabase();
+      if (list.length === 0 && base) {
         try {
           const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
             headers: {
@@ -352,18 +354,22 @@ const VisualChat = () => {
             list = Array.isArray(data) ? data : [];
           }
         } catch {
-          /* API 실패 시 Supabase로 fallback */
+          /* API 실패 시 Supabase 결과 유지 */
         }
       }
-      if (list.length === 0) {
-        list = await fetchFromSupabase();
-      }
-      setChatMessages(mapApiMessagesToUI(list));
+      const mapped = mapApiMessagesToUI(list);
+      setChatMessages((prev) => {
+        if (mapped.length > 0) return mapped;
+        const justAdded = Date.now() - lastLocalAddAtRef.current < 5000;
+        if (justAdded && prev.length > 0) return prev;
+        return mapped;
+      });
     } catch (err) {
       console.warn('채팅 조회 실패:', err);
       try {
         const list = await fetchFromSupabase();
-        setChatMessages(mapApiMessagesToUI(list));
+        const mapped = mapApiMessagesToUI(list);
+        if (mapped.length > 0) setChatMessages(mapped);
       } catch (e) {
         console.warn('Supabase 채팅 조회 실패:', e);
       }
@@ -1073,21 +1079,22 @@ const VisualChat = () => {
     const trimmed = chatInput.trim();
     if (!trimmed || !me) return;
 
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user'; // 명세: user / counselor
-
-    const addToLocalUI = (id, ts) => {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: id ?? `local-${ts}`,
-          role: me.role,
-          nickname: me.nickname ?? '',
-          text: trimmed,
-          timestamp: ts,
-        },
-      ]);
+    const now = Date.now();
+    const tempId = `local-${now}`;
+    const newMsg = {
+      id: tempId,
+      role: me.role,
+      nickname: me.nickname ?? '',
+      text: trimmed,
+      timestamp: now,
     };
+
+    setChatMessages((prev) => [...prev, newMsg]);
+    lastLocalAddAtRef.current = now;
+    setChatInput('');
+
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
 
     if (apiBase) {
       try {
@@ -1100,30 +1107,17 @@ const VisualChat = () => {
           body: JSON.stringify({ role: roleForApi, content: trimmed }),
           mode: 'cors',
         });
-        if (res.ok) {
-          const saved = await res.json();
-          const ts =
-            (saved.createdAt ?? saved.created_at)
-              ? new Date(saved.createdAt ?? saved.created_at).getTime()
-              : Date.now();
-          addToLocalUI(saved.chatId ?? `local-${ts}`, ts);
-          setChatInput('');
-          return;
-        }
+        if (res.ok) return;
       } catch (err) {
         console.warn('채팅 API 실패, Supabase fallback 시도:', err);
       }
     }
 
-    const now = Date.now();
     try {
-      const saved = await insertChatToSupabase(trimmed);
-      addToLocalUI(saved?.chatId, now);
+      await insertChatToSupabase(trimmed);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
-      addToLocalUI(null, now);
     }
-    setChatInput('');
   };
 
   return (
