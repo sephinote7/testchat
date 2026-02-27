@@ -43,6 +43,7 @@ const CounselorChat = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [cnslStat, setCnslStat] = useState(null); // A=대기, C=진행중, D=완료
+  const [isStarting, setIsStarting] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [cnslInfo, setCnslInfo] = useState(null);
@@ -361,8 +362,13 @@ const CounselorChat = () => {
   };
 
   const handleStartCounseling = async () => {
-    if (me?.role !== 'SYSTEM' || cnslStat !== 'A') return;
-    await updateCnslStatApi('C');
+    if (me?.role !== 'SYSTEM' || cnslStat !== 'A' || isStarting) return;
+    setIsStarting(true);
+    try {
+      await updateCnslStatApi('C');
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   const handleEndCounseling = async () => {
@@ -396,12 +402,21 @@ const CounselorChat = () => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` }, () =>
         fetchChatMessagesRef.current?.()
       )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cnsl_reg', filter: `cnsl_id=eq.${cnslIdNum}` }, (payload) => {
+        const newStat = payload?.new?.cnsl_stat;
+        if (newStat) setCnslStat(String(newStat).trim().toUpperCase());
+      })
       .subscribe();
 
-    const poll = setInterval(() => fetchChatMessagesRef.current?.(), 5000);
+    const pollChat = setInterval(() => fetchChatMessagesRef.current?.(), 2000);
+    const pollStat = setInterval(async () => {
+      const { data } = await supabase.from('cnsl_reg').select('cnsl_stat').eq('cnsl_id', cnslIdNum).maybeSingle();
+      if (data?.cnsl_stat) setCnslStat(String(data.cnsl_stat).trim().toUpperCase());
+    }, 1000);
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(poll);
+      clearInterval(pollChat);
+      clearInterval(pollStat);
     };
   }, [cnsl_id, me?.email]);
 
@@ -504,7 +519,7 @@ const CounselorChat = () => {
           <span>{peer.nickname} 상담</span>
           <div className="flex gap-2">
             {me?.role === 'SYSTEM' && isBeforeStart && (
-              <button type="button" onClick={handleStartCounseling} className="h-8 px-3 rounded-lg bg-main-02 text-white text-sm font-semibold shadow">
+              <button type="button" onClick={handleStartCounseling} disabled={isStarting} className="h-8 px-3 rounded-lg bg-main-02 text-white text-sm font-semibold shadow disabled:opacity-70">
                 상담 시작
               </button>
             )}
@@ -515,33 +530,37 @@ const CounselorChat = () => {
             )}
           </div>
         </header>
-        <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-y-auto">
-          <section className="shrink-0 flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb] overflow-y-auto" style={{ maxHeight: 'min(200px, 30vh)' }}>
-            {cnslInfo && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800 mb-1">상담 정보</h2>
-                {cnslInfo.title && <p className="font-medium text-gray-800 mb-0.5">{cnslInfo.title}</p>}
-                {cnslInfo.requesterNick && <p className="text-xs text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
-                {cnslInfo.content && <p className="text-xs text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
-              </div>
-            )}
-            {infoToShow && (
-              <div className="border-t border-[#e5e7eb] pt-2 mt-2">
-                <h2 className="text-base font-semibold text-gray-800 mb-1">{infoLabel}</h2>
-                <p className="text-sm font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
-                {infoToShow.mbti && <p className="text-xs text-[#6b7280]">MBTI: {infoToShow.mbti}</p>}
-                {(infoToShow.persona || infoToShow.profile) && (
-                  <div className="mt-1 max-h-[80px] overflow-y-auto text-xs text-[#374151] leading-relaxed">
-                    {infoToShow.persona || infoToShow.profile}
-                  </div>
-                )}
-              </div>
-            )}
+          <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-y-auto">
+          <section className="shrink-0 flex flex-col rounded-2xl border border-[#e5e7eb] overflow-hidden bg-[#f9fafb] min-h-[180px]">
+            <div className="flex-1 min-h-0 flex flex-col overflow-y-auto border-b border-[#e5e7eb] p-3">
+              {cnslInfo && (
+                <>
+                  <h2 className="text-base font-semibold text-gray-800 mb-1">상담 정보</h2>
+                  {cnslInfo.title && <p className="font-medium text-gray-800 mb-0.5 text-sm">{cnslInfo.title}</p>}
+                  {cnslInfo.requesterNick && <p className="text-xs text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
+                  {cnslInfo.content && <p className="text-xs text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
+                </>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 flex flex-col overflow-y-auto p-3">
+              {infoToShow && (
+                <>
+                  <h2 className="text-base font-semibold text-gray-800 mb-1">{infoLabel}</h2>
+                  <p className="text-sm font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
+                  {infoToShow.mbti && <p className="text-xs text-[#6b7280]">MBTI: {infoToShow.mbti}</p>}
+                  {(infoToShow.persona || infoToShow.profile) && (
+                    <div className="mt-1 overflow-y-auto text-xs text-[#374151] leading-relaxed">{infoToShow.persona || infoToShow.profile}</div>
+                  )}
+                </>
+              )}
+            </div>
           </section>
           <div className="flex-1 min-h-[120px] flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
             <div ref={chatScrollRefMobile} className="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-2">
               {isEnded ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 처리되었습니다.</p>
+              ) : isStarting ? (
+                <p className="text-sm text-[#6b7280] py-4 text-center">상담 시작 중...</p>
               ) : isBeforeStart && me?.role === 'USER' ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 시작까지 조금 기다려 주세요.</p>
               ) : chatMessages.length === 0 ? (
@@ -593,7 +612,7 @@ const CounselorChat = () => {
             </div>
             <div className="flex items-center gap-3">
               {me?.role === 'SYSTEM' && isBeforeStart && (
-                <button type="button" onClick={handleStartCounseling} className="h-10 px-5 rounded-xl bg-main-02 text-white text-sm font-semibold shadow hover:opacity-90">
+                <button type="button" onClick={handleStartCounseling} disabled={isStarting} className="h-10 px-5 rounded-xl bg-main-02 text-white text-sm font-semibold shadow hover:opacity-90 disabled:opacity-70">
                   상담 시작
                 </button>
               )}
@@ -606,18 +625,16 @@ const CounselorChat = () => {
           </header>
 
           <main className="flex-1 flex gap-4 pt-4 min-h-0 overflow-hidden">
-            {/* 좌측 정보 패널 - 채팅창 높이에 맞춤, 내용 길면 스크롤 */}
+            {/* 좌측 정보 패널 - 상담 정보 / 상담자·상담사 정보 1:1 비율 */}
             <div className="w-[480px] shrink-0 flex flex-col overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] min-h-0">
-              {cnslInfo && (
-                <div className="shrink-0 border-b border-[#e5e7eb] max-h-[140px] overflow-y-auto">
-                  <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">상담 정보</h3>
-                  <div className="px-4 pb-3 text-sm text-[#374151]">
-                    {cnslInfo.title && <p className="font-medium text-gray-800 mb-1">{cnslInfo.title}</p>}
-                    {cnslInfo.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
-                    {cnslInfo.content && <p className="leading-relaxed whitespace-pre-line">{cnslInfo.content}</p>}
-                  </div>
+              <div className="flex-1 min-h-0 flex flex-col overflow-y-auto border-b border-[#e5e7eb]">
+                <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">상담 정보</h3>
+                <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3 text-sm text-[#374151]">
+                  {cnslInfo?.title && <p className="font-medium text-gray-800 mb-1">{cnslInfo.title}</p>}
+                  {cnslInfo?.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
+                  {cnslInfo?.content && <p className="leading-relaxed whitespace-pre-line">{cnslInfo.content}</p>}
                 </div>
-              )}
+              </div>
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">{infoLabel}</h3>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
@@ -629,12 +646,6 @@ const CounselorChat = () => {
                         <p className="mt-2 leading-relaxed whitespace-pre-line">{infoToShow.persona || infoToShow.profile}</p>
                       )}
                     </>
-                  )}
-                  {summary && (
-                    <div className="mt-4 pt-4 border-t border-[#e5e7eb]">
-                      <p className="text-xs font-semibold text-[#6b7280] mb-1">요약</p>
-                      <p className="text-sm leading-relaxed">{summary}</p>
-                    </div>
                   )}
                 </div>
               </div>
@@ -649,6 +660,8 @@ const CounselorChat = () => {
               >
                 {isEnded ? (
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 종료 처리되었습니다.</p>
+                ) : isStarting ? (
+                  <p className="text-base text-[#6b7280] py-8 text-center">상담 시작 중...</p>
                 ) : isBeforeStart && me?.role === 'USER' ? (
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 시작까지 조금 기다려 주세요.</p>
                 ) : chatMessages.length === 0 ? (
