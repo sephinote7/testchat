@@ -5,6 +5,10 @@ import counselors from './counselorData';
 // TODO: DB 연동 가이드
 // 이 페이지는 상담사와의 1:1 채팅 화면입니다
 //
+// [UI 확인용 접근 방법]
+// - /chat/counselor/1/chat ... /chat/counselor/10/chat : 해당 상담사와 채팅
+// - /chat/counselor/demo/chat 또는 /chat/counselor/999/chat 등 : 첫 번째 상담사로 폴백 (UI 확인용)
+//
 // DB 연동 시 필요한 작업:
 // 1. 예약 정보 및 상담사 정보 조회
 //    - API: GET /api/counselors/:counselorId
@@ -26,7 +30,12 @@ const CounselorChat = () => {
   const { c_id } = useParams();
 
   // TODO: DB 연동 시 counselors를 API로 조회
-  const counselor = useMemo(() => counselors.find((item) => item.id === c_id), [c_id]);
+  // UI 확인용: c_id 없거나 매칭 실패 시 첫 번째 상담사로 폴백
+  const { counselor, isDemo } = useMemo(() => {
+    const found = counselors.find((item) => item.id === c_id);
+    if (found) return { counselor: found, isDemo: false };
+    return { counselor: counselors[0] ?? null, isDemo: true };
+  }, [c_id]);
 
   const [input, setInput] = useState('');
 
@@ -148,8 +157,13 @@ const CounselorChat = () => {
     <>
       {/* MOBILE */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
-        <header className="bg-[#2f80ed] h-16 flex items-center justify-center text-white font-bold text-lg">
+        <header className="bg-[#2f80ed] h-16 flex items-center justify-center text-white font-bold text-lg relative">
           {counselor.name} 상담
+          {isDemo && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-normal bg-white/20 px-2 py-0.5 rounded">
+              UI 확인용
+            </span>
+          )}
         </header>
 
         <main className="px-[18px] pt-4 flex-1 overflow-y-auto pb-[132px]">
@@ -202,7 +216,12 @@ const CounselorChat = () => {
       <div className="hidden lg:flex w-full min-h-screen bg-[#f3f7ff]">
         <div className="w-full max-w-[1520px] mx-auto flex flex-col">
           {/* HEADER */}
-          <header className="bg-gradient-to-r from-[#2f80ed] to-[#1d4ed8] h-20 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+          <header className="bg-gradient-to-r from-[#2f80ed] to-[#1d4ed8] h-20 flex items-center justify-center text-white font-bold text-2xl shadow-lg relative">
+            {isDemo && (
+              <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xs font-normal bg-white/20 px-3 py-1 rounded">
+                UI 확인용
+              </span>
+            )}
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-3xl font-bold">
                 {counselor.name.slice(0, 1)}
