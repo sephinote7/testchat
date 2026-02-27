@@ -99,6 +99,7 @@ const VisualChat = () => {
   const callEndCleanupRanRef = useRef(false);
   const runCallEndCleanupRef = useRef(null);
   const mediaStreamRef = useRef(null);
+  const fetchChatMessagesRef = useRef(null);
 
   // 하단 채팅 상태
   const [chatMessages, setChatMessages] = useState([]);
@@ -276,63 +277,73 @@ const VisualChat = () => {
       };
     });
 
+  const fetchFromSupabase = async () => {
+    const cnslIdNum = parseInt(chatId, 10);
+    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return [];
+    const { data: rows, error } = await supabase
+      .from('chat_msg')
+      .select('chat_id, msg_data, member_id, cnsler_id')
+      .eq('cnsl_id', cnslIdNum)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.warn('Supabase chat_msg 조회 실패:', error);
+      return [];
+    }
+    if (!rows?.length) return [];
+    const row = rows[0];
+    const content = row?.msg_data?.content;
+    if (!Array.isArray(content)) return [];
+    const memberId = row.member_id || '';
+    const cnslerId = row.cnsler_id || '';
+    return content.map((item, idx) => {
+      const speaker = (item.speaker || 'user').toLowerCase();
+      const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
+      return {
+        chatId: `${row.chat_id}-${idx}`,
+        role,
+        content: item.text ?? '',
+        memberId,
+        cnslerId,
+        createdAt: item.timestamp,
+        created_at: item.timestamp,
+      };
+    });
+  };
+
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
-    const fetchFromSupabase = async () => {
-      const cnslIdNum = parseInt(chatId, 10);
-      if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
-      const { data: rows } = await supabase
-        .from('chat_msg')
-        .select('chat_id, msg_data, member_id, cnsler_id')
-        .eq('cnsl_id', cnslIdNum)
-        .order('created_at', { ascending: true });
-      if (!rows?.length) return [];
-      const row = rows[0];
-      const content = row?.msg_data?.content;
-      if (!Array.isArray(content)) return [];
-      const memberId = row.member_id || '';
-      const cnslerId = row.cnsler_id || '';
-      return content.map((item, idx) => {
-        const speaker = (item.speaker || 'user').toLowerCase();
-        const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
-        return {
-          chatId: `${row.chat_id}-${idx}`,
-          role,
-          content: item.text || '',
-          memberId,
-          cnslerId,
-          createdAt: item.timestamp,
-          created_at: item.timestamp,
-        };
-      });
-    };
-
     try {
+      let list = [];
       if (base) {
-        const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
-          headers: {
-            Accept: 'application/json',
-            'X-User-Email': me.email,
-          },
-          mode: 'cors',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setChatMessages(mapApiMessagesToUI(data));
-          return;
+        try {
+          const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
+            headers: {
+              Accept: 'application/json',
+              'X-User-Email': me.email,
+            },
+            mode: 'cors',
+          });
+          if (res.ok) {
+            const data = await res.json();
+            list = Array.isArray(data) ? data : [];
+          }
+        } catch {
+          /* API 실패 시 Supabase로 fallback */
         }
       }
-      const list = await fetchFromSupabase();
+      if (list.length === 0) {
+        list = await fetchFromSupabase();
+      }
       setChatMessages(mapApiMessagesToUI(list));
     } catch (err) {
-      console.warn('채팅 API 실패, Supabase 직접 조회:', err);
+      console.warn('채팅 조회 실패:', err);
       try {
         const list = await fetchFromSupabase();
         setChatMessages(mapApiMessagesToUI(list));
       } catch (e) {
-        console.warn('채팅 목록 조회 실패:', e);
+        console.warn('Supabase 채팅 조회 실패:', e);
       }
     }
   };
@@ -372,11 +383,15 @@ const VisualChat = () => {
   };
   updateCnslStatRef.current = updateCnslStat;
 
-  // Supabase realtime + 폴링 폴백: Render 등에서 realtime 미동작 시 폴링으로 채팅 동기화
+  fetchChatMessagesRef.current = fetchChatMessages;
+
+  // Supabase Realtime (WebSocket) + 폴링 폴백: 실시간 채팅 동기화
   useEffect(() => {
     if (!chatId || !me?.email) return;
     const cnslIdNum = parseInt(chatId, 10);
     if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
+
+    const onChatChange = () => fetchChatMessagesRef.current?.();
 
     const channel = supabase
       .channel(`chat_msg:${chatId}`)
@@ -388,7 +403,7 @@ const VisualChat = () => {
           table: 'chat_msg',
           filter: `cnsl_id=eq.${cnslIdNum}`,
         },
-        () => fetchChatMessages(),
+        onChatChange,
       )
       .on(
         'postgres_changes',
@@ -398,11 +413,11 @@ const VisualChat = () => {
           table: 'chat_msg',
           filter: `cnsl_id=eq.${cnslIdNum}`,
         },
-        () => fetchChatMessages(),
+        onChatChange,
       )
       .subscribe();
 
-    const pollInterval = setInterval(fetchChatMessages, 4000);
+    const pollInterval = setInterval(onChatChange, 2000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
@@ -791,6 +806,7 @@ const VisualChat = () => {
     ];
 
     let summaryText = '';
+    let summaryLine = '';
     let msgDataList = [];
 
     const audioChunks = recordedChunksRef.current;
@@ -811,7 +827,8 @@ const VisualChat = () => {
         });
         if (summaryRes.ok) {
           const data = await summaryRes.json();
-          summaryText = data.summary || '';
+          summaryText = (data.summary || '').slice(0, 300);
+          summaryLine = (data.summary_line || '').trim();
           msgDataList = Array.isArray(data.msg_data) ? data.msg_data : [];
         }
       } catch (e) {
@@ -819,9 +836,15 @@ const VisualChat = () => {
       }
     }
     if (!summaryText) {
-      summaryText = `화상 상담 종료 (${new Date().toLocaleString('ko-KR')})`;
+      summaryText = `화상 상담 종료 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
+      summaryLine = summaryText;
       msgDataList = basePayload;
     }
+
+    const summaryPayload = JSON.stringify({
+      summary: summaryText,
+      summary_line: summaryLine,
+    });
 
     const saveToSupabase = async () => {
       if (!other) return;
@@ -840,7 +863,7 @@ const VisualChat = () => {
       if (existing) {
         await supabase
           .from('chat_msg')
-          .update({ msg_data, summary: summaryText })
+          .update({ msg_data, summary: summaryPayload })
           .eq('cnsl_id', cnslIdNum);
       } else {
         await supabase.from('chat_msg').insert({
@@ -849,7 +872,7 @@ const VisualChat = () => {
           cnsler_id,
           role: 'user',
           msg_data,
-          summary: summaryText,
+          summary: summaryPayload,
         });
       }
     };
@@ -864,7 +887,11 @@ const VisualChat = () => {
               'Content-Type': 'application/json',
               'X-User-Email': me.email,
             },
-            body: JSON.stringify({ summary: summaryText, msg_data: msgDataList }),
+            body: JSON.stringify({
+              summary: summaryText,
+              summary_line: summaryLine || undefined,
+              msg_data: msgDataList,
+            }),
             mode: 'cors',
           });
           if (r.ok) apiSaved = true;
