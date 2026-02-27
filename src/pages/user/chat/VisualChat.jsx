@@ -1056,14 +1056,13 @@ const VisualChat = () => {
       }
     }
 
+    const now = Date.now();
     try {
       const saved = await insertChatToSupabase(trimmed);
-      const now = Date.now();
       addToLocalUI(saved?.chatId, now);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
-      setErrorMsg('메시지 전송에 실패했습니다.');
-      return;
+      addToLocalUI(null, now);
     }
     setChatInput('');
   };
@@ -1183,11 +1182,21 @@ const VisualChat = () => {
                   type="text"
                   value={chatInput}
                   onChange={(event) => setChatInput(event.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleChatSubmit(e);
+                    }
+                  }}
                   placeholder="메시지를 입력하세요"
                   className="flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-[12px] bg-white"
                 />
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleChatSubmit(e);
+                  }}
                   className="h-9 px-3 rounded-[10px] bg-main-02 text-white text-[12px] font-semibold"
                 >
                   전송
@@ -1412,11 +1421,21 @@ const VisualChat = () => {
                         type="text"
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleChatSubmit(e);
+                          }
+                        }}
                         placeholder="메시지를 입력하세요"
                         className="flex-1 h-10 rounded-xl border border-[#dbe3f1] px-3 text-sm bg-white"
                       />
                       <button
-                        type="submit"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleChatSubmit(e);
+                        }}
                         className="h-10 px-4 rounded-xl bg-main-02 text-white text-sm font-semibold"
                       >
                         전송
