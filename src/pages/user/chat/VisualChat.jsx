@@ -30,6 +30,28 @@ function roleDisplayLabel(role) {
   return role === 'USER' ? '상담자' : '상담사';
 }
 
+/** MediaRecorder 호환 MIME 타입 선택 (Safari 등 브라우저별 지원 차이 대응) */
+function getSupportedAudioMime() {
+  const options = ['audio/webm', 'audio/mp4', 'audio/ogg'];
+  for (const m of options) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
+  }
+  return '';
+}
+
+function getSupportedVideoMime() {
+  const options = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4',
+  ];
+  for (const m of options) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
+  }
+  return '';
+}
+
 // member row → UI에서 사용하기 좋은 형태로 매핑
 // Supabase member: id, email 등. 이메일은 row.email 또는 row.member_id
 function mapMemberRow(row) {
@@ -497,35 +519,40 @@ const VisualChat = () => {
         updateCnslStatRef.current?.('C');
         const hasAudio = stream.getAudioTracks().length > 0;
         if (hasAudio && typeof MediaRecorder !== 'undefined') {
-          const audRec = new MediaRecorder(stream, {
-            mimeType: 'audio/webm',
-            audioBitsPerSecond: 32000,
-          });
-          recordedChunksRef.current = [];
-          audRec.ondataavailable = (e) => {
-            if (e.data?.size) recordedChunksRef.current.push(e.data);
-          };
-          audRec.onstop = () => {
-            if (recordedChunksRef.current.length > 0) setHasRecording(true);
-          };
-          audRec.start();
-          mediaRecorderRef.current = audRec;
-          setIsRecording(true);
+          try {
+            const mime = getSupportedAudioMime();
+            const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+            const audRec = new MediaRecorder(stream, opts);
+            recordedChunksRef.current = [];
+            audRec.ondataavailable = (e) => {
+              if (e.data?.size) recordedChunksRef.current.push(e.data);
+            };
+            audRec.onstop = () => {
+              if (recordedChunksRef.current.length > 0) setHasRecording(true);
+            };
+            audRec.start();
+            mediaRecorderRef.current = audRec;
+            setIsRecording(true);
+          } catch (e) {
+            console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
+          }
         }
         if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
-          hadVideoRecordingRef.current = true;
-          const mime = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
-          const vRec = new MediaRecorder(stream, {
-            mimeType: mime,
-            videoBitsPerSecond: 2500000,
-            audioBitsPerSecond: 128000,
-          });
-          videoRecordedChunksRef.current = [];
-          vRec.ondataavailable = (e) => {
-            if (e.data?.size) videoRecordedChunksRef.current.push(e.data);
-          };
-          vRec.start(1000);
-          videoRecorderRef.current = vRec;
+          try {
+            const mime = getSupportedVideoMime();
+            const opts = mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : {};
+            const vRec = new MediaRecorder(stream, opts);
+            hadVideoRecordingRef.current = true;
+            videoRecordedChunksRef.current = [];
+            vRec.ondataavailable = (e) => {
+              if (e.data?.size) videoRecordedChunksRef.current.push(e.data);
+            };
+            vRec.start(1000);
+            videoRecorderRef.current = vRec;
+          } catch (e) {
+            console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
+            hadVideoRecordingRef.current = false;
+          }
         } else {
           hadVideoRecordingRef.current = false;
         }
@@ -722,43 +749,48 @@ const VisualChat = () => {
 
       // 오디오 녹음 (요약/STT용, 부하 최소화)
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
-        const recorder = new MediaRecorder(stream, {
-          mimeType: 'audio/webm',
-          audioBitsPerSecond: 32000,
-        });
-        recordedChunksRef.current = [];
-        recorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-            recordedChunksRef.current.push(event.data);
-          }
-        };
-        recorder.onstop = () => {
-          setIsRecording(false);
-          if (recordedChunksRef.current.length > 0) {
-            setHasRecording(true);
-          }
-        };
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setIsRecording(true);
+        try {
+          const mime = getSupportedAudioMime();
+          const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+          const recorder = new MediaRecorder(stream, opts);
+          recordedChunksRef.current = [];
+          recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              recordedChunksRef.current.push(event.data);
+            }
+          };
+          recorder.onstop = () => {
+            setIsRecording(false);
+            if (recordedChunksRef.current.length > 0) {
+              setHasRecording(true);
+            }
+          };
+          recorder.start();
+          mediaRecorderRef.current = recorder;
+          setIsRecording(true);
+        } catch (e) {
+          console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
+        }
       }
       // 영상 녹화 (다운로드용)
       if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
-        hadVideoRecordingRef.current = true;
-        const mime = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
-        const vRecorder = new MediaRecorder(stream, {
-          mimeType: mime,
-          videoBitsPerSecond: 2500000,
-          audioBitsPerSecond: 128000,
-        });
-        videoRecordedChunksRef.current = [];
-        vRecorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-            videoRecordedChunksRef.current.push(event.data);
-          }
-        };
-        vRecorder.start(1000);
-        videoRecorderRef.current = vRecorder;
+        try {
+          const mime = getSupportedVideoMime();
+          const opts = mime ? { mimeType: mime, videoBitsPerSecond: 1500000 } : {};
+          const vRecorder = new MediaRecorder(stream, opts);
+          hadVideoRecordingRef.current = true;
+          videoRecordedChunksRef.current = [];
+          vRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              videoRecordedChunksRef.current.push(event.data);
+            }
+          };
+          vRecorder.start(1000);
+          videoRecorderRef.current = vRecorder;
+        } catch (e) {
+          console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
+          hadVideoRecordingRef.current = false;
+        }
       } else {
         hadVideoRecordingRef.current = false;
       }
