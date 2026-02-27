@@ -470,13 +470,17 @@ const VisualChat = () => {
     scrollToBottom(chatScrollRefPc.current);
   }, [chatMessages]);
 
-  /** cnsl_stat 업데이트 (C=진행중, D=완료) */
+  /** cnsl_stat 업데이트: 통화 연결 A→C, 통화 종료 C→D */
   const updateCnslStat = async (stat) => {
     if (!chatId || !me?.email) return;
-    const base = import.meta.env.VITE_API_BASE_URL || '';
-    if (!base) return;
+    let base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+    if (!base) {
+      console.warn('cnsl_stat: VITE_API_BASE_URL 미설정으로 API 호출 생략');
+      return;
+    }
+    if (!base.endsWith('/api')) base = `${base}/api`;
     try {
-      await fetch(`${base.replace(/\/$/, '')}/cnsl/${chatId}/stat`, {
+      const res = await fetch(`${base}/cnsl/${chatId}/stat`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -484,6 +488,10 @@ const VisualChat = () => {
         },
         body: JSON.stringify({ cnslStat: stat }),
       });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        console.warn(`cnsl_stat 업데이트 실패 (${stat}):`, res.status, errBody);
+      }
     } catch (e) {
       console.warn('cnsl_stat 업데이트 실패:', e);
     }
