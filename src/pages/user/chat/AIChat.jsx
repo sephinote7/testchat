@@ -6,7 +6,11 @@ import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
 // GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)
 
-const AI_CHAT_API_BASE = (import.meta.env.VITE_AI_CHAT_API_URL || import.meta.env.VITE_SUMMARY_API_URL || 'https://testchatpy.onrender.com').replace(/\/$/, '');
+const AI_CHAT_API_BASE = (
+  import.meta.env.VITE_AI_CHAT_API_URL ||
+  import.meta.env.VITE_SUMMARY_API_URL ||
+  'https://testchatpy.onrender.com'
+).replace(/\/$/, '');
 
 function msgDataContentToMessages(content) {
   if (!Array.isArray(content)) return [];
@@ -26,8 +30,12 @@ const AIChat = () => {
   const [showStartModal, setShowStartModal] = useState(() => !urlCnslId);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [userEmail, setUserEmail] = useState('');
-  const [memberProfile, setMemberProfile] = useState({ mbti: null, persona: null });
-  const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
+  const [memberProfile, setMemberProfile] = useState({
+    mbti: null,
+    persona: null,
+  });
+  const [showProfileRequiredModal, setShowProfileRequiredModal] =
+    useState(false);
   const [profileCheckDone, setProfileCheckDone] = useState(false);
   const [loadingChat, setLoadingChat] = useState(!!cnslId);
   const [messages, setMessages] = useState([]);
@@ -67,7 +75,9 @@ const AIChat = () => {
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user?.email) setUserEmail(user.email);
     })();
   }, []);
@@ -92,7 +102,8 @@ const AIChat = () => {
         }
         if (data) {
           const mbtiVal = data.mbti != null ? String(data.mbti).trim() : '';
-          const personaVal = data.persona != null ? String(data.persona).trim() : '';
+          const personaVal =
+            data.persona != null ? String(data.persona).trim() : '';
           setMemberProfile({
             mbti: mbtiVal || null,
             persona: personaVal || null,
@@ -189,7 +200,11 @@ const AIChat = () => {
 
     if (useAiApi && userEmail) {
       setInput('');
-      const tempUser = { id: `temp-${Date.now()}`, role: 'user', text: trimmed };
+      const tempUser = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        text: trimmed,
+      };
       setMessages((prev) => [...prev, tempUser]);
       setAiThinking(true);
       try {
@@ -230,7 +245,11 @@ const AIChat = () => {
     }
 
     // cnslId 없음: 로컬 인사 1개만 (실제 대화는 testchatpy 연동 시에만)
-    const nextUserMessage = { id: `user-${Date.now()}`, role: 'user', text: trimmed };
+    const nextUserMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text: trimmed,
+    };
     const nextAiMessage = {
       id: `ai-${Date.now() + 1}`,
       role: 'ai',
@@ -250,7 +269,8 @@ const AIChat = () => {
     // 종료 처리에 시간이 걸릴 수 있음 안내
     const toast = document.createElement('div');
     toast.textContent = '상담 종료 처리 중입니다. 완료까지 잠시 기다려 주세요.';
-    toast.className = 'fixed top-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 bg-gray-800 text-white text-sm rounded-lg shadow-lg whitespace-nowrap';
+    toast.className =
+      'fixed top-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-3 bg-gray-800 text-white text-sm rounded-lg shadow-lg whitespace-nowrap';
     document.body.appendChild(toast);
     const removeToast = () => {
       toast.remove();
@@ -262,15 +282,22 @@ const AIChat = () => {
       // 1) msg_data로 AI 요약 생성 후 ai_msg.summary 저장 (반드시 먼저 호출)
       if (AI_CHAT_API_BASE && userEmail) {
         try {
-          const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}/summary`, {
-            method: 'POST',
-            headers: { 'X-User-Email': userEmail },
-          });
+          const res = await fetch(
+            `${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}/summary`,
+            {
+              method: 'POST',
+              headers: { 'X-User-Email': userEmail },
+            },
+          );
           const data = await res.json().catch(() => null);
           if (res.ok && data) {
             // cnsl_content(cnsl_reg용), summary(ai_msg용)는 백엔드에서 text로 반환됨. 문자열만 사용.
-            const cc = typeof data.cnsl_content === 'string' ? data.cnsl_content.trim() : '';
-            const sm = typeof data.summary === 'string' ? data.summary.trim() : '';
+            const cc =
+              typeof data.cnsl_content === 'string'
+                ? data.cnsl_content.trim()
+                : '';
+            const sm =
+              typeof data.summary === 'string' ? data.summary.trim() : '';
             summaryForCnsl = cc || sm || null;
           } else if (!res.ok) {
             console.warn('AI 요약 생성 실패:', res.status, data);
@@ -361,7 +388,9 @@ const AIChat = () => {
 
     // 새 AI 즉시 상담: cnsl_reg에 한 건 생성 (cnsl_tp=3, 상담사 없이 진행)
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       const email = (user?.email || '').trim();
       if (!email) {
         alert('로그인 후 이용 가능합니다.');
@@ -371,7 +400,9 @@ const AIChat = () => {
       const now = new Date();
       const cnslDt = now.toISOString().slice(0, 10); // YYYY-MM-DD
       const cnslStartTime = now.toISOString(); // 타임존 포함 ISO 문자열
-      const cnslEndTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 시작 기준 1시간 후
+      const cnslEndTime = new Date(
+        now.getTime() + 60 * 60 * 1000,
+      ).toISOString(); // 시작 기준 1시간 후
 
       const { data, error } = await supabase
         .from('cnsl_reg')
@@ -442,7 +473,8 @@ const AIChat = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
             <p className="text-center text-gray-800 font-medium leading-relaxed">
-              AI 상담을 위해 MBTI와 페르소나(성향) 정보가 필요합니다. 정보를 입력해 주세요.
+              상담을 위해 MBTI와 자기 소개 정보가 필요합니다. 정보를 입력해
+              주세요.
             </p>
             <div className="mt-6 flex gap-3">
               <button
@@ -470,25 +502,34 @@ const AIChat = () => {
           <div className="fixed inset-0 bg-white z-50 flex flex-col">
             <header className="bg-[#2563eb] h-14 flex items-center justify-center">
               <div className="flex items-center gap-2">
-                <span className="text-white text-xl leading-none font-bold">★</span>
+                <span className="text-white text-xl leading-none font-bold">
+                  ★
+                </span>
                 <span className="text-white text-lg font-bold">고민순삭</span>
               </div>
             </header>
             <div className="flex-1 bg-[#f3f7ff] px-6 py-8 flex flex-col items-center justify-start pt-16">
-              <h2 className="text-2xl font-bold text-gray-800 mb-8">누구와 상담을 하고 싶으세요?</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-8">
+                누구와 상담을 하고 싶으세요?
+              </h2>
               <div className="w-full bg-white rounded-3xl shadow-xl p-6 mb-6">
                 <div className="flex flex-col items-center mb-6">
                   <div className="w-20 h-20 mb-4 flex items-center justify-center">
                     <div className="text-[#2ed3c6] text-5xl">💬</div>
                   </div>
                   <div className="text-center mb-2">
-                    <p className="text-sm text-gray-600 mb-1">Healing Therapy</p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Healing Therapy
+                    </p>
                     <p className="text-2xl font-bold text-gray-800">고민순삭</p>
                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 text-center mb-4">꼭 확인해 주세요!</h3>
+                <h3 className="text-xl font-bold text-gray-800 text-center mb-4">
+                  꼭 확인해 주세요!
+                </h3>
                 <p className="text-sm text-gray-700 text-center leading-relaxed mb-6">
-                  본 상담은 AI 상담사와 진행되며, 상담 시작 버튼을 누르면 즉시 포인트가 차감됩니다.
+                  본 상담은 AI 상담사와 진행되며, 상담 시작 버튼을 누르면 즉시
+                  포인트가 차감됩니다.
                 </p>
                 <label className="flex items-center justify-center gap-2 mb-6 cursor-pointer">
                   <input
@@ -497,7 +538,9 @@ const AIChat = () => {
                     onChange={(e) => setAgreedToTerms(e.target.checked)}
                     className="w-5 h-5 accent-[#ef4444]"
                   />
-                  <span className="text-sm text-gray-700">상기 내용을 확인하였습니다</span>
+                  <span className="text-sm text-gray-700">
+                    상기 내용을 확인하였습니다
+                  </span>
                 </label>
                 <div className="flex gap-3">
                   <button
@@ -512,7 +555,9 @@ const AIChat = () => {
                     onClick={handleStartChat}
                     disabled={!agreedToTerms}
                     className={`flex-1 py-3 rounded-xl text-white font-bold text-lg transition-all ${
-                      agreedToTerms ? 'bg-[#2563eb] hover:bg-[#1d4ed8]' : 'bg-gray-300 cursor-not-allowed'
+                      agreedToTerms
+                        ? 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+                        : 'bg-gray-300 cursor-not-allowed'
                     }`}
                   >
                     상담 시작
@@ -520,11 +565,23 @@ const AIChat = () => {
                 </div>
               </div>
               <div className="w-full space-y-3 text-center">
-                <p className="text-xs text-gray-600">AI 상담 관련 향상 서비스</p>
-                <p className="text-xs text-gray-500">고민, 커리어, 취업 까지 혼자 고민하지 마세요.</p>
-                <p className="text-xs text-gray-500">* 고민순삭의 AI상담은 병원, 정신과적 진료가 아닐뿐더러 행동합니다.</p>
-                <p className="text-xs text-gray-500">AI 상담은 참고용으로 제공되며, 전문 상담사 개입이 필요하다고 생각 경우 즉시 바랍니다.</p>
-                <p className="text-xs text-gray-500 mt-4">© 2026 고민순삭 All rights reserved.</p>
+                <p className="text-xs text-gray-600">
+                  AI 상담 관련 향상 서비스
+                </p>
+                <p className="text-xs text-gray-500">
+                  고민, 커리어, 취업 까지 혼자 고민하지 마세요.
+                </p>
+                <p className="text-xs text-gray-500">
+                  * 고민순삭의 AI상담은 병원, 정신과적 진료가 아닐뿐더러
+                  행동합니다.
+                </p>
+                <p className="text-xs text-gray-500">
+                  AI 상담은 참고용으로 제공되며, 전문 상담사 개입이 필요하다고
+                  생각 경우 즉시 바랍니다.
+                </p>
+                <p className="text-xs text-gray-500 mt-4">
+                  © 2026 고민순삭 All rights reserved.
+                </p>
               </div>
             </div>
           </div>
@@ -544,15 +601,21 @@ const AIChat = () => {
         </header>
         <main className="px-[18px] pt-4 flex-1 overflow-y-auto pb-[132px]">
           {loading ? (
-            <div className="flex items-center justify-center min-h-[240px] text-gray-500">불러오는 중...</div>
+            <div className="flex items-center justify-center min-h-[240px] text-gray-500">
+              불러오는 중...
+            </div>
           ) : (
             <div className="flex flex-col gap-3 pb-6">
               {messages.map((message) => (
                 <div key={message.id} className="flex flex-col gap-1">
-                  <p className={`text-[11px] text-[#6b7280] ${message.role === 'ai' ? 'text-left' : 'text-right'}`}>
+                  <p
+                    className={`text-[11px] text-[#6b7280] ${message.role === 'ai' ? 'text-left' : 'text-right'}`}
+                  >
                     {message.role === 'ai' ? 'AI 상담사' : '사용자'}
                   </p>
-                  <div className={`flex ${message.role === 'ai' ? 'justify-start' : 'justify-end'}`}>
+                  <div
+                    className={`flex ${message.role === 'ai' ? 'justify-start' : 'justify-end'}`}
+                  >
                     <div
                       className={`max-w-[75%] rounded-[16px] px-3 py-2 text-[13px] leading-5 border ${
                         message.role === 'ai'
@@ -608,13 +671,18 @@ const AIChat = () => {
                   <div className="text-[#2ed3c6] text-6xl">💬</div>
                 </div>
                 <div className="text-center mb-2">
-                  <p className="text-base text-gray-600 mb-1">Healing Therapy</p>
+                  <p className="text-base text-gray-600 mb-1">
+                    Healing Therapy
+                  </p>
                   <p className="text-3xl font-bold text-gray-800">고민순삭</p>
                 </div>
               </div>
-              <h3 className="text-2xl font-bold text-gray-800 text-center mb-4">꼭 확인해 주세요!</h3>
+              <h3 className="text-2xl font-bold text-gray-800 text-center mb-4">
+                꼭 확인해 주세요!
+              </h3>
               <p className="text-base text-gray-700 text-center leading-relaxed mb-8">
-                본 상담은 AI 상담사와 진행되며, 상담 시작 버튼을 누르면 즉시 포인트가 차감됩니다.
+                본 상담은 AI 상담사와 진행되며, 상담 시작 버튼을 누르면 즉시
+                포인트가 차감됩니다.
               </p>
               <label className="flex items-center justify-center gap-3 mb-8 cursor-pointer">
                 <input
@@ -623,7 +691,9 @@ const AIChat = () => {
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
                   className="w-6 h-6 accent-[#ef4444]"
                 />
-                <span className="text-base text-gray-700">상기 내용을 확인하였습니다</span>
+                <span className="text-base text-gray-700">
+                  상기 내용을 확인하였습니다
+                </span>
               </label>
               <div className="flex gap-4">
                 <button
@@ -638,16 +708,24 @@ const AIChat = () => {
                   onClick={handleStartChat}
                   disabled={!agreedToTerms}
                   className={`flex-1 py-3 rounded-xl text-white font-bold text-lg transition-all ${
-                    agreedToTerms ? 'bg-[#2563eb] hover:bg-[#1d4ed8]' : 'bg-gray-300 cursor-not-allowed'
+                    agreedToTerms
+                      ? 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+                      : 'bg-gray-300 cursor-not-allowed'
                   }`}
                 >
                   상담 시작
                 </button>
               </div>
               <div className="mt-6 space-y-2 text-center">
-                <p className="text-xs text-gray-600">AI 상담 관련 향상 서비스</p>
-                <p className="text-xs text-gray-500">고민, 커리어, 취업 까지 혼자 고민하지 마세요.</p>
-                <p className="text-xs text-gray-500">* 고민순삭의 AI상담은 병원, 정신과적 진료가 아닙니다.</p>
+                <p className="text-xs text-gray-600">
+                  AI 상담 관련 향상 서비스
+                </p>
+                <p className="text-xs text-gray-500">
+                  고민, 커리어, 취업 까지 혼자 고민하지 마세요.
+                </p>
+                <p className="text-xs text-gray-500">
+                  * 고민순삭의 AI상담은 병원, 정신과적 진료가 아닙니다.
+                </p>
               </div>
             </div>
           </div>
@@ -672,9 +750,12 @@ const AIChat = () => {
             <div className="bg-gradient-to-r from-[#f0fffd] to-[#e6fffe] py-6 px-8 border-b-2 border-[#2ed3c6]/20">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800 mb-1">AI와 함께하는 상담</h2>
+                  <h2 className="text-xl font-bold text-gray-800 mb-1">
+                    AI와 함께하는 상담
+                  </h2>
                   <p className="text-sm text-gray-600">
-                    고민과 걱정을 함께 정리해 보세요. 첫 답변까지 조금 시간이 걸릴 수 있습니다.
+                    고민과 걱정을 함께 정리해 보세요. 첫 답변까지 조금 시간이
+                    걸릴 수 있습니다.
                   </p>
                 </div>
                 {cnslId && (
@@ -695,15 +776,21 @@ const AIChat = () => {
             </div>
             <main className="flex-1 overflow-y-auto px-12 py-8 bg-gradient-to-b from-gray-50 to-white">
               {loading ? (
-                <div className="flex items-center justify-center min-h-[300px] text-gray-500">불러오는 중...</div>
+                <div className="flex items-center justify-center min-h-[300px] text-gray-500">
+                  불러오는 중...
+                </div>
               ) : (
                 <div className="flex flex-col gap-6 max-w-[1100px] mx-auto">
                   {messages.map((message) => (
                     <div key={message.id} className="flex flex-col gap-2">
-                      <p className={`text-sm font-medium text-gray-600 ${message.role === 'ai' ? 'text-left' : 'text-right'}`}>
+                      <p
+                        className={`text-sm font-medium text-gray-600 ${message.role === 'ai' ? 'text-left' : 'text-right'}`}
+                      >
                         {message.role === 'ai' ? '🤖 AI 상담사' : '👤 나'}
                       </p>
-                      <div className={`flex ${message.role === 'ai' ? 'justify-start' : 'justify-end'}`}>
+                      <div
+                        className={`flex ${message.role === 'ai' ? 'justify-start' : 'justify-end'}`}
+                      >
                         <div
                           className={`max-w-[70%] rounded-2xl px-6 py-4 text-base leading-relaxed shadow-md ${
                             message.role === 'ai'
@@ -725,7 +812,10 @@ const AIChat = () => {
                 </div>
               )}
             </main>
-            <form onSubmit={handleSend} className="px-12 py-6 bg-white border-t-2 border-gray-100 rounded-b-3xl">
+            <form
+              onSubmit={handleSend}
+              className="px-12 py-6 bg-white border-t-2 border-gray-100 rounded-b-3xl"
+            >
               <div className="flex items-center gap-4 max-w-[1100px] mx-auto">
                 <input
                   type="text"
@@ -743,7 +833,9 @@ const AIChat = () => {
                   전송
                 </button>
               </div>
-              <p className="text-sm text-gray-500 text-center mt-3">AI는 학습 중이며, 답변이 부정확할 수 있습니다.</p>
+              <p className="text-sm text-gray-500 text-center mt-3">
+                AI는 학습 중이며, 답변이 부정확할 수 있습니다.
+              </p>
             </form>
           </div>
         </div>
