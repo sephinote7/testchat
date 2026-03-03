@@ -26,6 +26,7 @@ const AIChat = () => {
   const [showStartModal, setShowStartModal] = useState(() => !urlCnslId);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [memberProfile, setMemberProfile] = useState({ mbti: null, persona: null });
   const [loadingChat, setLoadingChat] = useState(!!cnslId);
   const [messages, setMessages] = useState([]);
   const [cnslInfo, setCnslInfo] = useState(null); // { id, stat, startAt, endAt }
@@ -68,6 +69,28 @@ const AIChat = () => {
       if (user?.email) setUserEmail(user.email);
     })();
   }, []);
+
+  // member 테이블에서 mbti, persona 조회 (상담 참고용)
+  useEffect(() => {
+    if (!userEmail) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('member')
+          .select('mbti, persona')
+          .eq('email', userEmail)
+          .maybeSingle();
+        if (data) {
+          setMemberProfile({
+            mbti: data.mbti || null,
+            persona: data.persona || null,
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [userEmail]);
 
   // cnsl_reg 정보 조회 (상담 상태/시작·종료 시간)
   useEffect(() => {
@@ -157,7 +180,11 @@ const AIChat = () => {
             'Content-Type': 'application/json',
             'X-User-Email': userEmail,
           },
-          body: JSON.stringify({ content: trimmed }),
+          body: JSON.stringify({
+            content: trimmed,
+            mbti: memberProfile.mbti || undefined,
+            persona: memberProfile.persona || undefined,
+          }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -441,8 +468,18 @@ const AIChat = () => {
             </div>
           </div>
         )}
-        <header className="bg-[#2ed3c6] h-16 flex items-center justify-center text-white font-bold text-lg">
-          AI 상담
+        <header className="bg-[#2ed3c6] h-16 flex items-center justify-between px-4 text-white font-bold text-lg">
+          <span>AI 상담</span>
+          {cnslId && (
+            <button
+              type="button"
+              onClick={handleEndChat}
+              disabled={isEndingChat}
+              className="h-9 px-4 rounded-lg bg-white/20 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isEndingChat ? '종료 처리 중...' : '상담 종료'}
+            </button>
+          )}
         </header>
         <main className="px-[18px] pt-4 flex-1 overflow-y-auto pb-[132px]">
           {loading ? (
