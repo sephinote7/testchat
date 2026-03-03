@@ -21,7 +21,12 @@ const FloatingChatbot = () => {
   const navigate = useNavigate();
 
   const [isOpen, setIsOpen] = useState(false);
-  const { messages, setMessages, clearMessages } = useChatbotStore();
+  const {
+    messages: storeMessages,
+    setMessages,
+    clearMessages,
+  } = useChatbotStore();
+  const messages = Array.isArray(storeMessages) ? storeMessages : [];
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
 
