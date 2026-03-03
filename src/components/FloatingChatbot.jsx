@@ -195,6 +195,7 @@ const FloatingChatbot = () => {
       const payload = {
         member_id: user.email,
         msg_data: conversation,
+        created_at: new Date().toISOString(),
       };
       if (typeof summary === 'string') {
         payload.summary = summary;
@@ -459,6 +460,14 @@ const FloatingChatbot = () => {
                   <button
                     type="button"
                     onClick={() => {
+                      if (messages.length > 0) {
+                        const conversation = [...messages];
+                        const summaryText = buildSummaryText(conversation);
+                        saveConversationToSupabase(conversation, summaryText);
+                        if (summaryTimeoutRef.current) {
+                          clearTimeout(summaryTimeoutRef.current);
+                        }
+                      }
                       setMessages([createIntroMessage()]);
                     }}
                     className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50"
