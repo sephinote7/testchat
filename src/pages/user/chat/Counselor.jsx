@@ -1,13 +1,13 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import CounselorList from './CounselorList';
-import CounselorChat from './CounselorChat';
+import CounselorView from './CounselorView';
 
 const Counselor = () => {
   return (
     <Routes>
       <Route index element={<CounselorList />} />
-      <Route path=":id" element={<CounselorChat />} />
+      <Route path=":c_id" element={<CounselorView />} />
     </Routes>
   );
 };

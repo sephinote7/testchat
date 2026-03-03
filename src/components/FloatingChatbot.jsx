@@ -47,9 +47,9 @@ const FloatingChatbot = () => {
       case 'counseling':
         botResponse = '상담사 찾기 페이지로 이동합니다...';
         links = [
-          { label: '상담사 페이지 링크', path: '/chat/cnslchat' },
+          { label: '상담사 페이지 링크', path: '/chat/counselor' },
           { label: 'AI 상담', path: '/chat/withai' },
-          { label: '전화 상담', path: '/chat/cnslchat' }
+          { label: '전화 상담', path: '/chat/counselor' }
         ];
         break;
       default:

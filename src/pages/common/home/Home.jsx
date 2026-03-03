@@ -129,7 +129,7 @@ const Home = () => {
 
               {/* 커리어 상담 → 상담사 찾기 (커리어) */}
               <Link
-                to="/chat/cnslchat?category=career"
+                to="/chat/counselor?category=career"
                 className="flex items-center justify-center gap-4 px-4 py-[22px] rounded-[14px] text-white no-underline shadow-[0_8px_16px_rgba(0,0,0,0.08)] bg-gradient-to-r from-[#4f9bff] to-[#2f80ed]"
               >
                 <div className="w-16 h-16 rounded-full border-2 border-white/70 flex items-center justify-center font-bold text-2xl bg-white/10">
@@ -144,7 +144,7 @@ const Home = () => {
 
               {/* 취업 상담 → 상담사 찾기 (취업) */}
               <Link
-                to="/chat/cnslchat?category=job"
+                to="/chat/counselor?category=job"
                 className="flex items-center justify-center gap-4 px-4 py-[22px] rounded-[14px] text-white no-underline shadow-[0_8px_16px_rgba(0,0,0,0.08)] bg-gradient-to-r from-[#2563eb] to-[#1e40af]"
               >
                 <div className="w-16 h-16 rounded-full border-2 border-white/70 flex items-center justify-center font-bold text-2xl bg-white/10">
@@ -296,7 +296,7 @@ const Home = () => {
 
                 {/* 커리어 상담 → 상담사 찾기 (커리어) */}
                 <Link
-                  to="/chat/cnslchat?category=career"
+                  to="/chat/counselor?category=career"
                   className="bg-gradient-to-br from-[#4f9bff] to-[#2f80ed] rounded-[20px] p-8 text-white shadow-[0_8px_24px_rgba(47,128,237,0.25)] hover:shadow-[0_12px_32px_rgba(47,128,237,0.35)] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px]"
                 >
                   <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-[52px] mb-4">
@@ -312,7 +312,7 @@ const Home = () => {
 
                 {/* 취업 상담 → 상담사 찾기 (취업) */}
                 <Link
-                  to="/chat/cnslchat?category=job"
+                  to="/chat/counselor?category=job"
                   className="bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-[20px] p-8 text-white shadow-[0_8px_24px_rgba(37,99,235,0.25)] hover:shadow-[0_12px_32px_rgba(37,99,235,0.35)] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center justify-center text-center min-h-[200px]"
                 >
                   <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-[52px] mb-4">

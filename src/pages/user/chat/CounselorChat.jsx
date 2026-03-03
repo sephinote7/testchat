@@ -559,7 +559,7 @@ const CounselorChat = () => {
     return (
       <div className="w-full min-h-screen flex flex-col items-center justify-center bg-[#f3f7ff] gap-4">
         <p className="text-gray-800">{errorMsg}</p>
-        <Link to="/chat/cnslchat" className="text-[#2f80ed] font-semibold hover:underline">
+        <Link to="/chat/counselor" className="text-[#2f80ed] font-semibold hover:underline">
           상담 목록으로
         </Link>
       </div>

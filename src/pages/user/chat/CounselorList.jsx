@@ -277,7 +277,7 @@ const CounselorList = () => {
               currentItems.map((item) => (
                 <Link
                   key={item.id}
-                  to={`/chat/cnslchat/${item.id}`}
+                  to={`/chat/counselor/${item.id}`}
                   className="bg-white rounded-[14px] p-4 shadow-[0_8px_16px_rgba(0,0,0,0.06)] flex gap-3 no-underline"
                 >
                   <div className="w-[68px] h-[68px] rounded-full bg-[#e9efff] flex items-center justify-center text-[#2f80ed] font-bold text-[16px]">
@@ -455,7 +455,7 @@ const CounselorList = () => {
                   currentItems.map((item) => (
                     <Link
                       key={item.id}
-                      to={`/chat/cnslchat/${item.id}`}
+                      to={`/chat/counselor/${item.id}`}
                       className="bg-white rounded-2xl p-8 shadow-sm flex gap-8 no-underline hover:shadow-md transition-all group"
                     >
                       <div className="w-[140px] h-[140px] rounded-full bg-gradient-to-br from-[#e9efff] to-[#d1e0ff] flex items-center justify-center text-[#2f80ed] font-bold text-4xl shadow-lg group-hover:scale-105 transition-transform">
