@@ -1,16 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 const DISCLAIMER_TEXT =
-  '저희 AI 챗봇은 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. 약속, 제안, 또는 협박을 할 권한이 없습니다. 중요한 문의사항에 대해선 정보를 확인하거나 고객 지원 팀에 문의해 주세요.';
+  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. 약속, 제안, 또는 협박을 할 권한이 없습니다. 중요한 문의사항에 대해선 정보를 확인하거나 고객 지원 팀에 문의해 주세요.";
 
 // 고민순삭 홈페이지 이용 안내용 컨텍스트 (백엔드 @testchatpy 로 전달)
 const SITE_CONTEXT = [
   '이 서비스는 고민순삭 홈페이지입니다. 취업, 커리어, 상담 관련 정보를 제공합니다.',
   '주요 메뉴: INFO(가이드), 회원가입/로그인, AI 상담(/chat/withai), 상담사 찾기(/chat/counselor), 1:1 상담 채팅(/chat/cnslchat/:id) 등이 있습니다.',
   '사용자는 상담사 목록에서 상담사를 선택하고 상세 프로필을 확인한 뒤, 텍스트 상담을 신청할 수 있습니다.',
-  'AI 챗봇은 고민순삭 홈페이지 이용 방법, 메뉴 위치, 기능 설명과 같이 사이트와 직접적으로 관련된 질문에만 답변해야 합니다.',
+  "순삭이는 고민순삭 홈페이지 이용 방법, 메뉴 위치, 기능 설명과 같이 사이트와 직접적으로 관련된 질문에만 답변해야 합니다.",
   '회사 정책, 법률, 건강, 금융 등 홈페이지와 직접적으로 관련 없는 주제에 대해서는 답변을 거절하고 고객센터나 공식 안내를 확인하도록 안내해야 합니다.',
 ];
 
@@ -24,11 +25,6 @@ const FloatingChatbot = () => {
   const [isSending, setIsSending] = useState(false);
 
   const messagesEndRef = useRef(null);
-
-  // USER 역할이 아니면 챗봇 표시하지 않음
-  if (!user || user.role !== 'USER') {
-    return null;
-  }
 
   useEffect(() => {
     if (!isOpen) return;
@@ -49,7 +45,7 @@ const FloatingChatbot = () => {
         id: `intro-${Date.now()}`,
         sender: 'bot',
         text: [
-          '안녕하세요, 고민순삭 어시스턴트입니다.',
+          '안녕하세요, 고민순삭 어시스턴트 순삭이입니다.',
           '고민순삭 홈페이지 이용 방법과 메뉴 위치 등 사이트 관련 질문에만 답변을 드릴 수 있어요.',
           '원하시는 내용을 아래에 자유롭게 입력해 주세요.',
         ].join(' '),
@@ -109,6 +105,16 @@ const FloatingChatbot = () => {
       content: m.text,
     }));
 
+  const buildSummaryText = (allMessages, answerText) => {
+    const reversed = [...allMessages].reverse();
+    const lastUser = reversed.find((m) => m.sender === 'user');
+    const questionPart = lastUser ? `최근 질문: ${lastUser.text}` : '';
+    const answerPart = answerText ? ` / 답변: ${answerText}` : '';
+    const combined = `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
+    if (combined.length > 150) return `${combined.slice(0, 147)}...`;
+    return combined;
+  };
+
   const sendMessageToBackend = async (messageText, nextMessages) => {
     try {
       const endpoint =
@@ -141,14 +147,33 @@ const FloatingChatbot = () => {
         data.answer ||
         '죄송합니다. 지금은 정확한 답변을 드리기 어렵습니다. 잠시 후 다시 시도해 주세요.';
 
+      const nowMessage = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        text: answer,
+        timestamp: now,
+      };
+
+      // 로그인된 회원이면 bot_msg 테이블에 jsonb로 대화 저장
+      if (user?.isLogin && user.email) {
+        try {
+          const conversationForSave = [...nextMessages, nowMessage];
+          const summaryText = data.summary || buildSummaryText(conversationForSave, answer);
+
+          await supabase.from('bot_msg').insert({
+            member_id: user.email,
+            msg_data: conversationForSave,
+            summary: summaryText,
+          });
+        } catch (e) {
+          // 저장 실패는 UI 흐름을 막지 않음
+          console.warn('bot_msg 저장 실패:', e);
+        }
+      }
+
       setMessages((prev) => [
         ...prev,
-        {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          text: answer,
-          timestamp: now,
-        },
+        nowMessage,
       ]);
     } catch (error) {
       const now = new Date().toLocaleTimeString('ko-KR', {
@@ -213,7 +238,7 @@ const FloatingChatbot = () => {
             className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {message.sender === 'bot' && (
-              <div className="mr-2 mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-main-02 text-[11px] font-semibold text-white">
+              <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-main-02 text-[11px] font-semibold text-white">
                 AI
               </div>
             )}
@@ -261,17 +286,17 @@ const FloatingChatbot = () => {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 sm:items-end sm:justify-end">
           {/* 모바일/태블릿: 하단 시트, PC: 우측 하단 카드 */}
           <div className="mb-20 w-full max-w-md px-3 sm:mb-8 sm:px-8">
-            <div className="flex h-[70vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[520px]">
+            <div className="flex h-[860px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[595px] sm:w-[390px]">
               {/* 상단 헤더 (파란색, X 버튼) */}
-              <div className="flex items-center justify-between bg-main-02 px-4 py-3 text-white">
+              <div className="flex h-[72px] items-center justify-between bg-main-02 px-4 text-white">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
                     AI
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-semibold">고민순삭 어시스턴트</span>
-                    <span className="text-[11px] text-white/80">
-                      홈페이지 이용을 도와드릴게요
+                    <span className="text-sm font-semibold">고민순삭 어시스턴트 순삭이</span>
+                    <span className="text-[10px] text-white/80">
+                      고민순삭 홈페이지 이용을 도와드릴게요
                     </span>
                   </div>
                 </div>
@@ -297,7 +322,7 @@ const FloatingChatbot = () => {
               </div>
 
               {/* 채팅 영역 */}
-              <div className="flex-1 bg-main-01 px-3 py-3 text-xs text-gray-800 sm:px-4 sm:py-4">
+              <div className="flex-1 bg-main-01 px-3 py-3 text-xs text-gray-800 sm:px-4 sm:py-4 overflow-y-auto">
                 {renderMessages()}
               </div>
 
@@ -309,7 +334,7 @@ const FloatingChatbot = () => {
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="고민순삭 홈페이지 이용 관련 질문을 입력해 주세요."
-                    className="max-h-24 flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2 text-xs leading-relaxed outline-none focus:border-main-02 focus:ring-1 focus:ring-main-02"
+                    className="min-h-[40px] max-h-24 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-3 py-2 text-xs leading-relaxed outline-none focus:border-main-02 focus:ring-1 focus:ring-main-02"
                   />
                   <button
                     type="submit"
@@ -344,24 +369,26 @@ const FloatingChatbot = () => {
       )}
 
       {/* 플로팅 버튼 (모바일 / PC 공통) */}
-      <button
-        type="button"
-        onClick={openChat}
-        className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-main-02 text-white shadow-xl transition-transform hover:scale-105 sm:bottom-6 sm:right-6 sm:h-16 sm:w-16"
-        aria-label="고민순삭 챗봇 열기"
-      >
-        <svg
-          className="h-6 w-6"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {!isOpen && (
+        <button
+          type="button"
+          onClick={openChat}
+          className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-main-02 text-white shadow-xl transition-transform hover:scale-105 sm:bottom-6 sm:right-6 sm:h-16 sm:w-16"
+          aria-label="고민순삭 챗봇 열기"
         >
-          <path d="M21 11.5C21.0034 12.8199 20.6321 14.1152 19.93 15.24C19.0831 16.6514 17.7923 17.7365 16.2541 18.3078C14.7159 18.8791 13.0259 18.9026 11.4723 18.3741L7 20L8.10457 16.0523C7.41024 14.9044 7.03955 13.5755 7.037 12.22C7.037 8.497 9.962 5.5 13.5 5.5C15.2141 5.48777 16.8582 6.1511 18.0826 7.35914C19.307 8.56717 20.012 10.2251 20 11.94L21 11.5Z" />
-        </svg>
-      </button>
+          <svg
+            className="h-6 w-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 11.5C21.0034 12.8199 20.6321 14.1152 19.93 15.24C19.0831 16.6514 17.7923 17.7365 16.2541 18.3078C14.7159 18.8791 13.0259 18.9026 11.4723 18.3741L7 20L8.10457 16.0523C7.41024 14.9044 7.03955 13.5755 7.037 12.22C7.037 8.497 9.962 5.5 13.5 5.5C15.2141 5.48777 16.8582 6.1511 18.0826 7.35914C19.307 8.56717 20.012 10.2251 20 11.94L21 11.5Z" />
+          </svg>
+        </button>
+      )}
     </>
   );
 };

@@ -551,7 +551,7 @@ const CounselorChat = () => {
     return (
       <div className="w-full min-h-screen flex items-center justify-center bg-[#f3f7ff]">
         <p className="text-gray-600">로딩 중...</p>
-      </div>
+            </div>
     );
   }
 
@@ -561,8 +561,8 @@ const CounselorChat = () => {
         <p className="text-gray-800">{errorMsg}</p>
         <Link to="/chat/counselor" className="text-[#2f80ed] font-semibold hover:underline">
           상담 목록으로
-        </Link>
-      </div>
+            </Link>
+          </div>
     );
   }
 
@@ -637,10 +637,10 @@ const CounselorChat = () => {
                   </div>
                 ))
               )}
-            </div>
+                </div>
             <form onSubmit={handleChatSubmit} className="flex gap-2 p-3 border-t border-[#e5e7eb] shrink-0">
-              <input
-                type="text"
+            <input
+              type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={isInputDisabled ? '상담 시작 후 메시지를 입력할 수 있습니다.' : '메시지를 입력하세요'}
@@ -648,8 +648,8 @@ const CounselorChat = () => {
                 className={`flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-xs ${isInputDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
               />
               <button type="submit" disabled={isInputDisabled} className="h-9 px-3 rounded-[10px] bg-[#2f80ed] text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-                전송
-              </button>
+              전송
+            </button>
             </form>
           </div>
         </main>
@@ -691,8 +691,8 @@ const CounselorChat = () => {
                   {cnslInfo?.title && <p className="font-medium text-gray-800 mb-1">{cnslInfo.title}</p>}
                   {cnslInfo?.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
                   {cnslInfo?.content && <p className="leading-relaxed whitespace-pre-line">{cnslInfo.content}</p>}
-                </div>
-              </div>
+                    </div>
+                  </div>
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">{infoLabel}</h3>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
@@ -706,8 +706,8 @@ const CounselorChat = () => {
                     </>
                   )}
                 </div>
+                </div>
               </div>
-            </div>
 
             {/* 우측 채팅 영역 */}
             <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-2xl border border-[#e5e7eb] bg-white shadow-lg overflow-hidden">
@@ -745,10 +745,10 @@ const CounselorChat = () => {
                     </div>
                   ))
                 )}
-              </div>
+                </div>
               <form onSubmit={handleChatSubmit} className="flex gap-3 p-4 border-t border-[#e5e7eb] shrink-0">
-                <input
-                  type="text"
+                  <input
+                    type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder={isInputDisabled ? '상담 시작 후 메시지를 입력할 수 있습니다.' : '메시지를 입력하세요'}
@@ -756,8 +756,8 @@ const CounselorChat = () => {
                   className={`flex-1 h-12 rounded-xl border border-[#dbe3f1] px-4 text-sm focus:outline-none focus:border-[#2f80ed] ${isInputDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                 />
                 <button type="submit" disabled={isInputDisabled} className="h-12 px-6 rounded-xl bg-[#2f80ed] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-                  전송
-                </button>
+                    전송
+                  </button>
               </form>
             </div>
           </main>
