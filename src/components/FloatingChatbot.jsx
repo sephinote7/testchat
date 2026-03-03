@@ -306,8 +306,8 @@ const FloatingChatbot = () => {
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 sm:items-end sm:justify-end">
           {/* 모바일/태블릿: 하단 시트, PC: 우측 하단 카드 */}
-          <div className="mb-20 w-full max-w-md px-3 sm:mb-8 sm:px-8">
-            <div className="flex h-[860px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[600px] sm:w-[390px]">
+          <div className="mb-0 w-full max-w-md px-3 sm:mb-8 sm:px-8">
+            <div className="flex h-[860px] max-h-[calc(100vh-40px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[600px] sm:max-h-[600px] sm:w-[390px]">
               {/* 상단 헤더 (파란색, X 버튼) */}
               <div className="flex h-[72px] items-center justify-between bg-main-02 px-4 text-white">
                 <div className="flex items-center gap-2">

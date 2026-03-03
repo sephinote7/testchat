@@ -705,7 +705,7 @@ const CounselorChat = () => {
                       )}
                     </>
                   )}
-                </div>
+                  </div>
                 </div>
               </div>
 
