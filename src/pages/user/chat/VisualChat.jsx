@@ -477,12 +477,17 @@ const VisualChat = () => {
     scrollToBottom(chatScrollRefPc.current);
   }, [chatMessages]);
 
-  /** cnsl_stat 업데이트: 통화 연결 A→C, 통화 종료 C→D */
+  /** cnsl_stat 업데이트: 통화 연결 A→C, 통화 종료 C→D. Supabase 직접 갱신으로 상대방 Realtime 동기화 */
   const updateCnslStat = async (stat) => {
     if (!chatId || !me?.email) return;
+    const cnslIdNum = parseInt(chatId, 10);
+    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
+
+    const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
+    if (!error) return;
     let base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
     if (!base) {
-      console.warn('cnsl_stat: VITE_API_BASE_URL 미설정으로 API 호출 생략');
+      console.warn('cnsl_stat: Supabase 실패, API URL 미설정');
       return;
     }
     if (!base.endsWith('/api')) base = `${base}/api`;
@@ -546,6 +551,39 @@ const VisualChat = () => {
     };
   }, [chatId, me?.email]);
 
+  // cnsl_stat 동기화: 상대가 먼저 상담 종료 시 이쪽도 종료 처리 (Realtime + 폴링)
+  useEffect(() => {
+    if (!chatId || !me?.email) return;
+    const cnslIdNum = parseInt(chatId, 10);
+    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
+
+    const channel = supabase
+      .channel(`cnsl_reg:${chatId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'cnsl_reg', filter: `cnsl_id=eq.${cnslIdNum}` },
+        (payload) => {
+          const newStat = payload?.new?.cnsl_stat;
+          if (String(newStat).toUpperCase() === 'D') {
+            runCallEndCleanupRef.current?.(true);
+          }
+        },
+      )
+      .subscribe();
+
+    const pollStat = setInterval(async () => {
+      const { data } = await supabase.from('cnsl_reg').select('cnsl_stat').eq('cnsl_id', cnslIdNum).maybeSingle();
+      if (data?.cnsl_stat && String(data.cnsl_stat).toUpperCase() === 'D') {
+        runCallEndCleanupRef.current?.(true);
+      }
+    }, 1500);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollStat);
+    };
+  }, [chatId, me?.email]);
+
   // mediaStream, remoteStream ref 동기화
   useEffect(() => {
     mediaStreamRef.current = mediaStream;
@@ -582,20 +620,27 @@ const VisualChat = () => {
     const myId = sanitizePeerId(me.email);
     if (!myId) return;
 
-    // 같은 공유기/사설망에서 상대 화면이 안 보일 때 ICE(STUN/TURN)로 연결 보완
-    const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    // 같은 공유기/로컬 휴대폰에서 상대 화면이 안 보일 때 ICE(STUN/TURN) 보완. TURN 설정 시 relay 우선 시도
+    const iceServers = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ];
     const turnUrl = import.meta.env.VITE_TURN_URL;
     const turnUser = import.meta.env.VITE_TURN_USER;
     const turnCred = import.meta.env.VITE_TURN_CREDENTIAL;
     if (turnUrl && turnUser && turnCred) {
       iceServers.push({ urls: turnUrl, username: turnUser, credential: turnCred });
     }
-    const peer = new Peer(myId, {
+    const peerConfig = {
       host: import.meta.env.VITE_PEER_HOST || '0.peerjs.com',
       secure: true,
       key: import.meta.env.VITE_PEER_KEY || 'peerjs',
-      config: { iceServers },
-    });
+      config: {
+        iceServers,
+        ...(turnUrl ? { iceTransportPolicy: 'relay' } : {}),
+      },
+    };
+    const peer = new Peer(myId, peerConfig);
     peerRef.current = peer;
 
     peer.on('open', () => {
@@ -1104,12 +1149,12 @@ const VisualChat = () => {
     }
   };
 
-  /** 통화 종료 시 공통 정리 로직 (양쪽 모두 실행). 원격 종료 시 call.on('close')에서도 호출 */
-  const runCallEndCleanup = () => {
+  /** 통화 종료 시 공통 정리 로직. skipSaveAndStat=true: 상대가 먼저 종료해 cnsl_stat=D 이미 반영된 경우(저장/stat 생략) */
+  const runCallEndCleanup = (skipSaveAndStat = false) => {
     if (callEndCleanupRanRef.current) return;
     callEndCleanupRanRef.current = true;
 
-    updateCnslStatRef.current?.('D');
+    if (!skipSaveAndStat) updateCnslStatRef.current?.('D');
     setRemoteStream(null);
 
     if (mediaRecorderRef.current) {
@@ -1147,7 +1192,7 @@ const VisualChat = () => {
       },
     );
 
-    setTimeout(() => saveSummaryInBackground(), 1500);
+    if (!skipSaveAndStat) setTimeout(() => saveSummaryInBackground(), 1500);
   };
   runCallEndCleanupRef.current = runCallEndCleanup;
 
