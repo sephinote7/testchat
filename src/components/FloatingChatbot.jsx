@@ -152,12 +152,37 @@ const FloatingChatbot = () => {
         label: 'AI 상담으로 이동하기 >',
         path: '/chat/withai',
       });
+      actions.push({
+        label: '이력서/자소서 가이드 보기 >',
+        path: '/info/d_guide',
+      });
     }
 
     if (lower.includes('상담사 찾기') || lower.includes('상담사')) {
       actions.push({
         label: '상담사 찾기 페이지로 이동하기 >',
         path: '/chat/counselor',
+      });
+    }
+
+    if (lower.includes('포인트 잔액') || (lower.includes('포인트') && lower.includes('잔액'))) {
+      actions.push({
+        label: '포인트 잔액 확인하기 >',
+        path: '/mypage',
+      });
+    }
+
+    if (lower.includes('포인트 충전')) {
+      actions.push({
+        label: '포인트 충전 페이지로 이동하기 >',
+        path: '/mypage/point-charge',
+      });
+    }
+
+    if (lower.includes('포인트 사용내역') || lower.includes('포인트 사용 내역')) {
+      actions.push({
+        label: '포인트 사용내역 보기 >',
+        path: '/mypage/point-usage',
       });
     }
 
@@ -174,9 +199,7 @@ const FloatingChatbot = () => {
       if (typeof summary === 'string') {
         payload.summary = summary;
       }
-      await supabase
-        .from('bot_msg')
-        .upsert(payload, { onConflict: 'member_id' });
+      await supabase.from('bot_msg').insert(payload);
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('bot_msg 저장 실패:', e);
