@@ -133,11 +133,22 @@ const FloatingChatbot = () => {
         }),
       });
 
+      let data;
       if (!response.ok) {
-        throw new Error('챗봇 서버 응답 오류');
+        let errorBody = null;
+        try {
+          errorBody = await response.json();
+        } catch {
+          // ignore
+        }
+        const detail =
+          (errorBody && (errorBody.error || errorBody.message)) ||
+          response.statusText ||
+          'Unknown error';
+        throw new Error(`챗봇 서버 응답 오류 (${response.status} ${detail})`);
+      } else {
+        data = await response.json();
       }
-
-      const data = await response.json();
       const now = new Date().toLocaleTimeString('ko-KR', {
         hour: '2-digit',
         minute: '2-digit',
@@ -176,10 +187,19 @@ const FloatingChatbot = () => {
         nowMessage,
       ]);
     } catch (error) {
+      // 콘솔에는 구체적인 오류 로그 남김 (예: 405 Method Not Allowed)
+      // eslint-disable-next-line no-console
+      console.error('FloatingChatbot sendMessageToBackend error:', error);
+
       const now = new Date().toLocaleTimeString('ko-KR', {
         hour: '2-digit',
         minute: '2-digit',
       });
+
+      const detail =
+        error instanceof Error && error.message
+          ? ` (${error.message})`
+          : '';
 
       setMessages((prev) => [
         ...prev,
@@ -187,7 +207,8 @@ const FloatingChatbot = () => {
           id: `bot-error-${Date.now()}`,
           sender: 'bot',
           text:
-            '지금은 챗봇 서버와 통신이 원활하지 않습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객 지원 팀에 문의해 주세요.',
+            '지금은 챗봇 서버와 통신이 원활하지 않습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객 지원 팀에 문의해 주세요.' +
+            detail,
           timestamp: now,
         },
       ]);
@@ -243,7 +264,7 @@ const FloatingChatbot = () => {
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm ${
+              className={`max-w-[80%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed shadow-sm sm:text-sm ${
                 message.sender === 'user'
                   ? 'bg-white text-gray-800 border border-gray-200'
                   : 'bg-white text-gray-800 border border-main-02/30'
@@ -283,10 +304,10 @@ const FloatingChatbot = () => {
     <>
       {/* 플로팅 챗봇 패널 (모바일 + PC 공통) */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 sm:items-end sm:justify-end">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 sm:items-end sm:justify-end">
           {/* 모바일/태블릿: 하단 시트, PC: 우측 하단 카드 */}
           <div className="mb-20 w-full max-w-md px-3 sm:mb-8 sm:px-8">
-            <div className="flex h-[860px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[595px] sm:w-[390px]">
+            <div className="flex h-[860px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[600px] sm:w-[390px]">
               {/* 상단 헤더 (파란색, X 버튼) */}
               <div className="flex h-[72px] items-center justify-between bg-main-02 px-4 text-white">
                 <div className="flex items-center gap-2">
@@ -322,19 +343,28 @@ const FloatingChatbot = () => {
               </div>
 
               {/* 채팅 영역 */}
-              <div className="flex-1 bg-main-01 px-3 py-3 text-xs text-gray-800 sm:px-4 sm:py-4 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto bg-main-01 px-3 py-3 text-[13px] text-gray-800 sm:h-[380px] sm:flex-none sm:px-4 sm:py-4 sm:text-sm">
                 {renderMessages()}
               </div>
 
               {/* 입력 영역 + 고지 문구 */}
-              <div className="border-t border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-3">
-                <form onSubmit={handleSubmit} className="mb-2 flex items-end gap-2">
+              <div className="border-t border-gray-200 bg-white px-3 py-2 sm:h-[148px] sm:flex-none sm:px-4 sm:py-3">
+                <form
+                  onSubmit={handleSubmit}
+                  className="mb-2 flex h-[70px] items-end gap-2"
+                >
                   <textarea
                     rows={1}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="고민순삭 홈페이지 이용 관련 질문을 입력해 주세요."
-                    className="min-h-[40px] max-h-24 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-3 py-2 text-xs leading-relaxed outline-none focus:border-main-02 focus:ring-1 focus:ring-main-02"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSubmit(e);
+                      }
+                    }}
+                    className="min-h-[40px] max-h-24 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-main-02 focus:ring-1 focus:ring-main-02 sm:text-sm"
                   />
                   <button
                     type="submit"
