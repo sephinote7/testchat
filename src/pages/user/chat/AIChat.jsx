@@ -27,6 +27,7 @@ const AIChat = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [memberProfile, setMemberProfile] = useState({ mbti: null, persona: null });
+  const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
   const [loadingChat, setLoadingChat] = useState(!!cnslId);
   const [messages, setMessages] = useState([]);
   const [cnslInfo, setCnslInfo] = useState(null); // { id, stat, startAt, endAt }
@@ -85,9 +86,16 @@ const AIChat = () => {
             mbti: data.mbti || null,
             persona: data.persona || null,
           });
+          const hasMbti = (data.mbti || '').toString().trim();
+          const hasPersona = (data.persona || '').toString().trim();
+          if (!hasMbti || !hasPersona) {
+            setShowProfileRequiredModal(true);
+          }
+        } else {
+          setShowProfileRequiredModal(true);
         }
       } catch {
-        /* ignore */
+        setShowProfileRequiredModal(true);
       }
     })();
   }, [userEmail]);
@@ -395,6 +403,20 @@ const AIChat = () => {
     }
   };
 
+  const handleProfileRequiredEdit = () => {
+    setShowProfileRequiredModal(false);
+    navigate('/mypage/editinfo');
+  };
+
+  const handleProfileRequiredCancel = () => {
+    setShowProfileRequiredModal(false);
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/chat');
+    }
+  };
+
   const loading = useAiApi && loadingChat;
 
   if (shouldRedirectToActive) {
@@ -403,6 +425,33 @@ const AIChat = () => {
 
   return (
     <>
+      {/* MBTI/페르소나 입력 필요 안내 모달 */}
+      {showProfileRequiredModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <p className="text-center text-gray-800 font-medium leading-relaxed">
+              AI 상담을 위해 MBTI와 페르소나(성향) 정보가 필요합니다. 정보를 입력해 주세요.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={handleProfileRequiredCancel}
+                className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                취소하기
+              </button>
+              <button
+                type="button"
+                onClick={handleProfileRequiredEdit}
+                className="flex-1 rounded-xl bg-[#2563eb] py-3 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
+              >
+                정보수정
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
         {showStartModal && !(!cnslId && activeCnslId) && (
