@@ -4,14 +4,14 @@ import useAuth from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 
 const DISCLAIMER_TEXT =
-  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. 약속, 제안, 또는 협박을 할 권한이 없습니다. 중요한 문의사항에 대해선 정보를 확인하거나 고객 지원 팀에 문의해 주세요.";
+  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. ";
 
 // 고민순삭 홈페이지 이용 안내용 컨텍스트 (백엔드 @testchatpy 로 전달)
 const SITE_CONTEXT = [
   '이 서비스는 고민순삭 홈페이지입니다. 취업, 커리어, 상담 관련 정보를 제공합니다.',
   '주요 메뉴: INFO(가이드), 회원가입/로그인, AI 상담(/chat/withai), 상담사 찾기(/chat/counselor), 1:1 상담 채팅(/chat/cnslchat/:id) 등이 있습니다.',
   '사용자는 상담사 목록에서 상담사를 선택하고 상세 프로필을 확인한 뒤, 텍스트 상담을 신청할 수 있습니다.',
-  "순삭이는 고민순삭 홈페이지 이용 방법, 메뉴 위치, 기능 설명과 같이 사이트와 직접적으로 관련된 질문에만 답변해야 합니다.",
+  '순삭이는 고민순삭 홈페이지 이용 방법, 메뉴 위치, 기능 설명과 같이 사이트와 직접적으로 관련된 질문에만 답변해야 합니다.',
   '회사 정책, 법률, 건강, 금융 등 홈페이지와 직접적으로 관련 없는 주제에 대해서는 답변을 거절하고 고객센터나 공식 안내를 확인하도록 안내해야 합니다.',
 ];
 
@@ -110,7 +110,8 @@ const FloatingChatbot = () => {
     const lastUser = reversed.find((m) => m.sender === 'user');
     const questionPart = lastUser ? `최근 질문: ${lastUser.text}` : '';
     const answerPart = answerText ? ` / 답변: ${answerText}` : '';
-    const combined = `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
+    const combined =
+      `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
     if (combined.length > 150) return `${combined.slice(0, 147)}...`;
     return combined;
   };
@@ -169,7 +170,8 @@ const FloatingChatbot = () => {
       if (user?.isLogin && user.email) {
         try {
           const conversationForSave = [...nextMessages, nowMessage];
-          const summaryText = data.summary || buildSummaryText(conversationForSave, answer);
+          const summaryText =
+            data.summary || buildSummaryText(conversationForSave, answer);
 
           await supabase.from('bot_msg').insert({
             member_id: user.email,
@@ -182,10 +184,7 @@ const FloatingChatbot = () => {
         }
       }
 
-      setMessages((prev) => [
-        ...prev,
-        nowMessage,
-      ]);
+      setMessages((prev) => [...prev, nowMessage]);
     } catch (error) {
       // 콘솔에는 구체적인 오류 로그 남김 (예: 405 Method Not Allowed)
       // eslint-disable-next-line no-console
@@ -197,9 +196,7 @@ const FloatingChatbot = () => {
       });
 
       const detail =
-        error instanceof Error && error.message
-          ? ` (${error.message})`
-          : '';
+        error instanceof Error && error.message ? ` (${error.message})` : '';
 
       setMessages((prev) => [
         ...prev,
@@ -246,7 +243,8 @@ const FloatingChatbot = () => {
     if (messages.length === 0) {
       return (
         <div className="flex h-full items-center justify-center text-xs text-gray-400">
-          아직 대화가 없습니다. 하단 입력창에 고민순삭 홈페이지 관련 질문을 입력해 보세요.
+          아직 대화가 없습니다. 하단 입력창에 고민순삭 홈페이지 관련 질문을
+          입력해 보세요.
         </div>
       );
     }
@@ -278,7 +276,9 @@ const FloatingChatbot = () => {
                     <button
                       key={action.label}
                       type="button"
-                      onClick={() => handleQuickAction(action.path, action.label)}
+                      onClick={() =>
+                        handleQuickAction(action.path, action.label)
+                      }
                       className="block w-full rounded-lg bg-main-01 px-3 py-2 text-left text-[11px] font-medium text-main-02 hover:bg-main-02/10"
                     >
                       {action.label}
@@ -315,8 +315,10 @@ const FloatingChatbot = () => {
                     AI
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-semibold">고민순삭 어시스턴트 순삭이</span>
-                    <span className="text-[10px] text-white/80">
+                    <span className="text-sm font-semibold">
+                      고민순삭 어시스턴트 순삭이
+                    </span>
+                    <span className="sm text-white/80">
                       고민순삭 홈페이지 이용을 도와드릴게요
                     </span>
                   </div>
@@ -351,7 +353,7 @@ const FloatingChatbot = () => {
               <div className="border-t border-gray-200 bg-white px-3 py-2 sm:h-[148px] sm:flex-none sm:px-4 sm:py-3">
                 <form
                   onSubmit={handleSubmit}
-                  className="mb-2 flex h-[70px] items-end gap-2"
+                  className="mb-2 flex h-[50px] items-center gap-2"
                 >
                   <textarea
                     rows={1}
@@ -389,7 +391,7 @@ const FloatingChatbot = () => {
                     </svg>
                   </button>
                 </form>
-                <p className="text-[10px] leading-snug text-gray-500">
+                <p className="xs leading-snug text-gray-500">
                   {DISCLAIMER_TEXT}
                 </p>
               </div>
