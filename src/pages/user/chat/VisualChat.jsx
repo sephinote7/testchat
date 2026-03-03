@@ -582,10 +582,19 @@ const VisualChat = () => {
     const myId = sanitizePeerId(me.email);
     if (!myId) return;
 
+    // 같은 공유기/사설망에서 상대 화면이 안 보일 때 ICE(STUN/TURN)로 연결 보완
+    const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const turnUrl = import.meta.env.VITE_TURN_URL;
+    const turnUser = import.meta.env.VITE_TURN_USER;
+    const turnCred = import.meta.env.VITE_TURN_CREDENTIAL;
+    if (turnUrl && turnUser && turnCred) {
+      iceServers.push({ urls: turnUrl, username: turnUser, credential: turnCred });
+    }
     const peer = new Peer(myId, {
       host: import.meta.env.VITE_PEER_HOST || '0.peerjs.com',
       secure: true,
       key: import.meta.env.VITE_PEER_KEY || 'peerjs',
+      config: { iceServers },
     });
     peerRef.current = peer;
 
@@ -924,9 +933,10 @@ const VisualChat = () => {
   const saveSummaryInBackground = async () => {
     if (!chatId || !me?.email) return;
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
     const summarizeUrl =
       import.meta.env.VITE_SUMMARIZE_API_URL ||
-      (base ? `${base}/summarize` : '') ||
+      (apiBase ? `${apiBase}/summarize` : '') ||
       'http://localhost:8000/api/summarize';
 
     const basePayload = chatMessages.map((msg) => ({
@@ -963,7 +973,18 @@ const VisualChat = () => {
           const data = await summaryRes.json();
           summaryText = (data.summary || '').slice(0, 300);
           summaryLine = (data.summary_line || '').trim();
-          msgDataList = Array.isArray(data.msg_data) ? data.msg_data : basePayload;
+          // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
+          const apiMsgData = data.msg_data;
+          if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
+            msgDataList = apiMsgData.map((item) => ({
+              type: item.type || 'chat',
+              speaker: item.speaker || 'user',
+              text: item.text != null ? String(item.text) : '',
+              timestamp: item.timestamp != null ? String(item.timestamp) : String(Date.now()),
+            }));
+          } else {
+            msgDataList = basePayload;
+          }
         }
       } catch (e) {
         console.warn('요약 API 실패:', e);
@@ -1021,10 +1042,10 @@ const VisualChat = () => {
     };
 
     let apiSaved = false;
-    if (base) {
+    if (apiBase) {
       try {
         if (msgDataList.length > 0) {
-          const r = await fetch(`${base}/cnsl/${chatId}/chat/summary-full`, {
+          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1039,7 +1060,7 @@ const VisualChat = () => {
           });
           if (r.ok) apiSaved = true;
           else {
-            const fallback = await fetch(`${base}/cnsl/${chatId}/chat`, {
+            const fallback = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1055,7 +1076,7 @@ const VisualChat = () => {
             if (fallback.ok) apiSaved = true;
           }
         } else {
-          const r = await fetch(`${base}/cnsl/${chatId}/chat`, {
+          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
