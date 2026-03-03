@@ -4,12 +4,12 @@ import useAuth from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 
 const DISCLAIMER_TEXT =
-  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. ";
+  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. 약속, 제안, 또는 협박을 할 권한이 없습니다. 중요한 문의사항에 대해선 정보를 확인하거나 고객 지원 팀에 문의해 주세요.";
 
 // 고민순삭 홈페이지 이용 안내용 컨텍스트 (백엔드 @testchatpy 로 전달)
 const SITE_CONTEXT = [
   '이 서비스는 고민순삭 홈페이지입니다. 취업, 커리어, 상담 관련 정보를 제공합니다.',
-  '주요 메뉴: INFO(가이드), 회원가입/로그인, AI 상담(/chat/withai), 상담사 찾기(/chat/counselor), 1:1 상담 채팅(/chat/cnslchat/:id) 등이 있습니다.',
+  '주요 메뉴: INFO(가이드), 회원가입/로그인, AI 상담, 상담사 찾기, 1:1 상담 채팅 등이 있습니다.',
   '사용자는 상담사 목록에서 상담사를 선택하고 상세 프로필을 확인한 뒤, 텍스트 상담을 신청할 수 있습니다.',
   '순삭이는 고민순삭 홈페이지 이용 방법, 메뉴 위치, 기능 설명과 같이 사이트와 직접적으로 관련된 질문에만 답변해야 합니다.',
   '회사 정책, 법률, 건강, 금융 등 홈페이지와 직접적으로 관련 없는 주제에 대해서는 답변을 거절하고 고객센터나 공식 안내를 확인하도록 안내해야 합니다.',
@@ -25,12 +25,22 @@ const FloatingChatbot = () => {
   const [isSending, setIsSending] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const summaryTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
     if (!messagesEndRef.current) return;
     messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, isOpen]);
+
+  useEffect(
+    () => () => {
+      if (summaryTimeoutRef.current) {
+        clearTimeout(summaryTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const ensureIntroMessage = () => {
     if (messages.length > 0) return;
@@ -105,15 +115,77 @@ const FloatingChatbot = () => {
       content: m.text,
     }));
 
-  const buildSummaryText = (allMessages, answerText) => {
+  const buildSummaryText = (allMessages) => {
     const reversed = [...allMessages].reverse();
     const lastUser = reversed.find((m) => m.sender === 'user');
+    const lastBot = reversed.find((m) => m.sender === 'bot');
     const questionPart = lastUser ? `최근 질문: ${lastUser.text}` : '';
-    const answerPart = answerText ? ` / 답변: ${answerText}` : '';
-    const combined =
-      `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
+    const answerPart = lastBot ? ` / 최근 답변: ${lastBot.text}` : '';
+    const combined = `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
     if (combined.length > 150) return `${combined.slice(0, 147)}...`;
     return combined;
+  };
+
+  const buildQuickActionsFromAnswer = (answer) => {
+    const actions = [];
+    const lower = answer.toLowerCase();
+
+    if (lower.includes('회원가입')) {
+      actions.push({
+        label: '회원가입으로 이동하기 >',
+        path: '/member/signup',
+      });
+    }
+
+    if (
+      lower.includes('ai 상담') ||
+      lower.includes('ai상담') ||
+      lower.includes('이력서') ||
+      lower.includes('자소서') ||
+      lower.includes('자기소개서')
+    ) {
+      actions.push({
+        label: 'AI 상담으로 이동하기 >',
+        path: '/chat/withai',
+      });
+    }
+
+    if (lower.includes('상담사 찾기') || lower.includes('상담사')) {
+      actions.push({
+        label: '상담사 찾기 페이지로 이동하기 >',
+        path: '/chat/counselor',
+      });
+    }
+
+    return actions;
+  };
+
+  const saveConversationToSupabase = async (conversation, summary) => {
+    if (!user?.isLogin || !user.email) return;
+    try {
+      const payload = {
+        member_id: user.email,
+        msg_data: conversation,
+      };
+      if (typeof summary === 'string') {
+        payload.summary = summary;
+      }
+      await supabase.from('bot_msg').upsert(payload, { onConflict: 'member_id' });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('bot_msg 저장 실패:', e);
+    }
+  };
+
+  const scheduleSummarySave = (conversation) => {
+    if (!user?.isLogin || !user.email) return;
+    if (summaryTimeoutRef.current) {
+      clearTimeout(summaryTimeoutRef.current);
+    }
+    summaryTimeoutRef.current = setTimeout(() => {
+      const summaryText = buildSummaryText(conversation);
+      saveConversationToSupabase(conversation, summaryText);
+    }, 5 * 60 * 1000);
   };
 
   const sendMessageToBackend = async (messageText, nextMessages) => {
@@ -159,29 +231,22 @@ const FloatingChatbot = () => {
         data.answer ||
         '죄송합니다. 지금은 정확한 답변을 드리기 어렵습니다. 잠시 후 다시 시도해 주세요.';
 
+      const quickActions = buildQuickActionsFromAnswer(answer);
+
       const nowMessage = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
         text: answer,
         timestamp: now,
+        ...(quickActions.length ? { quickActions } : {}),
       };
 
-      // 로그인된 회원이면 bot_msg 테이블에 jsonb로 대화 저장
       if (user?.isLogin && user.email) {
-        try {
-          const conversationForSave = [...nextMessages, nowMessage];
-          const summaryText =
-            data.summary || buildSummaryText(conversationForSave, answer);
-
-          await supabase.from('bot_msg').insert({
-            member_id: user.email,
-            msg_data: conversationForSave,
-            summary: summaryText,
-          });
-        } catch (e) {
-          // 저장 실패는 UI 흐름을 막지 않음
-          console.warn('bot_msg 저장 실패:', e);
-        }
+        const conversationForSave = [...nextMessages, nowMessage];
+        // 실시간 msg_data 저장
+        saveConversationToSupabase(conversationForSave);
+        // 마지막 답장에서 5분 뒤 summary 업데이트
+        scheduleSummarySave(conversationForSave);
       }
 
       setMessages((prev) => [...prev, nowMessage]);
@@ -355,6 +420,28 @@ const FloatingChatbot = () => {
                   onSubmit={handleSubmit}
                   className="mb-2 flex h-[50px] items-center gap-2"
                 >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessages([]);
+                      ensureIntroMessage();
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50"
+                    aria-label="처음 안내 보기"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 12L12 3l9 9" />
+                      <path d="M9 21V12h6v9" />
+                    </svg>
+                  </button>
                   <textarea
                     rows={1}
                     value={inputValue}
