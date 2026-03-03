@@ -4,7 +4,7 @@ import useAuth from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 
 const DISCLAIMER_TEXT =
-  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다. 약속, 제안, 또는 협박을 할 권한이 없습니다. 중요한 문의사항에 대해선 정보를 확인하거나 고객 지원 팀에 문의해 주세요.";
+  "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다.";
 
 // 고민순삭 홈페이지 이용 안내용 컨텍스트 (백엔드 @testchatpy 로 전달)
 const SITE_CONTEXT = [
@@ -121,7 +121,8 @@ const FloatingChatbot = () => {
     const lastBot = reversed.find((m) => m.sender === 'bot');
     const questionPart = lastUser ? `최근 질문: ${lastUser.text}` : '';
     const answerPart = lastBot ? ` / 최근 답변: ${lastBot.text}` : '';
-    const combined = `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
+    const combined =
+      `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
     if (combined.length > 150) return `${combined.slice(0, 147)}...`;
     return combined;
   };
@@ -170,7 +171,9 @@ const FloatingChatbot = () => {
       if (typeof summary === 'string') {
         payload.summary = summary;
       }
-      await supabase.from('bot_msg').upsert(payload, { onConflict: 'member_id' });
+      await supabase
+        .from('bot_msg')
+        .upsert(payload, { onConflict: 'member_id' });
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('bot_msg 저장 실패:', e);
@@ -182,10 +185,13 @@ const FloatingChatbot = () => {
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
     }
-    summaryTimeoutRef.current = setTimeout(() => {
-      const summaryText = buildSummaryText(conversation);
-      saveConversationToSupabase(conversation, summaryText);
-    }, 5 * 60 * 1000);
+    summaryTimeoutRef.current = setTimeout(
+      () => {
+        const summaryText = buildSummaryText(conversation);
+        saveConversationToSupabase(conversation, summaryText);
+      },
+      5 * 60 * 1000,
+    );
   };
 
   const sendMessageToBackend = async (messageText, nextMessages) => {
@@ -446,7 +452,7 @@ const FloatingChatbot = () => {
                     rows={1}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="고민순삭 홈페이지 이용 관련 질문을 입력해 주세요."
+                    placeholder="메시지를 입력해 주세요."
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
