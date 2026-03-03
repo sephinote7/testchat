@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { useChatbotStore } from '../stores/useChatbotStore';
 
 const DISCLAIMER_TEXT =
   "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다.";
@@ -20,7 +21,7 @@ const FloatingChatbot = () => {
   const navigate = useNavigate();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const { messages, setMessages, clearMessages } = useChatbotStore();
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
 
@@ -468,6 +469,7 @@ const FloatingChatbot = () => {
                           clearTimeout(summaryTimeoutRef.current);
                         }
                       }
+                      clearMessages();
                       setMessages([createIntroMessage()]);
                     }}
                     className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50"
