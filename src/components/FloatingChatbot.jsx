@@ -27,6 +27,45 @@ const FloatingChatbot = () => {
   const messagesEndRef = useRef(null);
   const summaryTimeoutRef = useRef(null);
 
+  const createIntroMessage = () => {
+    const now = new Date().toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    return {
+      id: `intro-${Date.now()}`,
+      sender: 'bot',
+      text: [
+        '안녕하세요, 고민순삭 어시스턴트 순삭이입니다.',
+        '고민순삭 홈페이지 이용 방법과 메뉴 위치 등 사이트 관련 질문에만 답변을 드릴 수 있어요.',
+        '원하시는 내용을 아래에 자유롭게 입력해 주세요.',
+      ].join(' '),
+      timestamp: now,
+      quickActions: [
+        {
+          label: '이력서/자소서 가이드 보기',
+          path: '/info',
+        },
+        {
+          label: '상담사 찾기',
+          path: '/chat/counselor',
+        },
+        {
+          label: 'AI 상담 바로가기',
+          path: '/chat/withai',
+        },
+      ],
+    };
+  };
+
+  const ensureIntroMessage = () => {
+    setMessages((prev) => {
+      if (prev.length > 0) return prev;
+      return [createIntroMessage()];
+    });
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     if (!messagesEndRef.current) return;
@@ -41,42 +80,6 @@ const FloatingChatbot = () => {
     },
     [],
   );
-
-  const ensureIntroMessage = () => {
-    if (messages.length > 0) return;
-
-    const now = new Date().toLocaleTimeString('ko-KR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    setMessages([
-      {
-        id: `intro-${Date.now()}`,
-        sender: 'bot',
-        text: [
-          '안녕하세요, 고민순삭 어시스턴트 순삭이입니다.',
-          '고민순삭 홈페이지 이용 방법과 메뉴 위치 등 사이트 관련 질문에만 답변을 드릴 수 있어요.',
-          '원하시는 내용을 아래에 자유롭게 입력해 주세요.',
-        ].join(' '),
-        timestamp: now,
-        quickActions: [
-          {
-            label: '이력서/자소서 가이드 보기',
-            path: '/info',
-          },
-          {
-            label: '상담사 찾기',
-            path: '/chat/counselor',
-          },
-          {
-            label: 'AI 상담 바로가기',
-            path: '/chat/withai',
-          },
-        ],
-      },
-    ]);
-  };
 
   const openChat = () => {
     setIsOpen(true);
@@ -429,8 +432,7 @@ const FloatingChatbot = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      setMessages([]);
-                      ensureIntroMessage();
+                      setMessages([createIntroMessage()]);
                     }}
                     className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 text-gray-500 hover:bg-gray-50"
                     aria-label="처음 안내 보기"
