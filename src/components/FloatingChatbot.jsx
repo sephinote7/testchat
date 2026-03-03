@@ -199,7 +199,11 @@ const FloatingChatbot = () => {
       if (typeof summary === 'string') {
         payload.summary = summary;
       }
-      await supabase.from('bot_msg').insert(payload);
+      const { error } = await supabase.from('bot_msg').insert(payload);
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.warn('bot_msg 저장 실패:', error);
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('bot_msg 저장 실패:', e);
