@@ -31,11 +31,11 @@ function mapMemberRow(row) {
 
 /**
  * cnsl_tp=4 상담사 1:1 채팅 (텍스트)
- * 라우트: /chat/counselor/:cnsl_id
+ * 라우트: /chat/cnslchat/:id
  * 좌측 정보 패널, 우측 채팅 영역. chat_msg 사용.
  */
 const CounselorChat = () => {
-  const { cnsl_id } = useParams();
+  const { id: cnsl_id } = useParams();
   const navigate = useNavigate();
 
   const [me, setMe] = useState(null);
@@ -121,7 +121,7 @@ const CounselorChat = () => {
           );
           if (inProgressItem?.cnsl_id) {
             setLoading(false);
-            navigate(`/chat/counselor/${inProgressItem.cnsl_id}`, { replace: true });
+            navigate(`/chat/cnslchat/${inProgressItem.cnsl_id}`, { replace: true });
             return;
           }
         }
@@ -559,7 +559,7 @@ const CounselorChat = () => {
     return (
       <div className="w-full min-h-screen flex flex-col items-center justify-center bg-[#f3f7ff] gap-4">
         <p className="text-gray-800">{errorMsg}</p>
-        <Link to="/chat/counselor" className="text-[#2f80ed] font-semibold hover:underline">
+        <Link to="/chat/cnslchat" className="text-[#2f80ed] font-semibold hover:underline">
           상담 목록으로
         </Link>
       </div>

@@ -90,7 +90,7 @@ const ChatDefaultPage = () => {
             </Link>
 
             <Link
-              to="/chat/counselor"
+              to="/chat/cnslchat"
               className="rounded-[14px] bg-[#2f80ed] text-white p-4 min-h-[150px] flex flex-col items-center justify-center gap-3 shadow-[0_8px_16px_rgba(0,0,0,0.08)]"
             >
               <div className="w-16 h-16 rounded-full border-2 border-white/70 flex items-center justify-center font-bold text-sm bg-white/10">
@@ -142,7 +142,7 @@ const ChatDefaultPage = () => {
 
               {/* 상담사와 상담하기 */}
               <Link
-                to="/chat/counselor"
+                to="/chat/cnslchat"
                 className="rounded-3xl bg-gradient-to-br from-[#2f80ed] to-[#2563eb] text-white p-16 min-h-[400px] flex flex-col items-center justify-center gap-8 shadow-[0_20px_40px_rgba(0,0,0,0.12)] hover:shadow-[0_24px_48px_rgba(0,0,0,0.16)] transition-all hover:scale-105"
               >
                 <div className="w-32 h-32 rounded-full border-4 border-white/70 flex items-center justify-center font-bold text-2xl bg-white/10 shadow-lg">

@@ -164,7 +164,7 @@ const CounselorView = () => {
         <main className="px-[18px] pt-6 text-center text-[14px] text-[#6b7280]">
           상담사 정보를 찾을 수 없습니다.
           <div className="mt-4">
-            <Link to="/chat/counselor" className="text-[#2f80ed] font-semibold">
+            <Link to="/chat/cnslchat" className="text-[#2f80ed] font-semibold">
               상담사 목록으로
             </Link>
           </div>

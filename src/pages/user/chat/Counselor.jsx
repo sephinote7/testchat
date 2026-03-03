@@ -7,7 +7,7 @@ const Counselor = () => {
   return (
     <Routes>
       <Route index element={<CounselorList />} />
-      <Route path=":cnsl_id" element={<CounselorChat />} />
+      <Route path=":id" element={<CounselorChat />} />
     </Routes>
   );
 };
