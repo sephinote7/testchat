@@ -28,6 +28,7 @@ const AIChat = () => {
   const [userEmail, setUserEmail] = useState('');
   const [memberProfile, setMemberProfile] = useState({ mbti: null, persona: null });
   const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
+  const [profileCheckDone, setProfileCheckDone] = useState(false);
   const [loadingChat, setLoadingChat] = useState(!!cnslId);
   const [messages, setMessages] = useState([]);
   const [cnslInfo, setCnslInfo] = useState(null); // { id, stat, startAt, endAt }
@@ -71,24 +72,32 @@ const AIChat = () => {
     })();
   }, []);
 
-  // member 테이블에서 mbti, persona 조회 (상담 참고용)
+  // member 테이블에서 mbti, persona 조회 (상담 참고용) — Supabase public.member 기준 email 컬럼
   useEffect(() => {
-    if (!userEmail) return;
+    if (!userEmail) {
+      setProfileCheckDone(true);
+      return;
+    }
     (async () => {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('member')
           .select('mbti, persona')
           .eq('email', userEmail)
           .maybeSingle();
+        if (error) {
+          setShowProfileRequiredModal(true);
+          setProfileCheckDone(true);
+          return;
+        }
         if (data) {
+          const mbtiVal = data.mbti != null ? String(data.mbti).trim() : '';
+          const personaVal = data.persona != null ? String(data.persona).trim() : '';
           setMemberProfile({
-            mbti: data.mbti || null,
-            persona: data.persona || null,
+            mbti: mbtiVal || null,
+            persona: personaVal || null,
           });
-          const hasMbti = (data.mbti || '').toString().trim();
-          const hasPersona = (data.persona || '').toString().trim();
-          if (!hasMbti || !hasPersona) {
+          if (!mbtiVal || !personaVal) {
             setShowProfileRequiredModal(true);
           }
         } else {
@@ -96,6 +105,8 @@ const AIChat = () => {
         }
       } catch {
         setShowProfileRequiredModal(true);
+      } finally {
+        setProfileCheckDone(true);
       }
     })();
   }, [userEmail]);
@@ -419,7 +430,8 @@ const AIChat = () => {
 
   const loading = useAiApi && loadingChat;
 
-  if (shouldRedirectToActive) {
+  // 프로필 확인 후에만 리다이렉트 (mbti/persona 없을 때 안내 모달을 먼저 보여주기 위함)
+  if (shouldRedirectToActive && profileCheckDone && !showProfileRequiredModal) {
     return <Navigate to={`/chat/withai/${activeCnslId}`} replace />;
   }
 
