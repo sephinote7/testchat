@@ -124,16 +124,63 @@ const FloatingChatbot = () => {
       content: m.text,
     }));
 
-  const buildSummaryText = (allMessages) => {
-    const reversed = [...allMessages].reverse();
-    const lastUser = reversed.find((m) => m.sender === 'user');
-    const lastBot = reversed.find((m) => m.sender === 'bot');
-    const questionPart = lastUser ? `최근 질문: ${lastUser.text}` : '';
-    const answerPart = lastBot ? ` / 최근 답변: ${lastBot.text}` : '';
-    const combined =
-      `${questionPart}${answerPart}`.trim() || '고민순삭 챗봇 대화 기록';
-    if (combined.length > 150) return `${combined.slice(0, 147)}...`;
-    return combined;
+  // Supabase 저장용 포맷으로 변환: id, quickActions 제거, sender -> speaker
+  const toStorageMessages = (allMessages) =>
+    (Array.isArray(allMessages) ? allMessages : []).map((m) => ({
+      speaker: m.sender === 'user' ? 'user' : 'bot',
+      text: m.text,
+      timestamp: m.timestamp,
+    }));
+
+  // summary: 어떤 질문/요구를 했고, 어떤 답변/기능을 사용했는지 간단 정리
+  const buildSummaryText = (storageMessages) => {
+    const msgs = Array.isArray(storageMessages) ? storageMessages : [];
+    if (!msgs.length) return '고민순삭 챗봇 대화 기록';
+
+    const userMsgs = msgs.filter((m) => m.speaker === 'user');
+    const botMsgs = msgs.filter((m) => m.speaker === 'bot');
+
+    const firstUser = userMsgs[0];
+    const lastUser = userMsgs[userMsgs.length - 1];
+    const lastBot = botMsgs[botMsgs.length - 1];
+
+    const questionSummary = firstUser
+      ? firstUser.text.length > 60
+        ? `${firstUser.text.slice(0, 57)}...`
+        : firstUser.text
+      : '';
+
+    const requirementSummary =
+      userMsgs.length > 1 && lastUser && lastUser !== firstUser
+        ? lastUser.text.length > 60
+          ? `${lastUser.text.slice(0, 57)}...`
+          : lastUser.text
+        : '';
+
+    const answerSummary = lastBot
+      ? lastBot.text.length > 80
+        ? `${lastBot.text.slice(0, 77)}...`
+        : lastBot.text
+      : '';
+
+    const features = [];
+    const joinedText = msgs.map((m) => m.text).join(' ');
+    const lower = joinedText.toLowerCase();
+    if (lower.includes('ai 상담')) features.push('AI 상담 안내');
+    if (lower.includes('상담사 찾기')) features.push('상담사 찾기 안내');
+    if (lower.includes('회원가입')) features.push('회원가입 안내');
+    if (lower.includes('포인트')) features.push('포인트/마이페이지 안내');
+    if (lower.includes('이력서') || lower.includes('자소서') || lower.includes('자기소개서'))
+      features.push('이력서/자소서 가이드');
+
+    const parts = [];
+    if (questionSummary) parts.push(`주요 질문: ${questionSummary}`);
+    if (requirementSummary) parts.push(`추가 요구사항: ${requirementSummary}`);
+    if (answerSummary) parts.push(`제공된 답변: ${answerSummary}`);
+    if (features.length) parts.push(`안내한 기능: ${features.join(', ')}`);
+
+    const combined = parts.join(' / ') || '고민순삭 챗봇 대화 기록';
+    return combined.length > 250 ? `${combined.slice(0, 247)}...` : combined;
   };
 
   const buildQuickActionsFromAnswer = (answer) => {
@@ -198,9 +245,10 @@ const FloatingChatbot = () => {
   const saveConversationToSupabase = async (conversation, summary) => {
     if (!user?.isLogin || !user.email) return;
     try {
+      const storageMessages = toStorageMessages(conversation);
       const payload = {
         member_id: user.email,
-        msg_data: conversation,
+        msg_data: storageMessages,
         created_at: new Date().toISOString(),
       };
       if (typeof summary === 'string') {
@@ -224,7 +272,8 @@ const FloatingChatbot = () => {
     }
     summaryTimeoutRef.current = setTimeout(
       () => {
-        const summaryText = buildSummaryText(conversation);
+        const storageMessages = toStorageMessages(conversation);
+        const summaryText = buildSummaryText(storageMessages);
         saveConversationToSupabase(conversation, summaryText);
       },
       5 * 60 * 1000,
@@ -468,7 +517,8 @@ const FloatingChatbot = () => {
                     onClick={() => {
                       if (messages.length > 0) {
                         const conversation = [...messages];
-                        const summaryText = buildSummaryText(conversation);
+                        const storageMessages = toStorageMessages(conversation);
+                        const summaryText = buildSummaryText(storageMessages);
                         saveConversationToSupabase(conversation, summaryText);
                         if (summaryTimeoutRef.current) {
                           clearTimeout(summaryTimeoutRef.current);
