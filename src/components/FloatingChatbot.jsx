@@ -729,7 +729,8 @@ const FloatingChatbot = () => {
       .in('cnsl_stat', ['A', 'C']);
 
     const query =
-      typeof notificationsLastSeenId === 'number' && Number.isFinite(notificationsLastSeenId)
+      typeof notificationsLastSeenId === 'number' &&
+      Number.isFinite(notificationsLastSeenId)
         ? baseQuery.gt('cnsl_id', notificationsLastSeenId)
         : baseQuery;
 
@@ -1505,7 +1506,7 @@ const FloatingChatbot = () => {
 
       {/* 플로팅 버튼 (모바일 / PC 공통, 알림 있을 때 우상단 숫자 배지) */}
       {!isOpen && (
-        <div className="fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
+        <div className="fixed bottom-20 right-3 z-40 sm:bottom-6 sm:right-6">
           <button
             type="button"
             onClick={openChat}
