@@ -9,7 +9,14 @@ export const useChatbotStore = create(
   persist(
     (set) => ({
       messages: [],
-      setMessages: (messages) => set({ messages }),
+      // updater: 배열 또는 (prevMessages) => newMessages 형태 모두 허용
+      setMessages: (updater) =>
+        set((state) => {
+          const prev = Array.isArray(state.messages) ? state.messages : [];
+          const next =
+            typeof updater === 'function' ? updater(prev) : updater || [];
+          return { messages: Array.isArray(next) ? next : prev };
+        }),
       clearMessages: () => set({ messages: [] }),
     }),
     {
