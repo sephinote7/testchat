@@ -25,6 +25,9 @@ const FloatingChatbot = () => {
     messages: storeMessages,
     setMessages,
     clearMessages,
+    currentBotId,
+    setCurrentBotId,
+    clearCurrentBotId,
   } = useChatbotStore();
   const messages = Array.isArray(storeMessages) ? storeMessages : [];
   const [inputValue, setInputValue] = useState('');
@@ -243,10 +246,26 @@ const FloatingChatbot = () => {
     return actions;
   };
 
-  const saveConversationToSupabase = async (conversation, summary) => {
+  const saveConversationToSupabase = async (conversation, summary, endSession = false) => {
     if (!user?.isLogin || !user.email) return;
     try {
       const storageMessages = toStorageMessages(conversation);
+      // 1) 진행 중 row가 있으면 msg_data(+ summary)만 업데이트
+      if (currentBotId && !endSession) {
+        const { error } = await supabase
+          .from('bot_msg')
+          .update({
+            msg_data: storageMessages,
+          })
+          .eq('bot_id', currentBotId);
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.warn('bot_msg 업데이트 실패:', error);
+        }
+        return;
+      }
+
+      // 2) 새 세션 생성 또는 세션 종료 시 최종 저장
       const payload = {
         member_id: user.email,
         msg_data: storageMessages,
@@ -255,10 +274,19 @@ const FloatingChatbot = () => {
       if (typeof summary === 'string') {
         payload.summary = summary;
       }
-      const { error } = await supabase.from('bot_msg').insert(payload);
+      const { data, error } = await supabase
+        .from('bot_msg')
+        .insert(payload)
+        .select('bot_id')
+        .single();
+
       if (error) {
         // eslint-disable-next-line no-console
         console.warn('bot_msg 저장 실패:', error);
+      } else if (!endSession && data?.bot_id) {
+        setCurrentBotId(data.bot_id);
+      } else if (endSession) {
+        clearCurrentBotId();
       }
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -271,14 +299,12 @@ const FloatingChatbot = () => {
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
     }
-    summaryTimeoutRef.current = setTimeout(
-      () => {
-        const storageMessages = toStorageMessages(conversation);
-        const summaryText = buildSummaryText(storageMessages);
-        saveConversationToSupabase(conversation, summaryText);
-      },
-      5 * 60 * 1000,
-    );
+    summaryTimeoutRef.current = setTimeout(() => {
+      const storageMessages = toStorageMessages(conversation);
+      const summaryObject = buildSummaryText(storageMessages);
+      // 세션 종료로 간주하고 최종 row를 새로 저장 (요약 포함) 후 currentBotId 초기화
+      saveConversationToSupabase(conversation, JSON.stringify(summaryObject), true);
+    }, 5 * 60 * 1000);
   };
 
   const sendMessageToBackend = async (messageText, nextMessages, pendingId) => {
@@ -536,8 +562,13 @@ const FloatingChatbot = () => {
                       if (messages.length > 0) {
                         const conversation = [...messages];
                         const storageMessages = toStorageMessages(conversation);
-                        const summaryText = buildSummaryText(storageMessages);
-                        saveConversationToSupabase(conversation, summaryText);
+                        const summaryObject = buildSummaryText(storageMessages);
+                        // 홈 버튼 클릭 시도 세션 종료로 간주해 요약 저장
+                        saveConversationToSupabase(
+                          conversation,
+                          JSON.stringify(summaryObject),
+                          true,
+                        );
                         if (summaryTimeoutRef.current) {
                           clearTimeout(summaryTimeoutRef.current);
                         }

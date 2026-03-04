@@ -9,6 +9,7 @@ export const useChatbotStore = create(
   persist(
     (set) => ({
       messages: [],
+      currentBotId: null,
       // updater: 배열 또는 (prevMessages) => newMessages 형태 모두 허용
       setMessages: (updater) =>
         set((state) => {
@@ -18,6 +19,8 @@ export const useChatbotStore = create(
           return { messages: Array.isArray(next) ? next : prev };
         }),
       clearMessages: () => set({ messages: [] }),
+      setCurrentBotId: (id) => set({ currentBotId: id ?? null }),
+      clearCurrentBotId: () => set({ currentBotId: null }),
     }),
     {
       name: 'floating-chatbot-messages',
