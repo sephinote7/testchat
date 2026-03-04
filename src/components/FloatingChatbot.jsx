@@ -45,6 +45,7 @@ const FloatingChatbot = () => {
       text: [
         '안녕하세요, 고민순삭 어시스턴트 순삭이입니다.',
         '고민순삭 홈페이지 이용 방법과 메뉴 위치 등 사이트 관련 질문에만 답변을 드릴 수 있어요.',
+        '답변 생성까지 5~10초 정도 걸릴 수 있으니 잠시만 기다려 주세요.',
         '원하시는 내용을 아래에 자유롭게 입력해 주세요.',
       ].join(' '),
       timestamp: now,
@@ -280,7 +281,7 @@ const FloatingChatbot = () => {
     );
   };
 
-  const sendMessageToBackend = async (messageText, nextMessages) => {
+  const sendMessageToBackend = async (messageText, nextMessages, pendingId) => {
     try {
       const endpoint =
         import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || '/api/testchatpy/chat';
@@ -341,7 +342,11 @@ const FloatingChatbot = () => {
         scheduleSummarySave(conversationForSave);
       }
 
-      setMessages((prev) => [...prev, nowMessage]);
+      setMessages((prev) => {
+        const base = Array.isArray(prev) ? prev : [];
+        const withoutPending = base.filter((m) => m.id !== pendingId);
+        return [...withoutPending, nowMessage];
+      });
     } catch (error) {
       // 콘솔에는 구체적인 오류 로그 남김 (예: 405 Method Not Allowed)
       // eslint-disable-next-line no-console
@@ -355,17 +360,21 @@ const FloatingChatbot = () => {
       const detail =
         error instanceof Error && error.message ? ` (${error.message})` : '';
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `bot-error-${Date.now()}`,
-          sender: 'bot',
-          text:
-            '지금은 챗봇 서버와 통신이 원활하지 않습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객 지원 팀에 문의해 주세요.' +
-            detail,
-          timestamp: now,
-        },
-      ]);
+      setMessages((prev) => {
+        const base = Array.isArray(prev) ? prev : [];
+        const withoutPending = base.filter((m) => m.id !== pendingId);
+        return [
+          ...withoutPending,
+          {
+            id: `bot-error-${Date.now()}`,
+            sender: 'bot',
+            text:
+              '지금은 챗봇 서버와 통신이 원활하지 않습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객 지원 팀에 문의해 주세요.' +
+              detail,
+            timestamp: now,
+          },
+        ];
+      });
     } finally {
       setIsSending(false);
     }
@@ -381,19 +390,28 @@ const FloatingChatbot = () => {
       minute: '2-digit',
     });
 
+    const baseId = Date.now();
     const userMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${baseId}`,
       sender: 'user',
       text: trimmed,
       timestamp: now,
     };
 
-    const nextMessages = [...messages, userMessage];
+    const pendingId = `bot-pending-${baseId}`;
+    const pendingMessage = {
+      id: pendingId,
+      sender: 'bot',
+      text: '순삭이가 답변을 준비하고 있어요. 최대 5~10초 정도 걸릴 수 있습니다.',
+      timestamp: now,
+    };
+
+    const nextMessages = [...messages, userMessage, pendingMessage];
     setMessages(nextMessages);
     setInputValue('');
     setIsSending(true);
 
-    await sendMessageToBackend(trimmed, nextMessages);
+    await sendMessageToBackend(trimmed, nextMessages, pendingId);
   };
 
   const renderMessages = () => {
