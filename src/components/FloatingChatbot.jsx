@@ -7,6 +7,273 @@ import { useChatbotStore } from '../stores/useChatbotStore';
 const DISCLAIMER_TEXT =
   "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다.";
 
+/** 설정 화면: 대화 내역 초기화, 알림 토글, AI 상담 스타일, 취소/저장 */
+function SettingsPanel({
+  draft,
+  onDraftChange,
+  onClearHistory,
+  onCancel,
+  onSave,
+}) {
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto bg-white px-4 py-4">
+      <div className="space-y-4">
+        {/* 대화 내역 초기화 */}
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 119 9 9 9 0 01-9-9z" />
+                <path d="M12 8v4l2 2" />
+              </svg>
+            </span>
+            <span className="text-sm font-medium text-gray-800">대화 내역 초기화</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClearHistory}
+            className="text-sm font-medium text-main-02 underline hover:no-underline"
+          >
+            초기화
+          </button>
+        </div>
+        {/* 알림 */}
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13 21a1 1 0 01-2 0" />
+              </svg>
+            </span>
+            <span className="text-sm font-medium text-gray-800">알림</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={draft.notificationsEnabled}
+            onClick={() =>
+              onDraftChange((prev) => ({
+                ...prev,
+                notificationsEnabled: !prev.notificationsEnabled,
+              }))
+            }
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 transition-colors ${
+              draft.notificationsEnabled ? 'border-main-02 bg-main-02' : 'border-gray-300 bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                draft.notificationsEnabled ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+        {/* AI 상담 스타일 */}
+        <div className="border-b border-gray-100 pb-3">
+          <div className="mb-2 flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+              </svg>
+            </span>
+            <span className="text-sm font-medium text-gray-800">AI 상담 스타일</span>
+          </div>
+          <div className="flex gap-2 pl-11">
+            <button
+              type="button"
+              onClick={() =>
+                onDraftChange((prev) => ({ ...prev, aiStyle: 'realistic' }))
+              }
+              className={`rounded-lg border px-3 py-2 text-sm ${
+                draft.aiStyle === 'realistic'
+                  ? 'border-main-02 bg-main-02 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              현실적인
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onDraftChange((prev) => ({ ...prev, aiStyle: 'empathetic' }))
+              }
+              className={`rounded-lg border px-3 py-2 text-sm ${
+                draft.aiStyle === 'empathetic'
+                  ? 'border-main-02 bg-main-02 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              공감하는
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="mt-6 flex gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 rounded-lg border border-gray-300 bg-white py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          className="flex-1 rounded-lg bg-main-02 py-2.5 text-sm font-medium text-white hover:bg-main-02/90"
+        >
+          저장
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** 알림 탭: 진행 예정(A)/진행중(C) 상담 목록, 클릭 시 해당 상담으로 이동 */
+function NotificationsPanel({ userEmail, onNavigate }) {
+  const [list, setList] = useState({ scheduled: [], inProgress: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!userEmail) {
+      setList({ scheduled: [], inProgress: [] });
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    supabase
+      .from('cnsl_reg')
+      .select('cnsl_id, cnsl_stat, cnsl_tp, cnsl_title, cnsl_start_time')
+      .or(`member_id.eq.${userEmail},cnsler_id.eq.${userEmail}`)
+      .in('cnsl_stat', ['A', 'C'])
+      .order('cnsl_start_time', { ascending: false })
+      .then(({ data, error: err }) => {
+        if (cancelled) return;
+        setLoading(false);
+        if (err) {
+          setError(err.message);
+          setList({ scheduled: [], inProgress: [] });
+          return;
+        }
+        const rows = Array.isArray(data) ? data : [];
+        const scheduled = rows.filter((r) => String(r.cnsl_stat || '').toUpperCase() === 'A');
+        const inProgress = rows.filter((r) => String(r.cnsl_stat || '').toUpperCase() === 'C');
+        setList({ scheduled, inProgress });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoading(false);
+          setError('목록을 불러오는데 실패했습니다.');
+        }
+      });
+    return () => { cancelled = true; };
+  }, [userEmail]);
+
+  const goToConsult = (cnslId, cnslTp) => {
+    const id = Number(cnslId);
+    if (Number.isNaN(id)) return;
+    const tp = String(cnslTp || '').trim();
+    if (tp === '3') {
+      onNavigate(`/chat/withai/${id}`);
+    } else {
+      onNavigate(`/chat/cnslchat/${id}`);
+    }
+  };
+
+  if (!userEmail) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-center text-sm text-gray-600">
+        <p>로그인하면 진행 예정·진행중인 상담 알림을 볼 수 있어요.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-sm text-gray-500">
+        <span>알림 목록 불러오는 중...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-sm text-red-600">
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  const hasAny = list.scheduled.length > 0 || list.inProgress.length > 0;
+  if (!hasAny) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-center text-sm text-gray-600">
+        <p>진행 예정이거나 진행 중인 상담이 없습니다.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto bg-main-01 px-4 py-4">
+      <div className="space-y-4">
+        {list.inProgress.length > 0 && (
+          <section>
+            <h3 className="mb-2 text-sm font-semibold text-gray-700">
+              진행중인 상담 ({list.inProgress.length}건)
+            </h3>
+            <ul className="space-y-2">
+              {list.inProgress.map((r) => (
+                <li key={r.cnsl_id}>
+                  <button
+                    type="button"
+                    onClick={() => goToConsult(r.cnsl_id, r.cnsl_tp)}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm hover:bg-gray-50"
+                  >
+                    <span className="font-medium text-gray-800">
+                      {r.cnsl_title || `상담 #${r.cnsl_id}`}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-500">
+                      {r.cnsl_tp === '3' ? 'AI 상담' : '1:1 상담'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {list.scheduled.length > 0 && (
+          <section>
+            <h3 className="mb-2 text-sm font-semibold text-gray-700">
+              진행 예정 상담 ({list.scheduled.length}건)
+            </h3>
+            <ul className="space-y-2">
+              {list.scheduled.map((r) => (
+                <li key={r.cnsl_id}>
+                  <button
+                    type="button"
+                    onClick={() => goToConsult(r.cnsl_id, r.cnsl_tp)}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm hover:bg-gray-50"
+                  >
+                    <span className="font-medium text-gray-800">
+                      {r.cnsl_title || `상담 #${r.cnsl_id}`}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-500">
+                      {r.cnsl_tp === '3' ? 'AI 상담' : '1:1 상담'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // 고민순삭 홈페이지 이용 안내용 컨텍스트 (백엔드 @testchatpy 로 전달)
 const SITE_CONTEXT = [
   '이 서비스는 고민순삭 홈페이지입니다. 취업, 커리어, 상담 관련 정보를 제공합니다.',
@@ -28,10 +295,21 @@ const FloatingChatbot = () => {
     currentBotId,
     setCurrentBotId,
     clearCurrentBotId,
+    notificationsEnabled,
+    setNotificationsEnabled,
+    aiStyle,
+    setAiStyle,
   } = useChatbotStore();
   const messages = Array.isArray(storeMessages) ? storeMessages : [];
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  /** 플로팅 박스 하단 푸터 탭: chat(홈) | notifications(알림) | settings(설정) */
+  const [chatView, setChatView] = useState('chat');
+  /** 설정 화면 편집용 로컬 상태 (저장 시 스토어에 반영) */
+  const [settingsDraft, setSettingsDraft] = useState({
+    notificationsEnabled: true,
+    aiStyle: 'empathetic',
+  });
 
   const messagesEndRef = useRef(null);
   const summaryTimeoutRef = useRef(null);
@@ -90,6 +368,16 @@ const FloatingChatbot = () => {
     },
     [],
   );
+
+  // 설정 탭 진입 시 스토어 값으로 로컬 드래프트 동기화
+  useEffect(() => {
+    if (chatView === 'settings') {
+      setSettingsDraft({
+        notificationsEnabled: !!notificationsEnabled,
+        aiStyle: aiStyle === 'realistic' ? 'realistic' : 'empathetic',
+      });
+    }
+  }, [chatView, notificationsEnabled, aiStyle]);
 
   const openChat = () => {
     setIsOpen(true);
@@ -622,13 +910,15 @@ const FloatingChatbot = () => {
                 </button>
               </div>
 
-              {/* 채팅 영역 */}
-              <div className="flex-1 overflow-y-auto bg-main-01 px-3 py-3 text-[13px] text-gray-800 sm:h-[380px] sm:flex-none sm:px-4 sm:py-4 sm:text-sm">
-                {renderMessages()}
-              </div>
-
-              {/* 입력 영역 + 고지 문구 */}
-              <div className="border-t border-gray-200 bg-white px-3 py-2 sm:h-[148px] sm:flex-none sm:px-4 sm:py-3">
+              {/* 메인 콘텐츠: 채팅 / 알림 목록 / 설정 */}
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                {chatView === 'chat' && (
+                  <>
+                    <div className="flex-1 overflow-y-auto bg-main-01 px-3 py-3 text-[13px] text-gray-800 sm:flex-none sm:px-4 sm:py-4 sm:text-sm">
+                      {renderMessages()}
+                    </div>
+                    {/* 입력 영역 + 고지 문구 (채팅 뷰에서만) */}
+                    <div className="border-t border-gray-200 bg-white px-3 py-2 sm:flex-none sm:px-4 sm:py-3">
                 <form
                   onSubmit={handleSubmit}
                   className="mb-2 flex h-[50px] items-center gap-2"
@@ -705,10 +995,112 @@ const FloatingChatbot = () => {
                     </svg>
                   </button>
                 </form>
-                <p className="xs leading-snug text-gray-500">
-                  {DISCLAIMER_TEXT}
-                </p>
+                      <p className="xs leading-snug text-gray-500">
+                        {DISCLAIMER_TEXT}
+                      </p>
+                    </div>
+                  </>
+                )}
+                {chatView === 'notifications' && (
+                  <NotificationsPanel
+                    userEmail={user?.email}
+                    onNavigate={handleNavigateLink}
+                  />
+                )}
+                {chatView === 'settings' && (
+                  <SettingsPanel
+                    draft={settingsDraft}
+                    onDraftChange={setSettingsDraft}
+                    onClearHistory={() => {
+                      clearMessages();
+                      setMessages([createIntroMessage()]);
+                      setChatView('chat');
+                    }}
+                    onCancel={() => setChatView('chat')}
+                    onSave={() => {
+                      setNotificationsEnabled(settingsDraft.notificationsEnabled);
+                      setAiStyle(settingsDraft.aiStyle);
+                      setChatView('chat');
+                    }}
+                  />
+                )}
               </div>
+
+              {/* 하단 푸터 (PC 기준 60px) */}
+              <footer className="flex h-14 shrink-0 items-center justify-around border-t border-gray-200 bg-main-01 sm:h-[60px]">
+                <button
+                  type="button"
+                  onClick={() => setChatView('chat')}
+                  className={`flex flex-col items-center gap-0.5 py-1 text-xs sm:gap-1 sm:py-2 sm:text-sm ${
+                    chatView === 'chat'
+                      ? 'text-main-02 font-medium'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  aria-label="홈"
+                >
+                  <svg
+                    className="h-5 w-5 sm:h-6 sm:w-6"
+                    viewBox="0 0 24 24"
+                    fill={chatView === 'chat' ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                    <path d="M9 22V12h6v10" />
+                  </svg>
+                  <span>홈</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChatView('notifications')}
+                  className={`flex flex-col items-center gap-0.5 py-1 text-xs sm:gap-1 sm:py-2 sm:text-sm ${
+                    chatView === 'notifications'
+                      ? 'text-main-02 font-medium'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  aria-label="알림"
+                >
+                  <svg
+                    className="h-5 w-5 sm:h-6 sm:w-6"
+                    viewBox="0 0 24 24"
+                    fill={chatView === 'notifications' ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13 21a1 1 0 01-2 0" />
+                  </svg>
+                  <span>알림</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChatView('settings')}
+                  className={`flex flex-col items-center gap-0.5 py-1 text-xs sm:gap-1 sm:py-2 sm:text-sm ${
+                    chatView === 'settings'
+                      ? 'text-main-02 font-medium'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  aria-label="설정"
+                >
+                  <svg
+                    className="h-5 w-5 sm:h-6 sm:w-6"
+                    viewBox="0 0 24 24"
+                    fill={chatView === 'settings' ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-1.51a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h1.51a1.65 1.65 0 001-1.51 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1V3a2 2 0 012-2 2 2 0 012 2v1.51a1.65 1.65 0 001 1 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001 1h1.51a2 2 0 012 2 2 2 0 01-2 2h-1.51a1.65 1.65 0 00-1 1.51z" />
+                  </svg>
+                  <span>설정</span>
+                </button>
+              </footer>
             </div>
           </div>
         </div>

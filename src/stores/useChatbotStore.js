@@ -21,6 +21,13 @@ export const useChatbotStore = create(
       clearMessages: () => set({ messages: [] }),
       setCurrentBotId: (id) => set({ currentBotId: id ?? null }),
       clearCurrentBotId: () => set({ currentBotId: null }),
+
+      // 설정 (설정 화면·알림용)
+      notificationsEnabled: true,
+      setNotificationsEnabled: (v) => set({ notificationsEnabled: !!v }),
+      aiStyle: 'empathetic', // 'empathetic' | 'realistic'
+      setAiStyle: (v) =>
+        set({ aiStyle: v === 'realistic' ? 'realistic' : 'empathetic' }),
     }),
     {
       name: 'floating-chatbot-messages',
