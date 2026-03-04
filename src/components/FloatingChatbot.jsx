@@ -614,6 +614,13 @@ const FloatingChatbot = () => {
   const messagesEndRef = useRef(null);
   const summaryTimeoutRef = useRef(null);
 
+  const markNotificationsAsRead = () => {
+    if (!notificationsEnabled) return;
+    const nowIso = new Date().toISOString();
+    setNotificationsLastSeenAt(nowIso);
+    setNotificationCount(0);
+  };
+
   const createIntroMessage = () => {
     const now = new Date().toLocaleTimeString('ko-KR', {
       hour: '2-digit',
@@ -682,10 +689,8 @@ const FloatingChatbot = () => {
   // 알림 탭 진입 시 '확인' 처리: 배지(레드닷/숫자) 제거
   useEffect(() => {
     if (chatView !== 'notifications') return;
-    if (!notificationsEnabled) return;
-    setNotificationsLastSeenAt(new Date().toISOString());
-    setNotificationCount(0);
-  }, [chatView, notificationsEnabled, setNotificationsLastSeenAt]);
+    markNotificationsAsRead();
+  }, [chatView]);
 
   // 알림 건수 조회 (푸터 레드닷·플로팅 버튼 배지)
   useEffect(() => {
@@ -1411,7 +1416,10 @@ const FloatingChatbot = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setChatView('notifications')}
+                  onClick={() => {
+                    setChatView('notifications');
+                    markNotificationsAsRead();
+                  }}
                   className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
                     chatView === 'notifications'
                       ? 'text-main-02 font-medium'
