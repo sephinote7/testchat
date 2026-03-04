@@ -136,10 +136,18 @@ const FloatingChatbot = () => {
       timestamp: m.timestamp,
     }));
 
-  // summary: 어떤 질문/요구를 했고, 어떤 답변/기능을 사용했는지 간단 정리
+  // summary: 어떤 질문/요구를 했고, 어떤 답변/기능을 사용했는지 JSON 형식으로 정리
   const buildSummaryText = (storageMessages) => {
     const msgs = Array.isArray(storageMessages) ? storageMessages : [];
-    if (!msgs.length) return '고민순삭 챗봇 대화 기록';
+    if (!msgs.length) {
+      return {
+        category: '기타',
+        user_intent: '',
+        unresolved_needs: '',
+        satisfaction_signal: '중립',
+        action_items: '',
+      };
+    }
 
     const userMsgs = msgs.filter((m) => m.speaker === 'user');
     const botMsgs = msgs.filter((m) => m.speaker === 'bot');
@@ -167,24 +175,93 @@ const FloatingChatbot = () => {
         : lastBot.text
       : '';
 
-    const features = [];
+    // category 판별
     const joinedText = msgs.map((m) => m.text).join(' ');
     const lower = joinedText.toLowerCase();
-    if (lower.includes('ai 상담')) features.push('AI 상담 안내');
-    if (lower.includes('상담사 찾기')) features.push('상담사 찾기 안내');
-    if (lower.includes('회원가입')) features.push('회원가입 안내');
-    if (lower.includes('포인트')) features.push('포인트/마이페이지 안내');
-    if (lower.includes('이력서') || lower.includes('자소서') || lower.includes('자기소개서'))
-      features.push('이력서/자소서 가이드');
+    let category = '기타';
+    if (lower.includes('상담사')) {
+      category = '상담사 조회';
+    } else if (
+      lower.includes('회원가입') ||
+      lower.includes('로그인') ||
+      lower.includes('포인트') ||
+      lower.includes('마이페이지') ||
+      lower.includes('ai 상담') ||
+      lower.includes('이용 방법')
+    ) {
+      category = '이용 방법';
+    }
 
-    const parts = [];
-    if (questionSummary) parts.push(`주요 질문: ${questionSummary}`);
-    if (requirementSummary) parts.push(`추가 요구사항: ${requirementSummary}`);
-    if (answerSummary) parts.push(`제공된 답변: ${answerSummary}`);
-    if (features.length) parts.push(`안내한 기능: ${features.join(', ')}`);
+    // 사용자 주요 목적 요약
+    const user_intent = questionSummary;
 
-    const combined = parts.join(' / ') || '고민순삭 챗봇 대화 기록';
-    return combined.length > 250 ? `${combined.slice(0, 247)}...` : combined;
+    // 해결되지 않은 요구사항 추정
+    let unresolved_needs = '';
+    const lastUserText = (lastUser?.text || '').toLowerCase();
+    if (joinedText.includes('정확한 답변을 드리기 어렵')) {
+      unresolved_needs = '일부 질문에 대해 정확한 답변을 제공하지 못했습니다.';
+    } else if (lastUser && lastUser.text.includes('?')) {
+      unresolved_needs =
+        lastUser.text.length > 80
+          ? `${lastUser.text.slice(0, 77)}...`
+          : lastUser.text;
+    } else {
+      unresolved_needs = '명확하게 드러난 미해결 요구사항은 없습니다.';
+    }
+
+    // 만족도 신호
+    let satisfaction_signal = '중립';
+    if (
+      lastUserText.includes('감사') ||
+      lastUserText.includes('고맙') ||
+      lastUserText.includes('도움')
+    ) {
+      satisfaction_signal = '긍정';
+    } else if (
+      lastUserText.includes('별로') ||
+      lastUserText.includes('실망') ||
+      lastUserText.includes('짜증') ||
+      lastUserText.includes('해결이 안')
+    ) {
+      satisfaction_signal = '부정';
+    }
+
+    // 안내한 기능 요약 → action_items 힌트
+    const usedFeatures = [];
+    if (lower.includes('ai 상담')) usedFeatures.push('AI 상담');
+    if (lower.includes('상담사 찾기')) usedFeatures.push('상담사 찾기');
+    if (lower.includes('회원가입')) usedFeatures.push('회원가입');
+    if (lower.includes('포인트') || lower.includes('마이페이지'))
+      usedFeatures.push('포인트/마이페이지');
+    if (
+      lower.includes('이력서') ||
+      lower.includes('자소서') ||
+      lower.includes('자기소개서')
+    )
+      usedFeatures.push('이력서/자소서 가이드');
+
+    let action_items = '';
+    if (category === '상담사 조회') {
+      action_items =
+        '상담사 검색/추천 UX와 안내 문구가 사용자의 기대에 맞는지 점검이 필요합니다.';
+    } else if (category === '이용 방법') {
+      action_items =
+        '회원가입, 포인트, AI 상담 등 주요 메뉴 이용 가이드를 FAQ/가이드 페이지에 보완하는 것을 검토하세요.';
+    }
+    if (!action_items && usedFeatures.length) {
+      action_items = `사용자가 주로 이용한 기능: ${usedFeatures.join(', ')}. 관련 안내와 실제 동작이 일치하는지 점검이 필요합니다.`;
+    }
+    if (!action_items) {
+      action_items = '특별한 운영자 개입이 필요한 이슈는 크게 보이지 않습니다.';
+    }
+
+    return {
+      category,
+      user_intent,
+      unresolved_needs,
+      satisfaction_signal,
+      action_items,
+    };
   };
 
   const buildQuickActionsFromAnswer = (answer) => {
