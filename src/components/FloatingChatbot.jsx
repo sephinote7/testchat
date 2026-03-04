@@ -36,11 +36,10 @@ function SettingsPanel({
   onSave,
 }) {
   const [saveMessage, setSaveMessage] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleClearClick = () => {
-    if (window.confirm('챗봇 대화 내용이 초기화됩니다. 계속할까요?')) {
-      onClearHistory();
-    }
+    setConfirmOpen(true);
   };
 
   const handleSave = () => {
@@ -196,6 +195,38 @@ function SettingsPanel({
           저장
         </button>
       </div>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+          <div className="w-[320px] rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="mb-2 text-sm font-semibold text-gray-900">
+              챗봇 내용 초기화
+            </h3>
+            <p className="mb-4 text-xs text-gray-600">
+              현재 챗봇 대화 내용이 모두 삭제됩니다. 계속 진행하시겠습니까?
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClearHistory();
+                  setConfirmOpen(false);
+                }}
+                className="flex-1 rounded-lg bg-red-500 py-2 text-sm font-medium text-white hover:bg-red-600"
+              >
+                초기화
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -205,8 +236,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
   const [list, setList] = useState({ scheduled: [], inProgress: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [inProgressOpen, setInProgressOpen] = useState(true);
-  const [scheduledOpen, setScheduledOpen] = useState(true);
+  const [filter, setFilter] = useState('all'); // all | scheduled | inProgress
 
   useEffect(() => {
     if (!userEmail) {
@@ -314,13 +344,6 @@ function NotificationsPanel({ userEmail, onNavigate }) {
   }
 
   const hasAny = list.scheduled.length > 0 || list.inProgress.length > 0;
-  if (!hasAny) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-center text-sm text-gray-600">
-        <p>진행 예정이거나 진행 중인 상담이 없습니다.</p>
-      </div>
-    );
-  }
 
   const renderItem = (r) => (
     <li key={r.cnsl_id}>
@@ -342,97 +365,130 @@ function NotificationsPanel({ userEmail, onNavigate }) {
     </li>
   );
 
+  const totalCount = list.inProgress.length + list.scheduled.length;
+
+  const sortedAll = [...list.inProgress, ...list.scheduled].sort((a, b) => {
+    const ad = a.cnsl_dt ? new Date(a.cnsl_dt).getTime() : 0;
+    const bd = b.cnsl_dt ? new Date(b.cnsl_dt).getTime() : 0;
+    return bd - ad;
+  });
+
+  const sortedScheduled = [...list.scheduled].sort((a, b) => {
+    const ad = a.cnsl_dt ? new Date(a.cnsl_dt).getTime() : 0;
+    const bd = b.cnsl_dt ? new Date(b.cnsl_dt).getTime() : 0;
+    return bd - ad;
+  });
+
+  const sortedInProgress = [...list.inProgress].sort((a, b) => {
+    const ad = a.cnsl_dt ? new Date(a.cnsl_dt).getTime() : 0;
+    const bd = b.cnsl_dt ? new Date(b.cnsl_dt).getTime() : 0;
+    return bd - ad;
+  });
+
+  let displayList = [];
+  if (filter === 'scheduled') displayList = sortedScheduled;
+  else if (filter === 'inProgress') displayList = sortedInProgress;
+  else displayList = sortedAll;
+
+  const limitedList = displayList.slice(0, 10);
+
+  if (!hasAny) {
+    return (
+      <div className="flex flex-1 flex-col bg-main-01 px-4 py-4">
+        <div className="mb-3 flex items-center justify-between border-b border-main-02 pb-2">
+          <h4 className="text-sm font-semibold text-main-02">
+            나의 상담 (0건)
+          </h4>
+        </div>
+        <ul className="mt-3 space-y-2">
+          <li>
+            <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-center text-xs text-gray-500">
+              현재 등록된 상담이 없습니다.
+            </div>
+          </li>
+        </ul>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            className="flex-1 rounded-full border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+          >
+            전체
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-full border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+          >
+            예약
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-full border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+          >
+            진행중
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('/mypage/clist')}
+            className="flex-1 rounded-full bg-main-02 py-1.5 text-xs font-medium text-white"
+          >
+            더보기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto bg-main-01 px-4 py-4">
-      <div className="space-y-[24px]">
-        {list.inProgress.length > 0 && (
-          <section>
-            <button
-              type="button"
-              onClick={() => setInProgressOpen((o) => !o)}
-              className="flex w-full items-center justify-between py-1 text-left border-b border-main-02"
-            >
-              <h4 className="text-sm font-semibold text-main-02">
-                진행 중인 상담 ({list.inProgress.length}건)
-              </h4>
-              <span
-                className="text-gray-500 transition-transform sm:shrink-0"
-                aria-hidden
-              >
-                {inProgressOpen ? (
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M18 15l-6-6-6 6" />
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                )}
-              </span>
-            </button>
-            {inProgressOpen && (
-              <ul className="mt-2 space-y-2">
-                {list.inProgress.map(renderItem)}
-              </ul>
-            )}
-          </section>
-        )}
-        {list.scheduled.length > 0 && (
-          <section>
-            <button
-              type="button"
-              onClick={() => setScheduledOpen((o) => !o)}
-              className="flex w-full items-center justify-between py-1 text-left border-b border-main-02"
-            >
-              <h4 className="text-sm font-semibold text-main-02">
-                진행 예정 상담 ({list.scheduled.length}건)
-              </h4>
-              <span
-                className="text-gray-500 transition-transform sm:shrink-0"
-                aria-hidden
-              >
-                {scheduledOpen ? (
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M18 15l-6-6-6 6" />
-                  </svg>
-                ) : (
-                  <svg
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                )}
-              </span>
-            </button>
-            {scheduledOpen && (
-              <ul className="mt-2 space-y-2">
-                {list.scheduled.map(renderItem)}
-              </ul>
-            )}
-          </section>
-        )}
+    <div className="flex flex-1 flex-col bg-main-01 px-4 py-4">
+      <div className="mb-3 flex items-center justify-between border-b border-main-02 pb-2">
+        <h4 className="text-sm font-semibold text-main-02">
+          나의 상담 ({totalCount}건)
+        </h4>
+      </div>
+      <ul className="mb-4 space-y-2">
+        {limitedList.map(renderItem)}
+      </ul>
+      <div className="mt-auto flex gap-2">
+        <button
+          type="button"
+          onClick={() => setFilter('all')}
+          className={`flex-1 rounded-full border py-1.5 text-xs font-medium ${
+            filter === 'all'
+              ? 'border-main-02 bg-main-02 text-white'
+              : 'border-gray-300 bg-white text-gray-700'
+          }`}
+        >
+          전체
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter('scheduled')}
+          className={`flex-1 rounded-full border py-1.5 text-xs font-medium ${
+            filter === 'scheduled'
+              ? 'border-main-02 bg-main-02 text-white'
+              : 'border-gray-300 bg-white text-gray-700'
+          }`}
+        >
+          예약
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter('inProgress')}
+          className={`flex-1 rounded-full border py-1.5 text-xs font-medium ${
+            filter === 'inProgress'
+              ? 'border-main-02 bg-main-02 text-white'
+              : 'border-gray-300 bg-white text-gray-700'
+          }`}
+        >
+          진행중
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigate('/mypage/clist')}
+          className="flex-1 rounded-full bg-main-02 py-1.5 text-xs font-medium text-white"
+        >
+          더보기
+        </button>
       </div>
     </div>
   );
@@ -478,6 +534,13 @@ const FloatingChatbot = () => {
   });
   /** 진행 예정/진행중 상담 건수 (알림 레드닷·플로팅 버튼 배지용) */
   const [notificationCount, setNotificationCount] = useState(0);
+
+  const headerSubtitle =
+    chatView === 'notifications'
+      ? '나의 상담 및 활동 알림'
+      : chatView === 'settings'
+        ? '쾌적한 상담을 위한 환경 설정'
+        : '고민순삭 홈페이지 이용을 도와드릴게요';
 
   const messagesEndRef = useRef(null);
   const summaryTimeoutRef = useRef(null);
@@ -1108,9 +1171,7 @@ const FloatingChatbot = () => {
                     <span className="text-sm font-semibold">
                       고민순삭 어시스턴트 순삭이
                     </span>
-                    <span className="sm text-white/80">
-                      고민순삭 홈페이지 이용을 도와드릴게요
-                    </span>
+                    <span className="sm text-white/80">{headerSubtitle}</span>
                   </div>
                 </div>
                 <button
