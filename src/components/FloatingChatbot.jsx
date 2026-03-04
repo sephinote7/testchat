@@ -7,7 +7,27 @@ import { useChatbotStore } from '../stores/useChatbotStore';
 const DISCLAIMER_TEXT =
   "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다.";
 
-/** 설정 화면: 대화 내역 초기화, 알림 토글, AI 상담 스타일, 취소/저장 */
+/** cnsl_reg.cnsl_tp 라벨 */
+function getCnslTpLabel(tp) {
+  const t = String(tp || '').trim();
+  const map = {
+    '1': '게시판 상담',
+    '2': '전화 상담',
+    '3': 'AI 상담',
+    '4': '채팅 상담',
+    '5': '화상 상담',
+  };
+  return map[t] || '상담';
+}
+
+/** 제목 길이 제한 후 말줄임 */
+function truncateTitle(title, maxLen = 24) {
+  const s = String(title || '').trim();
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, maxLen)}...`;
+}
+
+/** 설정 화면: 챗봇 내용 초기화, 알림 토글, AI 상담 스타일, 취소/저장 */
 function SettingsPanel({
   draft,
   onDraftChange,
@@ -15,10 +35,29 @@ function SettingsPanel({
   onCancel,
   onSave,
 }) {
+  const [saveMessage, setSaveMessage] = useState(false);
+
+  const handleClearClick = () => {
+    if (window.confirm('챗봇 대화 내용이 초기화됩니다. 계속할까요?')) {
+      onClearHistory();
+    }
+  };
+
+  const handleSave = () => {
+    onSave();
+    setSaveMessage(true);
+  };
+
+  useEffect(() => {
+    if (!saveMessage) return;
+    const t = setTimeout(() => setSaveMessage(false), 2000);
+    return () => clearTimeout(t);
+  }, [saveMessage]);
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-white px-4 py-4">
       <div className="space-y-4">
-        {/* 대화 내역 초기화 */}
+        {/* 챗봇 내용 초기화 */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
@@ -27,11 +66,11 @@ function SettingsPanel({
                 <path d="M12 8v4l2 2" />
               </svg>
             </span>
-            <span className="text-sm font-medium text-gray-800">대화 내역 초기화</span>
+            <span className="text-sm font-medium text-gray-800">챗봇 내용 초기화</span>
           </div>
           <button
             type="button"
-            onClick={onClearHistory}
+            onClick={handleClearClick}
             className="text-sm font-medium text-main-02 underline hover:no-underline"
           >
             초기화
@@ -107,8 +146,16 @@ function SettingsPanel({
               공감하는
             </button>
           </div>
+          <p className="mt-1.5 pl-11 text-xs text-gray-500 sm:text-[12px]">
+            {draft.aiStyle === 'realistic'
+              ? '현실적인 상황에 맞는 조언을 제공합니다.'
+              : '감정에 공감하며 따뜻한 답변을 제공합니다.'}
+          </p>
         </div>
       </div>
+      {saveMessage && (
+        <p className="mt-2 text-center text-sm text-main-02">저장되었습니다.</p>
+      )}
       <div className="mt-6 flex gap-2">
         <button
           type="button"
@@ -119,7 +166,7 @@ function SettingsPanel({
         </button>
         <button
           type="button"
-          onClick={onSave}
+          onClick={handleSave}
           className="flex-1 rounded-lg bg-main-02 py-2.5 text-sm font-medium text-white hover:bg-main-02/90"
         >
           저장
@@ -134,6 +181,8 @@ function NotificationsPanel({ userEmail, onNavigate }) {
   const [list, setList] = useState({ scheduled: [], inProgress: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [inProgressOpen, setInProgressOpen] = useState(true);
+  const [scheduledOpen, setScheduledOpen] = useState(true);
 
   useEffect(() => {
     if (!userEmail) {
@@ -183,6 +232,16 @@ function NotificationsPanel({ userEmail, onNavigate }) {
     }
   };
 
+  const formatDate = (isoStr) => {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
   if (!userEmail) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-center text-sm text-gray-600">
@@ -216,57 +275,82 @@ function NotificationsPanel({ userEmail, onNavigate }) {
     );
   }
 
+  const renderItem = (r) => (
+    <li key={r.cnsl_id}>
+      <button
+        type="button"
+        onClick={() => goToConsult(r.cnsl_id, r.cnsl_tp)}
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left shadow-sm hover:bg-gray-50"
+      >
+        <span className="block truncate text-sm font-medium text-gray-800" title={r.cnsl_title || `상담 #${r.cnsl_id}`}>
+          {truncateTitle(r.cnsl_title || `상담 #${r.cnsl_id}`)}
+        </span>
+        <span className="mt-0.5 block text-xs text-gray-500">
+          {getCnslTpLabel(r.cnsl_tp)} / {formatDate(r.cnsl_start_time)}
+        </span>
+      </button>
+    </li>
+  );
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto bg-main-01 px-4 py-4">
-      <div className="space-y-4">
+      <div className="space-y-[24px]">
         {list.inProgress.length > 0 && (
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-gray-700">
-              진행중인 상담 ({list.inProgress.length}건)
-            </h3>
-            <ul className="space-y-2">
-              {list.inProgress.map((r) => (
-                <li key={r.cnsl_id}>
-                  <button
-                    type="button"
-                    onClick={() => goToConsult(r.cnsl_id, r.cnsl_tp)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm hover:bg-gray-50"
-                  >
-                    <span className="font-medium text-gray-800">
-                      {r.cnsl_title || `상담 #${r.cnsl_id}`}
-                    </span>
-                    <span className="ml-2 text-xs text-gray-500">
-                      {r.cnsl_tp === '3' ? 'AI 상담' : '1:1 상담'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <button
+              type="button"
+              onClick={() => setInProgressOpen((o) => !o)}
+              className="flex w-full items-center justify-between py-1 text-left"
+            >
+              <h3 className="text-sm font-semibold text-gray-700">
+                진행중인 상담 ({list.inProgress.length}건)
+              </h3>
+              <span className="text-gray-500 transition-transform sm:shrink-0" aria-hidden>
+                {inProgressOpen ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 15l-6-6-6 6" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                )}
+              </span>
+            </button>
+            {inProgressOpen && (
+              <ul className="mt-2 space-y-2">
+                {list.inProgress.map(renderItem)}
+              </ul>
+            )}
           </section>
         )}
         {list.scheduled.length > 0 && (
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-gray-700">
-              진행 예정 상담 ({list.scheduled.length}건)
-            </h3>
-            <ul className="space-y-2">
-              {list.scheduled.map((r) => (
-                <li key={r.cnsl_id}>
-                  <button
-                    type="button"
-                    onClick={() => goToConsult(r.cnsl_id, r.cnsl_tp)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left text-sm shadow-sm hover:bg-gray-50"
-                  >
-                    <span className="font-medium text-gray-800">
-                      {r.cnsl_title || `상담 #${r.cnsl_id}`}
-                    </span>
-                    <span className="ml-2 text-xs text-gray-500">
-                      {r.cnsl_tp === '3' ? 'AI 상담' : '1:1 상담'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <button
+              type="button"
+              onClick={() => setScheduledOpen((o) => !o)}
+              className="flex w-full items-center justify-between py-1 text-left"
+            >
+              <h3 className="text-sm font-semibold text-gray-700">
+                진행 예정 상담 ({list.scheduled.length}건)
+              </h3>
+              <span className="text-gray-500 transition-transform sm:shrink-0" aria-hidden>
+                {scheduledOpen ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 15l-6-6-6 6" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                )}
+              </span>
+            </button>
+            {scheduledOpen && (
+              <ul className="mt-2 space-y-2">
+                {list.scheduled.map(renderItem)}
+              </ul>
+            )}
           </section>
         )}
       </div>
@@ -310,6 +394,8 @@ const FloatingChatbot = () => {
     notificationsEnabled: true,
     aiStyle: 'empathetic',
   });
+  /** 진행 예정/진행중 상담 건수 (알림 레드닷·플로팅 버튼 배지용) */
+  const [notificationCount, setNotificationCount] = useState(0);
 
   const messagesEndRef = useRef(null);
   const summaryTimeoutRef = useRef(null);
@@ -378,6 +464,29 @@ const FloatingChatbot = () => {
       });
     }
   }, [chatView, notificationsEnabled, aiStyle]);
+
+  // 알림 건수 조회 (푸터 레드닷·플로팅 버튼 배지)
+  useEffect(() => {
+    if (!user?.email) {
+      setNotificationCount(0);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('cnsl_reg')
+      .select('cnsl_id', { count: 'exact', head: true })
+      .or(`member_id.eq.${user.email},cnsler_id.eq.${user.email}`)
+      .in('cnsl_stat', ['A', 'C'])
+      .then(({ count, error: err }) => {
+        if (cancelled) return;
+        if (!err && typeof count === 'number') setNotificationCount(count);
+        else setNotificationCount(0);
+      })
+      .catch(() => {
+        if (!cancelled) setNotificationCount(0);
+      });
+    return () => { cancelled = true; };
+  }, [user?.email, isOpen]);
 
   const openChat = () => {
     setIsOpen(true);
@@ -1020,18 +1129,17 @@ const FloatingChatbot = () => {
                     onSave={() => {
                       setNotificationsEnabled(settingsDraft.notificationsEnabled);
                       setAiStyle(settingsDraft.aiStyle);
-                      setChatView('chat');
                     }}
                   />
                 )}
               </div>
 
-              {/* 하단 푸터 (PC 기준 60px) */}
-              <footer className="flex h-14 shrink-0 items-center justify-around border-t border-gray-200 bg-main-01 sm:h-[60px]">
+              {/* 하단 푸터 (PC 기준 60px, 글씨 잘리지 않도록) */}
+              <footer className="flex h-14 shrink-0 items-center justify-between border-t border-gray-200 bg-main-01 px-2 sm:h-[60px] sm:justify-around sm:px-3">
                 <button
                   type="button"
                   onClick={() => setChatView('chat')}
-                  className={`flex flex-col items-center gap-0.5 py-1 text-xs sm:gap-1 sm:py-2 sm:text-sm ${
+                  className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
                     chatView === 'chat'
                       ? 'text-main-02 font-medium'
                       : 'text-gray-500 hover:text-gray-700'
@@ -1039,7 +1147,7 @@ const FloatingChatbot = () => {
                   aria-label="홈"
                 >
                   <svg
-                    className="h-5 w-5 sm:h-6 sm:w-6"
+                    className="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
                     viewBox="0 0 24 24"
                     fill={chatView === 'chat' ? 'currentColor' : 'none'}
                     stroke="currentColor"
@@ -1050,20 +1158,26 @@ const FloatingChatbot = () => {
                     <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                     <path d="M9 22V12h6v10" />
                   </svg>
-                  <span>홈</span>
+                  <span className="truncate">홈</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setChatView('notifications')}
-                  className={`flex flex-col items-center gap-0.5 py-1 text-xs sm:gap-1 sm:py-2 sm:text-sm ${
+                  className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
                     chatView === 'notifications'
                       ? 'text-main-02 font-medium'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                   aria-label="알림"
                 >
+                  {notificationCount > 0 && (
+                    <span
+                      className="absolute right-1/4 top-1.5 h-2 w-2 rounded-full bg-red-500 sm:right-[30%] sm:top-2"
+                      aria-hidden
+                    />
+                  )}
                   <svg
-                    className="h-5 w-5 sm:h-6 sm:w-6"
+                    className="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
                     viewBox="0 0 24 24"
                     fill={chatView === 'notifications' ? 'currentColor' : 'none'}
                     stroke="currentColor"
@@ -1074,12 +1188,12 @@ const FloatingChatbot = () => {
                     <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
                     <path d="M13 21a1 1 0 01-2 0" />
                   </svg>
-                  <span>알림</span>
+                  <span className="truncate">알림</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setChatView('settings')}
-                  className={`flex flex-col items-center gap-0.5 py-1 text-xs sm:gap-1 sm:py-2 sm:text-sm ${
+                  className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
                     chatView === 'settings'
                       ? 'text-main-02 font-medium'
                       : 'text-gray-500 hover:text-gray-700'
@@ -1087,7 +1201,7 @@ const FloatingChatbot = () => {
                   aria-label="설정"
                 >
                   <svg
-                    className="h-5 w-5 sm:h-6 sm:w-6"
+                    className="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
                     viewBox="0 0 24 24"
                     fill={chatView === 'settings' ? 'currentColor' : 'none'}
                     stroke="currentColor"
@@ -1098,7 +1212,7 @@ const FloatingChatbot = () => {
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-1.51a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h1.51a1.65 1.65 0 001-1.51 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1V3a2 2 0 012-2 2 2 0 012 2v1.51a1.65 1.65 0 001 1 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001 1h1.51a2 2 0 012 2 2 2 0 01-2 2h-1.51a1.65 1.65 0 00-1 1.51z" />
                   </svg>
-                  <span>설정</span>
+                  <span className="truncate">설정</span>
                 </button>
               </footer>
             </div>
@@ -1106,26 +1220,36 @@ const FloatingChatbot = () => {
         </div>
       )}
 
-      {/* 플로팅 버튼 (모바일 / PC 공통) */}
+      {/* 플로팅 버튼 (모바일 / PC 공통, 알림 있을 때 우상단 숫자 배지) */}
       {!isOpen && (
-        <button
-          type="button"
-          onClick={openChat}
-          className="fixed bottom-4 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-main-02 text-white shadow-xl transition-transform hover:scale-105 sm:bottom-6 sm:right-6 sm:h-16 sm:w-16"
-          aria-label="고민순삭 챗봇 열기"
-        >
-          <svg
-            className="h-6 w-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
+          <button
+            type="button"
+            onClick={openChat}
+            className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-main-02 text-white shadow-xl transition-transform hover:scale-105 sm:h-16 sm:w-16"
+            aria-label="고민순삭 챗봇 열기"
           >
-            <path d="M21 11.5C21.0034 12.8199 20.6321 14.1152 19.93 15.24C19.0831 16.6514 17.7923 17.7365 16.2541 18.3078C14.7159 18.8791 13.0259 18.9026 11.4723 18.3741L7 20L8.10457 16.0523C7.41024 14.9044 7.03955 13.5755 7.037 12.22C7.037 8.497 9.962 5.5 13.5 5.5C15.2141 5.48777 16.8582 6.1511 18.0826 7.35914C19.307 8.56717 20.012 10.2251 20 11.94L21 11.5Z" />
-          </svg>
-        </button>
+            {notificationCount > 0 && (
+              <span
+                className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white shadow sm:-right-0.5 sm:-top-0.5 sm:h-5 sm:min-w-[22px] sm:text-xs"
+                aria-label={`알림 ${notificationCount}건`}
+              >
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </span>
+            )}
+            <svg
+              className="h-6 w-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 11.5C21.0034 12.8199 20.6321 14.1152 19.93 15.24C19.0831 16.6514 17.7923 17.7365 16.2541 18.3078C14.7159 18.8791 13.0259 18.9026 11.4723 18.3741L7 20L8.10457 16.0523C7.41024 14.9044 7.03955 13.5755 7.037 12.22C7.037 8.497 9.962 5.5 13.5 5.5C15.2141 5.48777 16.8582 6.1511 18.0826 7.35914C19.307 8.56717 20.012 10.2251 20 11.94L21 11.5Z" />
+            </svg>
+          </button>
+        </div>
       )}
     </>
   );
