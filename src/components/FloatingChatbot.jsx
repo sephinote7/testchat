@@ -237,6 +237,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all'); // all | scheduled | inProgress
+  const [panelOpen, setPanelOpen] = useState(true); // 나의 상담 접기/펼치기
 
   useEffect(() => {
     if (!userEmail) {
@@ -396,44 +397,77 @@ function NotificationsPanel({ userEmail, onNavigate }) {
     return (
       <div className="flex flex-1 flex-col bg-main-01 px-4 py-4">
         <div className="mb-3 flex items-center justify-between border-b border-main-02 pb-2">
-          <h4 className="text-sm font-semibold text-main-02">
-            나의 상담 (0건)
-          </h4>
+          <button
+            type="button"
+            onClick={() => setPanelOpen((o) => !o)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <h4 className="text-sm font-semibold text-main-02">
+              나의 상담 (0건)
+            </h4>
+            <span className="text-gray-500" aria-hidden>
+              {panelOpen ? (
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M18 15l-6-6-6 6" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              )}
+            </span>
+          </button>
         </div>
-        <ul className="mt-3 space-y-2">
-          <li>
-            <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-center text-xs text-gray-500">
-              현재 등록된 상담이 없습니다.
+        {panelOpen && (
+          <>
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-[5px] border border-main-02 bg-main-02 py-1.5 text-xs font-medium text-white"
+              >
+                전체
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-[5px] border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+              >
+                예약
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-[5px] border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+              >
+                진행중
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('/mypage/clist')}
+                className="flex-1 rounded-[5px] border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+              >
+                더보기
+              </button>
             </div>
-          </li>
-        </ul>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            className="flex-1 rounded-full border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
-          >
-            전체
-          </button>
-          <button
-            type="button"
-            className="flex-1 rounded-full border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
-          >
-            예약
-          </button>
-          <button
-            type="button"
-            className="flex-1 rounded-full border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
-          >
-            진행중
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('/mypage/clist')}
-            className="flex-1 rounded-full bg-main-02 py-1.5 text-xs font-medium text-white"
-          >
-            더보기
-          </button>
-        </div>
+            <ul className="space-y-2">
+              <li>
+                <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-center text-xs text-gray-500">
+                  현재 등록된 상담이 없습니다.
+                </div>
+              </li>
+            </ul>
+          </>
+        )}
       </div>
     );
   }
@@ -441,55 +475,86 @@ function NotificationsPanel({ userEmail, onNavigate }) {
   return (
     <div className="flex flex-1 flex-col bg-main-01 px-4 py-4">
       <div className="mb-3 flex items-center justify-between border-b border-main-02 pb-2">
-        <h4 className="text-sm font-semibold text-main-02">
-          나의 상담 ({totalCount}건)
-        </h4>
-      </div>
-      <ul className="mb-4 space-y-2">
-        {limitedList.map(renderItem)}
-      </ul>
-      <div className="mt-auto flex gap-2">
         <button
           type="button"
-          onClick={() => setFilter('all')}
-          className={`flex-1 rounded-full border py-1.5 text-xs font-medium ${
-            filter === 'all'
-              ? 'border-main-02 bg-main-02 text-white'
-              : 'border-gray-300 bg-white text-gray-700'
-          }`}
+          onClick={() => setPanelOpen((o) => !o)}
+          className="flex w-full items-center justify-between text-left"
         >
-          전체
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilter('scheduled')}
-          className={`flex-1 rounded-full border py-1.5 text-xs font-medium ${
-            filter === 'scheduled'
-              ? 'border-main-02 bg-main-02 text-white'
-              : 'border-gray-300 bg-white text-gray-700'
-          }`}
-        >
-          예약
-        </button>
-        <button
-          type="button"
-          onClick={() => setFilter('inProgress')}
-          className={`flex-1 rounded-full border py-1.5 text-xs font-medium ${
-            filter === 'inProgress'
-              ? 'border-main-02 bg-main-02 text-white'
-              : 'border-gray-300 bg-white text-gray-700'
-          }`}
-        >
-          진행중
-        </button>
-        <button
-          type="button"
-          onClick={() => onNavigate('/mypage/clist')}
-          className="flex-1 rounded-full bg-main-02 py-1.5 text-xs font-medium text-white"
-        >
-          더보기
+          <h4 className="text-sm font-semibold text-main-02">
+            나의 상담 ({totalCount}건)
+          </h4>
+          <span className="text-gray-500" aria-hidden>
+            {panelOpen ? (
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M18 15l-6-6-6 6" />
+              </svg>
+            ) : (
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            )}
+          </span>
         </button>
       </div>
+      {panelOpen && (
+        <>
+          <div className="mb-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setFilter('all')}
+              className={`flex-1 rounded-[5px] border py-1.5 text-xs font-medium ${
+                filter === 'all'
+                  ? 'border-main-02 bg-main-02 text-white'
+                  : 'border-gray-300 bg-white text-gray-700'
+              }`}
+            >
+              전체
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter('scheduled')}
+              className={`flex-1 rounded-[5px] border py-1.5 text-xs font-medium ${
+                filter === 'scheduled'
+                  ? 'border-main-02 bg-main-02 text-white'
+                  : 'border-gray-300 bg-white text-gray-700'
+              }`}
+            >
+              예약
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter('inProgress')}
+              className={`flex-1 rounded-[5px] border py-1.5 text-xs font-medium ${
+                filter === 'inProgress'
+                  ? 'border-main-02 bg-main-02 text-white'
+                  : 'border-gray-300 bg-white text-gray-700'
+              }`}
+            >
+              진행중
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('/mypage/clist')}
+              className="flex-1 rounded-[5px] border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
+            >
+              더보기
+            </button>
+          </div>
+          <ul className="space-y-2">{limitedList.map(renderItem)}</ul>
+        </>
+      )}
     </div>
   );
 }
