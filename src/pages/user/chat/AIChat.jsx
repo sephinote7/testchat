@@ -44,6 +44,7 @@ const AIChat = () => {
   const [aiThinking, setAiThinking] = useState(false);
   const [isEndingChat, setIsEndingChat] = useState(false);
   const endRef = useRef(null);
+  const prevMessagesLengthRef = useRef(0);
   const { setActiveCnslId, clearActiveCnslId } = useAiConsultStore();
   const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
 
@@ -260,7 +261,27 @@ const AIChat = () => {
   };
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (!endRef.current) return;
+
+    // 새 메시지가 추가된 경우에만 스크롤 동작
+    if (messages.length <= prevMessagesLengthRef.current) {
+      prevMessagesLengthRef.current = messages.length;
+      return;
+    }
+    prevMessagesLengthRef.current = messages.length;
+
+    const container = endRef.current.parentElement?.parentElement;
+    if (container && typeof container.scrollTo === 'function') {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
+    } else {
+      endRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
   }, [messages]);
 
   const handleEndChat = async () => {
