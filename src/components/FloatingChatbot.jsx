@@ -395,7 +395,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
 
   if (!hasAny) {
     return (
-      <div className="flex flex-1 flex-col bg-main-01 px-4 py-4">
+      <div className="flex flex-1 min-h-0 flex-col bg-main-01 px-4 py-4">
         <div className="mb-3 flex items-center justify-between border-b border-main-02 pb-2">
           <button
             type="button"
@@ -459,13 +459,15 @@ function NotificationsPanel({ userEmail, onNavigate }) {
                 더보기
               </button>
             </div>
-            <ul className="space-y-2">
-              <li>
-                <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-center text-xs text-gray-500">
-                  현재 등록된 상담이 없습니다.
-                </div>
-              </li>
-            </ul>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <ul className="space-y-2">
+                <li>
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-center text-xs text-gray-500">
+                    현재 등록된 상담이 없습니다.
+                  </div>
+                </li>
+              </ul>
+            </div>
           </>
         )}
       </div>
@@ -473,7 +475,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-main-01 px-4 py-4">
+    <div className="flex flex-1 min-h-0 flex-col bg-main-01 px-4 py-4">
       <div className="mb-3 flex items-center justify-between border-b border-main-02 pb-2">
         <button
           type="button"
@@ -552,7 +554,9 @@ function NotificationsPanel({ userEmail, onNavigate }) {
               더보기
             </button>
           </div>
-          <ul className="space-y-2">{limitedList.map(renderItem)}</ul>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <ul className="space-y-2">{limitedList.map(renderItem)}</ul>
+          </div>
         </>
       )}
     </div>
