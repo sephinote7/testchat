@@ -29,6 +29,13 @@ export const useChatbotStore = create(
       notificationsLastSeenAt: null,
       setNotificationsLastSeenAt: (iso) =>
         set({ notificationsLastSeenAt: iso ? String(iso) : null }),
+      /** 알림 탭 마지막으로 확인한 cnsl_reg.cnsl_id (새 알림 계산용) */
+      notificationsLastSeenId: null,
+      setNotificationsLastSeenId: (id) =>
+        set({
+          notificationsLastSeenId:
+            typeof id === 'number' && Number.isFinite(id) ? id : null,
+        }),
       aiStyle: 'empathetic', // 'empathetic' | 'realistic'
       setAiStyle: (v) =>
         set({ aiStyle: v === 'realistic' ? 'realistic' : 'empathetic' }),

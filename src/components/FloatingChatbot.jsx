@@ -586,8 +586,8 @@ const FloatingChatbot = () => {
     clearCurrentBotId,
     notificationsEnabled,
     setNotificationsEnabled,
-    notificationsLastSeenAt,
-    setNotificationsLastSeenAt,
+    notificationsLastSeenId,
+    setNotificationsLastSeenId,
     aiStyle,
     setAiStyle,
   } = useChatbotStore();
@@ -615,10 +615,33 @@ const FloatingChatbot = () => {
   const summaryTimeoutRef = useRef(null);
 
   const markNotificationsAsRead = () => {
-    if (!notificationsEnabled) return;
-    const nowIso = new Date().toISOString();
-    setNotificationsLastSeenAt(nowIso);
+    if (!notificationsEnabled || !user?.email) return;
+
+    // UI에서는 즉시 배지 제거
     setNotificationCount(0);
+
+    // 현재 기준으로 사용자가 가진 A/C 상담 중 가장 최근 cnsl_id를 "마지막 읽은 지점"으로 저장
+    supabase
+      .from('cnsl_reg')
+      .select('cnsl_id')
+      .or(`member_id.eq.${user.email},cnsler_id.eq.${user.email}`)
+      .in('cnsl_stat', ['A', 'C'])
+      .order('cnsl_id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.cnsl_id) {
+          const idNum = Number(data.cnsl_id);
+          if (!Number.isNaN(idNum)) {
+            setNotificationsLastSeenId(idNum);
+          }
+        } else {
+          setNotificationsLastSeenId(null);
+        }
+      })
+      .catch(() => {
+        // 실패해도 치명적이지 않으므로 무시
+      });
   };
 
   const createIntroMessage = () => {
@@ -705,9 +728,10 @@ const FloatingChatbot = () => {
       .or(`member_id.eq.${user.email},cnsler_id.eq.${user.email}`)
       .in('cnsl_stat', ['A', 'C']);
 
-    const query = notificationsLastSeenAt
-      ? baseQuery.gt('cnsl_dt', notificationsLastSeenAt)
-      : baseQuery;
+    const query =
+      typeof notificationsLastSeenId === 'number' && Number.isFinite(notificationsLastSeenId)
+        ? baseQuery.gt('cnsl_id', notificationsLastSeenId)
+        : baseQuery;
 
     query
       .then(({ count, error: err }) => {
@@ -721,7 +745,7 @@ const FloatingChatbot = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.email, isOpen, notificationsEnabled, notificationsLastSeenAt]);
+  }, [user?.email, isOpen, notificationsEnabled, notificationsLastSeenId]);
 
   const openChat = () => {
     setIsOpen(true);
