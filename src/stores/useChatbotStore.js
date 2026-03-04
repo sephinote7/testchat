@@ -25,6 +25,10 @@ export const useChatbotStore = create(
       // 설정 (설정 화면·알림용)
       notificationsEnabled: true,
       setNotificationsEnabled: (v) => set({ notificationsEnabled: !!v }),
+      /** 알림 탭 마지막 확인 시각(ISO). null이면 아직 확인 전 */
+      notificationsLastSeenAt: null,
+      setNotificationsLastSeenAt: (iso) =>
+        set({ notificationsLastSeenAt: iso ? String(iso) : null }),
       aiStyle: 'empathetic', // 'empathetic' | 'realistic'
       setAiStyle: (v) =>
         set({ aiStyle: v === 'realistic' ? 'realistic' : 'empathetic' }),
