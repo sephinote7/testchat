@@ -477,17 +477,27 @@ const VisualChat = () => {
       }
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
-        if (mapped.length > 0) return mapped;
-        const justAdded = Date.now() - lastLocalAddAtRef.current < 5000;
-        if (justAdded && prev.length > 0) return prev;
-        return mapped;
+        const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
+        if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
+        const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
+        const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
+        if (stillPending.length === 0) return mapped.length > 0 ? mapped : prev;
+        const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        return merged.length > 0 ? merged : prev;
       });
     } catch (err) {
       console.warn('채팅 조회 실패:', err);
       try {
         const list = await fetchFromSupabase();
         const mapped = mapApiMessagesToUI(list);
-        if (mapped.length > 0) setChatMessages(mapped);
+        setChatMessages((prev) => {
+          const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
+          if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
+          const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
+          const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
+          const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          return merged.length > 0 ? merged : prev;
+        });
       } catch (e) {
         console.warn('Supabase 채팅 조회 실패:', e);
       }
@@ -585,7 +595,7 @@ const VisualChat = () => {
       )
       .subscribe();
 
-    const pollInterval = setInterval(onChatChange, 2000);
+    const pollInterval = setInterval(onChatChange, 1000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
@@ -1023,13 +1033,16 @@ const VisualChat = () => {
     const audioChunks = recordedChunksRef.current;
     const formData = new FormData();
     formData.append('msg_data', JSON.stringify(basePayload));
+    const MAX_AUDIO_UPLOAD_BYTES = 24 * 1024 * 1024;
     if (audioChunks?.length) {
       const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      formData.append(
-        me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
-        blob,
-        (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
-      );
+      if (blob.size <= MAX_AUDIO_UPLOAD_BYTES) {
+        formData.append(
+          me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
+          blob,
+          (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
+        );
+      }
     }
 
     if (summarizeUrl) {
