@@ -1105,13 +1105,15 @@ const VisualChat = () => {
         .from('chat_msg')
         .select('chat_id')
         .eq('cnsl_id', cnslIdNum)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (existing) {
         await supabase
           .from('chat_msg')
           .update({ msg_data, summary: summaryPayload })
-          .eq('cnsl_id', cnslIdNum);
+          .eq('chat_id', existing.chat_id);
       } else {
         await supabase.from('chat_msg').insert({
           cnsl_id: cnslIdNum,
@@ -1266,6 +1268,8 @@ const VisualChat = () => {
       .from('chat_msg')
       .select('chat_id, msg_data')
       .eq('cnsl_id', cnslIdNum)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     const content = Array.isArray(existing?.msg_data?.content)
@@ -1277,7 +1281,7 @@ const VisualChat = () => {
       const { error } = await supabase
         .from('chat_msg')
         .update({ msg_data })
-        .eq('cnsl_id', cnslIdNum);
+        .eq('chat_id', existing.chat_id);
       return error ? null : { chatId: existing.chat_id };
     }
     const { data: inserted, error } = await supabase
@@ -1321,7 +1325,10 @@ const VisualChat = () => {
           body: JSON.stringify({ role: roleForApi, content: trimmed }),
           mode: 'cors',
         });
-        if (res.ok) return;
+        if (res.ok) {
+          fetchChatMessagesRef.current?.();
+          return;
+        }
       } catch (err) {
         console.warn('채팅 API 실패, Supabase fallback 시도:', err);
       }
@@ -1329,6 +1336,7 @@ const VisualChat = () => {
 
     try {
       await insertChatToSupabase(trimmed);
+      fetchChatMessagesRef.current?.();
     } catch (err) {
       console.error('채팅 저장 오류:', err);
     }
