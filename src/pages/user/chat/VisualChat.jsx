@@ -39,6 +39,39 @@ function getSupportedAudioMime() {
   return '';
 }
 
+/**
+ * 오디오 스트림으로 MediaRecorder 생성·시작 (NotSupportedError 대응: MIME/옵션 폴백)
+ * @returns {MediaRecorder | null}
+ */
+function startAudioRecorderSafe(stream, onChunk, onStop) {
+  if (!stream?.getAudioTracks().length || typeof MediaRecorder === 'undefined') return null;
+  const attempts = [
+    () => {
+      const mime = getSupportedAudioMime();
+      return mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+    },
+    () => ({ audioBitsPerSecond: 32000 }),
+    () => ({}),
+  ];
+  for (const getOpts of attempts) {
+    try {
+      const opts = getOpts();
+      const rec = new MediaRecorder(stream, opts);
+      rec.ondataavailable = (e) => { if (e.data?.size) onChunk(e.data); };
+      rec.onstop = onStop;
+      try {
+        rec.start(1000);
+      } catch (startErr) {
+        rec.start();
+      }
+      return rec;
+    } catch (e) {
+      continue;
+    }
+  }
+  return null;
+}
+
 function getSupportedVideoMime() {
   const options = [
     'video/webm;codecs=vp9',
@@ -552,7 +585,7 @@ const VisualChat = () => {
       )
       .subscribe();
 
-    const pollInterval = setInterval(onChatChange, 5000);
+    const pollInterval = setInterval(onChatChange, 2000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
@@ -683,23 +716,16 @@ const VisualChat = () => {
         call.answer(stream);
         updateCnslStatRef.current?.('C');
         const hasAudio = stream.getAudioTracks().length > 0;
-        if (hasAudio && typeof MediaRecorder !== 'undefined') {
-          try {
-            const mime = getSupportedAudioMime();
-            const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
-            const audRec = new MediaRecorder(stream, opts);
-            recordedChunksRef.current = [];
-            audRec.ondataavailable = (e) => {
-              if (e.data?.size) recordedChunksRef.current.push(e.data);
-            };
-            audRec.onstop = () => {
-              if (recordedChunksRef.current.length > 0) setHasRecording(true);
-            };
-            audRec.start();
+        if (hasAudio) {
+          recordedChunksRef.current = [];
+          const audRec = startAudioRecorderSafe(
+            stream,
+            (blob) => { recordedChunksRef.current.push(blob); },
+            () => { if (recordedChunksRef.current.length > 0) setHasRecording(true); },
+          );
+          if (audRec) {
             mediaRecorderRef.current = audRec;
             setIsRecording(true);
-          } catch (e) {
-            console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
           }
         }
         // 영상 녹화: 내 화면 + 상대 화면 합성
@@ -917,28 +943,19 @@ const VisualChat = () => {
       }
 
       // 오디오 녹음 (요약/STT용, 부하 최소화)
-      if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
-        try {
-          const mime = getSupportedAudioMime();
-          const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
-          const recorder = new MediaRecorder(stream, opts);
-          recordedChunksRef.current = [];
-          recorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-              recordedChunksRef.current.push(event.data);
-            }
-          };
-          recorder.onstop = () => {
+      if (canRecordAudio) {
+        recordedChunksRef.current = [];
+        const recorder = startAudioRecorderSafe(
+          stream,
+          (blob) => { recordedChunksRef.current.push(blob); },
+          () => {
             setIsRecording(false);
-            if (recordedChunksRef.current.length > 0) {
-              setHasRecording(true);
-            }
-          };
-          recorder.start();
+            if (recordedChunksRef.current.length > 0) setHasRecording(true);
+          },
+        );
+        if (recorder) {
           mediaRecorderRef.current = recorder;
           setIsRecording(true);
-        } catch (e) {
-          console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
         }
       }
       // 영상 녹화: 내 화면 + 상대 화면 합성 (다운로드용)
