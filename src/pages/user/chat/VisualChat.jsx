@@ -1054,7 +1054,8 @@ const VisualChat = () => {
         });
         if (summaryRes.ok) {
           const data = await summaryRes.json();
-          summaryText = (data.summary || '').slice(0, 300);
+          summaryText = (data.summary || '').trim();
+          if (summaryText.length > 300) summaryText = summaryText.slice(0, 297) + '…';
           summaryLine = (data.summary_line || '').trim();
           // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
           const apiMsgData = data.msg_data;
@@ -1075,17 +1076,11 @@ const VisualChat = () => {
     }
 
     if (!summaryText && basePayload.length > 0) {
-      const texts = basePayload
-        .filter((x) => x.text && typeof x.text === 'string')
-        .map((x) => x.text)
-        .slice(0, 10);
-      summaryText = texts.length > 0
-        ? texts.join(' ').slice(0, 300)
-        : `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = texts[0] || summaryText;
+      summaryText = '상담 내용이 요약되지 않았습니다. (요약 API 미사용 또는 오류)';
+      summaryLine = '상담이 진행되었습니다.';
     } else if (!summaryText) {
-      summaryText = `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = summaryText;
+      summaryText = '화상 상담이 진행되었습니다.';
+      summaryLine = '상담이 진행되었습니다.';
     }
 
     const summaryPayload = JSON.stringify({
