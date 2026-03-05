@@ -454,13 +454,13 @@ const VisualChat = () => {
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
 
     try {
       let list = [];
-      list = await fetchFromSupabase();
-      if (list.length === 0 && base) {
+      if (apiBase) {
         try {
-          const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
+          const res = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
             headers: {
               Accept: 'application/json',
               'X-User-Email': me.email,
@@ -472,9 +472,10 @@ const VisualChat = () => {
             list = Array.isArray(data) ? data : [];
           }
         } catch {
-          /* API 실패 시 Supabase 결과 유지 */
+          /* API 실패 시 Supabase로 fallback */
         }
       }
+      if (list.length === 0) list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
         const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
@@ -595,7 +596,7 @@ const VisualChat = () => {
       )
       .subscribe();
 
-    const pollInterval = setInterval(onChatChange, 1000);
+    const pollInterval = setInterval(onChatChange, 500);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
@@ -1034,15 +1035,17 @@ const VisualChat = () => {
     const formData = new FormData();
     formData.append('msg_data', JSON.stringify(basePayload));
     const MAX_AUDIO_UPLOAD_BYTES = 24 * 1024 * 1024;
+    const audioKey = me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user';
+    const audioFilename = (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm';
     if (audioChunks?.length) {
       const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      if (blob.size <= MAX_AUDIO_UPLOAD_BYTES) {
-        formData.append(
-          me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
-          blob,
-          (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
-        );
+      if (blob.size > 0 && blob.size <= MAX_AUDIO_UPLOAD_BYTES) {
+        formData.append(audioKey, blob, audioFilename);
+      } else {
+        formData.append(audioKey, new Blob([], { type: 'audio/webm' }), audioFilename);
       }
+    } else {
+      formData.append(audioKey, new Blob([], { type: 'audio/webm' }), audioFilename);
     }
 
     if (summarizeUrl) {
@@ -1321,7 +1324,7 @@ const VisualChat = () => {
           mode: 'cors',
         });
         if (res.ok) {
-          fetchChatMessagesRef.current?.();
+          setTimeout(() => fetchChatMessagesRef.current?.(), 100);
           return;
         }
       } catch (err) {
@@ -1331,7 +1334,7 @@ const VisualChat = () => {
 
     try {
       await insertChatToSupabase(trimmed);
-      fetchChatMessagesRef.current?.();
+      setTimeout(() => fetchChatMessagesRef.current?.(), 100);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
     }
