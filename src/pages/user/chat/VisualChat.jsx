@@ -384,30 +384,38 @@ const VisualChat = () => {
       .from('chat_msg')
       .select('chat_id, msg_data, member_id, cnsler_id')
       .eq('cnsl_id', cnslIdNum)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
     if (error) {
       console.warn('Supabase chat_msg 조회 실패:', error);
       return [];
     }
     if (!rows?.length) return [];
-    const row = rows[0];
-    const content = row?.msg_data?.content;
-    if (!Array.isArray(content)) return [];
-    const memberId = row.member_id || '';
-    const cnslerId = row.cnsler_id || '';
-    return content.map((item, idx) => {
-      const speaker = (item.speaker || 'user').toLowerCase();
-      const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
-      return {
-        chatId: `${row.chat_id}-${idx}`,
-        role,
-        content: item.text ?? '',
-        memberId,
-        cnslerId,
-        createdAt: item.timestamp,
-        created_at: item.timestamp,
-      };
+
+    // cnsl_id당 여러 행이 있을 수 있으므로 모든 행의 content를 합친 뒤 시간순 정렬
+    const allItems = [];
+    rows.forEach((row, rowIdx) => {
+      const content = row?.msg_data?.content;
+      if (!Array.isArray(content)) return;
+      const memberId = row.member_id || '';
+      const cnslerId = row.cnsler_id || '';
+      content.forEach((item, idx) => {
+        const speaker = (item.speaker || 'user').toLowerCase();
+        const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
+        const ts = item.timestamp ?? 0;
+        allItems.push({
+          chatId: `chat-${row.chat_id ?? rowIdx}-${rowIdx}-${idx}`,
+          role,
+          content: item.text ?? '',
+          memberId,
+          cnslerId,
+          createdAt: ts,
+          created_at: ts,
+          _sortKey: ts,
+        });
+      });
     });
+    allItems.sort((a, b) => (a._sortKey || 0) - (b._sortKey || 0));
+    return allItems.map(({ _sortKey, ...rest }) => rest);
   };
 
   const fetchChatMessages = async () => {
