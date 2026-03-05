@@ -453,29 +453,10 @@ const VisualChat = () => {
 
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
-    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
 
     try {
-      let list = [];
-      if (apiBase) {
-        try {
-          const res = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-            headers: {
-              Accept: 'application/json',
-              'X-User-Email': me.email,
-            },
-            mode: 'cors',
-          });
-          if (res.ok) {
-            const data = await res.json();
-            list = Array.isArray(data) ? data : [];
-          }
-        } catch {
-          /* API 실패 시 Supabase로 fallback */
-        }
-      }
-      if (list.length === 0) list = await fetchFromSupabase();
+      // Render API 대신 Supabase만 사용해 채팅 목록 조회 (연결 부하·CORS 이슈 회피)
+      let list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
         const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
@@ -596,7 +577,8 @@ const VisualChat = () => {
       )
       .subscribe();
 
-    const pollInterval = setInterval(onChatChange, 500);
+    // 폴링 간격을 500ms → 1500ms로 완화해 DB 부하 감소
+    const pollInterval = setInterval(onChatChange, 1500);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
@@ -1309,32 +1291,10 @@ const VisualChat = () => {
     lastLocalAddAtRef.current = now;
     setChatInput('');
 
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
-
-    if (apiBase) {
-      try {
-        const res = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': me.email ?? '',
-          },
-          body: JSON.stringify({ role: roleForApi, content: trimmed }),
-          mode: 'cors',
-        });
-        if (res.ok) {
-          setTimeout(() => fetchChatMessagesRef.current?.(), 100);
-          return;
-        }
-      } catch (err) {
-        console.warn('채팅 API 실패, Supabase fallback 시도:', err);
-      }
-    }
-
     try {
       await insertChatToSupabase(trimmed);
-      setTimeout(() => fetchChatMessagesRef.current?.(), 100);
+      // Supabase 저장 후 목록 재조회
+      setTimeout(() => fetchChatMessagesRef.current?.(), 200);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
     }
