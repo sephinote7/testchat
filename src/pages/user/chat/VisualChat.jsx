@@ -260,6 +260,18 @@ const VisualChat = () => {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadClicked, setDownloadClicked] = useState(false);
 
+  const resolveApiBase = () => {
+    let base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+    if (!base) {
+      const host = typeof window !== 'undefined' ? window.location?.hostname : '';
+      if (host && host !== 'localhost' && host !== '127.0.0.1') {
+        base = 'https://testchatpy.onrender.com';
+      }
+    }
+    if (!base) return '';
+    return base.endsWith('/api') ? base : `${base}/api`;
+  };
+
   useEffect(() => {
     const init = async () => {
       if (!chatId) {
@@ -478,8 +490,33 @@ const VisualChat = () => {
     if (!chatId || !me?.email) return;
 
     try {
-      // Render API 대신 Supabase만 사용해 채팅 목록 조회 (연결 부하·CORS 이슈 회피)
-      let list = await fetchFromSupabase();
+      // 배포 환경에서 Supabase REST CORS가 막힐 수 있어 API 우선 사용
+      const apiBase = resolveApiBase();
+      if (apiBase) {
+        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
+          method: 'GET',
+          headers: { 'X-User-Email': me.email },
+          mode: 'cors',
+        });
+        if (r.ok) {
+          const apiList = await r.json().catch(() => []);
+          const mapped = mapApiMessagesToUI(apiList);
+          setChatMessages((prev) => {
+            const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
+            if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
+            const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
+            const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
+            const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            return merged.length > 0 ? merged : prev;
+          });
+          return;
+        }
+        const t = await r.text().catch(() => '');
+        console.warn('채팅 API 조회 실패:', r.status, t);
+      }
+
+      // API 실패/미설정 시 Supabase 폴백
+      const list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
         const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
@@ -541,12 +578,8 @@ const VisualChat = () => {
 
     const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
     if (!error) return;
-    let base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-    if (!base) {
-      console.warn('cnsl_stat: Supabase 실패, API URL 미설정');
-      return;
-    }
-    if (!base.endsWith('/api')) base = `${base}/api`;
+    const base = resolveApiBase();
+    if (!base) return;
     try {
       const res = await fetch(`${base}/cnsl/${chatId}/stat`, {
         method: 'PATCH',
@@ -1036,8 +1069,7 @@ const VisualChat = () => {
   /** 채팅 내역 + 마이크 입력(오디오) STT로 chat_msg 저장 */
   const saveSummaryInBackground = async () => {
     if (!chatId || !me?.email) return;
-    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
+    const apiBase = resolveApiBase();
     let summarizeUrl =
       import.meta.env.VITE_SUMMARIZE_API_URL ||
       (apiBase ? `${apiBase}/summarize` : '') ||
@@ -1180,56 +1212,40 @@ const VisualChat = () => {
       }
     };
 
-    // Supabase(DB)를 최종 소스로 두고 항상 저장 시도(백엔드 API 저장은 베스트 에포트)
+    // 배포 환경에서 Supabase REST CORS가 막힐 수 있어 API 저장 우선
+    const apiBaseForSave = resolveApiBase();
+    if (apiBaseForSave) {
+      try {
+        const r = await fetch(`${apiBaseForSave}/cnsl/${chatId}/chat/summary-full`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': me.email,
+          },
+          body: JSON.stringify({
+            summary: summaryText,
+            summary_line: summaryLine || undefined,
+            msg_data: msgDataList,
+          }),
+          mode: 'cors',
+        });
+        if (r.ok) {
+          console.log('[STT] chat_msg API 저장 완료');
+          return;
+        }
+        const t = await r.text().catch(() => '');
+        console.warn('[STT] chat_msg API summary-full 실패', r.status, t);
+      } catch (err) {
+        console.warn('[STT] chat_msg API 저장 실패:', err);
+      }
+    }
+
+    // API 저장 실패/미설정 시 Supabase 폴백
     try {
       await saveToSupabase();
       console.log('[STT] Supabase 저장 완료');
     } catch (err) {
       console.warn('[STT] chat_msg Supabase 저장 오류:', err);
-    }
-
-    if (apiBase) {
-      try {
-        if (msgDataList.length > 0) {
-          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-User-Email': me.email,
-            },
-            body: JSON.stringify({
-              summary: summaryText,
-              summary_line: summaryLine || undefined,
-              msg_data: msgDataList,
-            }),
-            mode: 'cors',
-          });
-          if (!r.ok) {
-            const t = await r.text().catch(() => '');
-            console.warn('[STT] chat_msg API summary-full 실패', r.status, t);
-          }
-        } else {
-          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-User-Email': me.email,
-            },
-            body: JSON.stringify({
-              role: 'summary',
-              content: summaryText,
-              summary: summaryText,
-            }),
-            mode: 'cors',
-          });
-          if (!r.ok) {
-            const t = await r.text().catch(() => '');
-            console.warn('[STT] chat_msg API summary 저장 실패', r.status, t);
-          }
-        }
-      } catch (err) {
-        console.warn('[STT] chat_msg API 저장 실패:', err);
-      }
     }
   };
 
@@ -1359,6 +1375,27 @@ const VisualChat = () => {
     return error ? null : { chatId: inserted?.chat_id };
   };
 
+  const postChatToApi = async (trimmed) => {
+    const apiBase = resolveApiBase();
+    if (!apiBase || !me?.email) return null;
+    const role = me.role === 'SYSTEM' ? 'cnsler' : 'user';
+    const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Email': me.email,
+      },
+      body: JSON.stringify({ role, content: trimmed }),
+      mode: 'cors',
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      console.warn('채팅 API 저장 실패:', r.status, t);
+      return null;
+    }
+    return await r.json().catch(() => ({}));
+  };
+
   const handleChatSubmit = async (event) => {
     event.preventDefault();
     const trimmed = chatInput.trim();
@@ -1379,8 +1416,10 @@ const VisualChat = () => {
     setChatInput('');
 
     try {
-      await insertChatToSupabase(trimmed);
-      // Supabase 저장 후 목록 재조회
+      const apiBase = resolveApiBase();
+      if (apiBase) await postChatToApi(trimmed);
+      else await insertChatToSupabase(trimmed);
+
       setTimeout(() => fetchChatMessagesRef.current?.(), 200);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
