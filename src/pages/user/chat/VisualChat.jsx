@@ -1522,7 +1522,7 @@ const VisualChat = () => {
                           <p className="text-[10px] font-medium text-[#6b7280]">
                             {msg.nickname || roleDisplayLabel(msg.role)}
                           </p>
-                          <span className="text-[10px] text-[#9ca3af]">
+                          <span className="text-[12px] text-[#9ca3af]">
                             {formatChatTime(msg.timestamp)}
                           </span>
                         </div>
@@ -1746,7 +1746,7 @@ const VisualChat = () => {
                               <p className="text-[11px] text-[#6b7280]">
                                 {msg.nickname || roleDisplayLabel(msg.role)}
                               </p>
-                              <span className="text-[11px] text-[#9ca3af]">
+                              <span className="text-[12px] text-[#9ca3af]">
                                 {formatChatTime(msg.timestamp)}
                               </span>
                             </div>
