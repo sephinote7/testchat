@@ -633,11 +633,8 @@ const VisualChat = () => {
       )
       .subscribe();
 
-    // 폴링 간격을 500ms → 1500ms로 완화해 DB 부하 감소
-    const pollInterval = setInterval(onChatChange, 1500);
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
     };
   }, [chatId, me?.email]);
 
