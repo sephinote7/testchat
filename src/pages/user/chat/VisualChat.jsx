@@ -1152,21 +1152,23 @@ const VisualChat = () => {
       const cnsler_id = me.role === 'USER' ? other.email : me.email;
       const msg_data = { content: msgDataList };
 
-      const { data: existing } = await supabase
+      const { data: existing, error: existingErr } = await supabase
         .from('chat_msg')
         .select('chat_id')
         .eq('cnsl_id', cnslIdNum)
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
+      if (existingErr) throw existingErr;
 
       if (existing) {
-        await supabase
+        const { error: updErr } = await supabase
           .from('chat_msg')
           .update({ msg_data, summary: summaryPayload })
           .eq('chat_id', existing.chat_id);
+        if (updErr) throw updErr;
       } else {
-        await supabase.from('chat_msg').insert({
+        const { error: insErr } = await supabase.from('chat_msg').insert({
           cnsl_id: cnslIdNum,
           member_id,
           cnsler_id,
@@ -1174,10 +1176,18 @@ const VisualChat = () => {
           msg_data,
           summary: summaryPayload,
         });
+        if (insErr) throw insErr;
       }
     };
 
-    let apiSaved = false;
+    // Supabase(DB)를 최종 소스로 두고 항상 저장 시도(백엔드 API 저장은 베스트 에포트)
+    try {
+      await saveToSupabase();
+      console.log('[STT] Supabase 저장 완료');
+    } catch (err) {
+      console.warn('[STT] chat_msg Supabase 저장 오류:', err);
+    }
+
     if (apiBase) {
       try {
         if (msgDataList.length > 0) {
@@ -1194,22 +1204,9 @@ const VisualChat = () => {
             }),
             mode: 'cors',
           });
-          if (r.ok) apiSaved = true;
-          else {
-            const fallback = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-User-Email': me.email,
-              },
-              body: JSON.stringify({
-                role: 'summary',
-                content: summaryText,
-                summary: summaryText,
-              }),
-              mode: 'cors',
-            });
-            if (fallback.ok) apiSaved = true;
+          if (!r.ok) {
+            const t = await r.text().catch(() => '');
+            console.warn('[STT] chat_msg API summary-full 실패', r.status, t);
           }
         } else {
           const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
@@ -1225,17 +1222,13 @@ const VisualChat = () => {
             }),
             mode: 'cors',
           });
-          if (r.ok) apiSaved = true;
+          if (!r.ok) {
+            const t = await r.text().catch(() => '');
+            console.warn('[STT] chat_msg API summary 저장 실패', r.status, t);
+          }
         }
       } catch (err) {
-        console.warn('chat_msg API 저장 실패:', err);
-      }
-    }
-    if (!apiSaved) {
-      try {
-        await saveToSupabase();
-      } catch (err) {
-        console.warn('chat_msg Supabase 저장 오류:', err);
+        console.warn('[STT] chat_msg API 저장 실패:', err);
       }
     }
   };
