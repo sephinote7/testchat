@@ -997,10 +997,16 @@ const VisualChat = () => {
     if (!chatId || !me?.email) return;
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
     const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
-    const summarizeUrl =
+    let summarizeUrl =
       import.meta.env.VITE_SUMMARIZE_API_URL ||
       (apiBase ? `${apiBase}/summarize` : '') ||
-      'http://localhost:8000/api/summarize';
+      '';
+    if (!summarizeUrl) {
+      summarizeUrl =
+        typeof window !== 'undefined' && window.location?.hostname !== 'localhost' && window.location?.hostname !== '127.0.0.1'
+          ? 'https://testchatpy.onrender.com/api/summarize'
+          : 'http://localhost:8000/api/summarize';
+    }
 
     const basePayload = chatMessages.map((msg) => ({
       type: 'chat',
@@ -1030,6 +1036,9 @@ const VisualChat = () => {
       formData.append(audioKey, new Blob([], { type: 'audio/webm' }), audioFilename);
     }
 
+    const blob = audioChunks?.length ? new Blob(audioChunks, { type: 'audio/webm' }) : null;
+    console.log('[STT] 요청', { audioChunks: audioChunks?.length ?? 0, blobSize: blob?.size ?? 0, url: summarizeUrl });
+
     if (summarizeUrl) {
       try {
         const summaryRes = await fetch(summarizeUrl, {
@@ -1037,12 +1046,11 @@ const VisualChat = () => {
           body: formData,
           mode: 'cors',
         });
+        const data = summaryRes.ok ? await summaryRes.json().catch(() => ({})) : {};
         if (summaryRes.ok) {
-          const data = await summaryRes.json();
           summaryText = (data.summary || '').trim();
           if (summaryText.length > 300) summaryText = summaryText.slice(0, 297) + '…';
           summaryLine = (data.summary_line || '').trim();
-          // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
           const apiMsgData = data.msg_data;
           if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
             msgDataList = apiMsgData.map((item) => ({
@@ -1054,6 +1062,10 @@ const VisualChat = () => {
           } else {
             msgDataList = basePayload;
           }
+          console.log('[STT] 성공, msg_data 항목 수:', msgDataList.length);
+        } else {
+          const errText = await summaryRes.text().catch(() => '');
+          console.warn('[STT] 요약 API 실패', summaryRes.status, errText);
         }
       } catch (e) {
         console.warn('요약 API 실패:', e);
@@ -1177,10 +1189,18 @@ const VisualChat = () => {
     if (!skipSaveAndStat) updateCnslStatRef.current?.('D');
     setRemoteStream(null);
 
-    if (mediaRecorderRef.current) {
+    const audioRecorder = mediaRecorderRef.current;
+    if (audioRecorder) {
       try {
-        if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
-      } catch {}
+        if (audioRecorder.state !== 'inactive') {
+          if (!skipSaveAndStat) {
+            audioRecorder.onstop = () => setTimeout(() => saveSummaryInBackground(), 400);
+          }
+          audioRecorder.stop();
+        } else if (!skipSaveAndStat) {
+          setTimeout(() => saveSummaryInBackground(), 400);
+        }
+      } catch (_) {}
       mediaRecorderRef.current = null;
     }
     if (videoRecorderRef.current) {
@@ -1212,7 +1232,7 @@ const VisualChat = () => {
       },
     );
 
-    if (!skipSaveAndStat) setTimeout(() => saveSummaryInBackground(), 1500);
+    if (!skipSaveAndStat && !audioRecorder) setTimeout(() => saveSummaryInBackground(), 1500);
   };
   runCallEndCleanupRef.current = runCallEndCleanup;
 
