@@ -32,7 +32,10 @@ const MyPage = () => {
         <Route path="editinfo" element={<EditInfo />} />
         <Route path="clist" element={<CounselList />} />
         <Route path="counsel/ai/:id" element={<AICounselDetail />} />
-        <Route path="counsel/counselor/:id" element={<CounselorCounselDetail />} />
+        <Route
+          path="counsel/counselor/:id"
+          element={<CounselorCounselDetail />}
+        />
         <Route path="postlist" element={<MyPost />} />
         <Route path="commentlist" element={<MyComment />} />
         <Route path="point-charge" element={<PointCharge />} />
