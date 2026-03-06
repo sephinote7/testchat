@@ -226,8 +226,10 @@ const VisualChat = () => {
   const [deviceError, setDeviceError] = useState(false);
   const [peerError, setPeerError] = useState('');
   const mediaRecorderRef = useRef(null);
+  const remoteAudioRecorderRef = useRef(null);
   const videoRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const remoteRecordedChunksRef = useRef([]);
   const videoRecordedChunksRef = useRef([]);
   const hadVideoRecordingRef = useRef(false);
   const videoRefMobile = useRef(null);
@@ -767,6 +769,7 @@ const VisualChat = () => {
         }
         call.on('stream', (remote) => {
           setRemoteStream(remote);
+          startRemoteAudioRecordingIfPossible(remote);
         });
         call.on('close', () => {
           setRemoteStream(null);
@@ -883,6 +886,20 @@ const VisualChat = () => {
     });
   };
 
+  const startRemoteAudioRecordingIfPossible = (remote) => {
+    try {
+      if (!remote?.getAudioTracks?.().length) return;
+      if (remoteAudioRecorderRef.current) return;
+      remoteRecordedChunksRef.current = [];
+      const rec = startAudioRecorderSafe(
+        remote,
+        (blob) => { remoteRecordedChunksRef.current.push(blob); },
+        () => {},
+      );
+      if (rec) remoteAudioRecorderRef.current = rec;
+    } catch (_) {}
+  };
+
   const handleStartCall = async () => {
     if (!isMeSystem || isCallActive || deviceError) return;
 
@@ -933,7 +950,10 @@ const VisualChat = () => {
             const call = peer.call(remoteId, stream);
             if (call) {
               currentCallRef.current = call;
-              call.on('stream', (remote) => setRemoteStream(remote));
+              call.on('stream', (remote) => {
+                setRemoteStream(remote);
+                startRemoteAudioRecordingIfPossible(remote);
+              });
               call.on('close', () => {
                 setRemoteStream(null);
                 runCallEndCleanupRef.current?.();
@@ -1041,37 +1061,41 @@ const VisualChat = () => {
     let msgDataList = basePayload;
 
     const audioChunks = recordedChunksRef.current;
+    const remoteAudioChunks = remoteRecordedChunksRef.current;
     const formData = new FormData();
     formData.append('msg_data', JSON.stringify(basePayload));
     const MAX_AUDIO_UPLOAD_BYTES = 24 * 1024 * 1024;
-    const audioKey = me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user';
-    const detectedMime =
-      (audioChunks || []).find((b) => b && typeof b.type === 'string' && b.type)?.type ||
-      getSupportedAudioMime() ||
-      'audio/webm';
-    const ext =
-      detectedMime.includes('mp4') ? 'mp4'
-        : detectedMime.includes('ogg') ? 'ogg'
-          : 'webm';
-    const audioFilename = (me.role === 'SYSTEM' ? 'cnsler' : 'user') + `.${ext}`;
-    if (audioChunks?.length) {
-      const audioBlob = new Blob(audioChunks, { type: detectedMime });
-      if (audioBlob.size > 0 && audioBlob.size <= MAX_AUDIO_UPLOAD_BYTES) {
-        formData.append(audioKey, audioBlob, audioFilename);
-      } else {
-        formData.append(audioKey, new Blob([], { type: detectedMime }), audioFilename);
-      }
-    } else {
-      formData.append(audioKey, new Blob([], { type: detectedMime }), audioFilename);
-    }
+    const localKey = me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user';
+    const remoteKey = me.role === 'SYSTEM' ? 'audio_user' : 'audio_cnsler';
 
-    const debugBlob = audioChunks?.length ? new Blob(audioChunks, { type: detectedMime }) : null;
+    const appendAudio = (key, chunks, filenamePrefix) => {
+      const detectedMime =
+        (chunks || []).find((b) => b && typeof b.type === 'string' && b.type)?.type ||
+        getSupportedAudioMime() ||
+        'audio/webm';
+      const ext =
+        detectedMime.includes('mp4') ? 'mp4'
+          : detectedMime.includes('ogg') ? 'ogg'
+            : 'webm';
+      const filename = `${filenamePrefix}.${ext}`;
+      if (chunks?.length) {
+        const blob = new Blob(chunks, { type: detectedMime });
+        if (blob.size > 0 && blob.size <= MAX_AUDIO_UPLOAD_BYTES) {
+          formData.append(key, blob, filename);
+          return { size: blob.size, mime: detectedMime, filename, sent: true };
+        }
+      }
+      formData.append(key, new Blob([], { type: detectedMime }), filename);
+      return { size: 0, mime: detectedMime, filename, sent: false };
+    };
+
+    const localInfo = appendAudio(localKey, audioChunks, localKey === 'audio_cnsler' ? 'cnsler' : 'user');
+    const remoteInfo = appendAudio(remoteKey, remoteAudioChunks, remoteKey === 'audio_cnsler' ? 'cnsler' : 'user');
+
     console.log('[STT] 요청', {
-      audioChunks: audioChunks?.length ?? 0,
-      blobSize: debugBlob?.size ?? 0,
-      mime: detectedMime,
-      filename: audioFilename,
       url: summarizeUrl,
+      local: { key: localKey, chunks: audioChunks?.length ?? 0, ...localInfo },
+      remote: { key: remoteKey, chunks: remoteAudioChunks?.length ?? 0, ...remoteInfo },
     });
 
     if (summarizeUrl) {
@@ -1225,20 +1249,34 @@ const VisualChat = () => {
     setRemoteStream(null);
 
     const audioRecorder = mediaRecorderRef.current;
-    if (audioRecorder) {
-      try {
-        if (audioRecorder.state !== 'inactive') {
-          if (!skipSaveAndStat) {
-            audioRecorder.onstop = () => setTimeout(() => saveSummaryInBackground(), 400);
+    const remoteAudioRecorder = remoteAudioRecorderRef.current;
+    if (!skipSaveAndStat) {
+      let pendingStops = 0;
+      const scheduleSave = () => setTimeout(() => saveSummaryInBackground(), 400);
+      const onStopped = () => {
+        pendingStops -= 1;
+        if (pendingStops <= 0) scheduleSave();
+      };
+      const stopOne = (rec) => {
+        if (!rec) return;
+        try {
+          if (rec.state !== 'inactive') {
+            pendingStops += 1;
+            rec.onstop = onStopped;
+            try { rec.requestData?.(); } catch (_) {}
+            rec.stop();
           }
-          try { audioRecorder.requestData?.(); } catch (_) {}
-          audioRecorder.stop();
-        } else if (!skipSaveAndStat) {
-          setTimeout(() => saveSummaryInBackground(), 400);
-        }
-      } catch (_) {}
-      mediaRecorderRef.current = null;
+        } catch (_) {}
+      };
+      stopOne(audioRecorder);
+      stopOne(remoteAudioRecorder);
+      if (pendingStops === 0) scheduleSave();
+    } else {
+      try { audioRecorder?.stop?.(); } catch (_) {}
+      try { remoteAudioRecorder?.stop?.(); } catch (_) {}
     }
+    mediaRecorderRef.current = null;
+    remoteAudioRecorderRef.current = null;
     if (videoRecorderRef.current) {
       try {
         if (videoRecorderRef.current.state !== 'inactive') videoRecorderRef.current.stop();
@@ -1268,7 +1306,7 @@ const VisualChat = () => {
       },
     );
 
-    if (!skipSaveAndStat && !audioRecorder) setTimeout(() => saveSummaryInBackground(), 1500);
+    // 저장은 위 pendingStops 로직에서 처리
   };
   runCallEndCleanupRef.current = runCallEndCleanup;
 
