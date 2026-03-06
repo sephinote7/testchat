@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/auth.store';
+import { getCategoryRevenueStatistics } from '../../api/adminApi';
+import { signOut } from '../../axios/Auth';
 
 // TODO: DB 연동 가이드
 // 이 페이지는 관리자 알림 및 위험 단어 감지를 관리합니다
@@ -57,9 +60,9 @@ import useAuth from '../../hooks/useAuth';
 //    - 브라우저 알림 (Notification API) 연동
 
 const Alarm = () => {
-  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
+  const { nickname, email } = useAuthStore();
 
   const handleLogout = async () => {
     const result = await signOut();
@@ -104,12 +107,72 @@ const Alarm = () => {
 
   // 더미 위험 단어 감지 알림 테이블
   const allRiskAlerts = [
-    { id: 1, date: '2026-02-04 / 15:00', type: '고민', counselor: 'OOO', counselorName: 'AI', keyword: '자살', riskLevel: '높음', status: '진행 중', statusColor: 'text-yellow-500' },
-    { id: 2, date: '2026-02-04 / 15:00', type: '커리어', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '실기 실타', riskLevel: '중위', status: '조치', statusColor: 'text-yellow-600' },
-    { id: 3, date: '2026-02-04 / 15:00', type: '취업', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '죽고 싶다', riskLevel: '높음', status: '완료', statusColor: 'text-cyan-400' },
-    { id: 4, date: '2026-02-04 / 15:00', type: '취업', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '자살', riskLevel: '높음', status: '완료', statusColor: 'text-cyan-400' },
-    { id: 5, date: '2026-02-04 / 15:00', type: '취업', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '죽고 싶다', riskLevel: '중위', status: '완료', statusColor: 'text-cyan-400' },
-    { id: 6, date: '2026-02-04 / 15:00', type: '취업', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '자살', riskLevel: '높음', status: '완료', statusColor: 'text-cyan-400' },
+    {
+      id: 1,
+      date: '2026-02-04 / 15:00',
+      type: '고민',
+      counselor: 'OOO',
+      counselorName: 'AI',
+      keyword: '자살',
+      riskLevel: '높음',
+      status: '진행 중',
+      statusColor: 'text-yellow-500',
+    },
+    {
+      id: 2,
+      date: '2026-02-04 / 15:00',
+      type: '커리어',
+      counselor: 'OOO',
+      counselorName: 'OOO 상담사',
+      keyword: '실기 실타',
+      riskLevel: '중위',
+      status: '조치',
+      statusColor: 'text-yellow-600',
+    },
+    {
+      id: 3,
+      date: '2026-02-04 / 15:00',
+      type: '취업',
+      counselor: 'OOO',
+      counselorName: 'OOO 상담사',
+      keyword: '죽고 싶다',
+      riskLevel: '높음',
+      status: '완료',
+      statusColor: 'text-cyan-400',
+    },
+    {
+      id: 4,
+      date: '2026-02-04 / 15:00',
+      type: '취업',
+      counselor: 'OOO',
+      counselorName: 'OOO 상담사',
+      keyword: '자살',
+      riskLevel: '높음',
+      status: '완료',
+      statusColor: 'text-cyan-400',
+    },
+    {
+      id: 5,
+      date: '2026-02-04 / 15:00',
+      type: '취업',
+      counselor: 'OOO',
+      counselorName: 'OOO 상담사',
+      keyword: '죽고 싶다',
+      riskLevel: '중위',
+      status: '완료',
+      statusColor: 'text-cyan-400',
+    },
+    {
+      id: 6,
+      date: '2026-02-04 / 15:00',
+      type: '취업',
+      counselor: 'OOO',
+      counselorName: 'OOO 상담사',
+      keyword: '자살',
+      riskLevel: '높음',
+      status: '완료',
+      statusColor: 'text-cyan-400',
+    },
   ];
 
   const itemsPerPage = 6;
@@ -207,13 +270,11 @@ const Alarm = () => {
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">
-              {user?.email?.split('@')[0] || 'OOO'} 관리자님
-            </span>
+            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
           </div>
           <button
             onClick={handleLogout}
-            className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
+            className="cursor-pointer px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
           >
             로그아웃
           </button>

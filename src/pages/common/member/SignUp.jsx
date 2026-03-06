@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
+import { authApi } from '../../../axios/Auth';
 
 const SignUp = () => {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { signUp, getmemberInfoNicknameCheckYn } = useAuth();
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,6 +23,19 @@ const SignUp = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNickname = async () => {
+    try {
+      const { userInfoNicknameCheckYn: result } = await getmemberInfoNicknameCheckYn(formData.nickname);
+      if (result === 'Y') {
+        alert('해당 닉네임은 이미 등록되어 있습니다. 고유한 닉네임을 입력해주세요.');
+        return;
+      } else alert('사용 가능한 닉네임입니다.');
+    } catch (error) {
+      console.error('nickname duplicate chck error', error.message);
+      alert(error.message);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -46,18 +60,24 @@ const SignUp = () => {
 
     setLoading(true);
 
-    const result = await signUp(formData.email, formData.password, {
+    const result = await signUp({
+      email: formData.email,
+      password: formData.password,
       nickname: formData.nickname,
-      birthdate: formData.birthdate,
+      birth: formData.birthdate.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'),
       mbti: formData.mbti,
-      introduction: formData.introduction,
-      role: 'USER', // 기본 역할
+      text: formData.introduction,
+      social: false,
+      gender: null,
+      persona: null,
+      profile: null,
     });
 
-    if (result.success) {
+    if (result) {
       setIsSuccessOpen(true);
+      navigate('/');
     } else {
-      setError(result.error || '회원가입에 실패했습니다.');
+      setError('회원가입에 실패했습니다.');
     }
 
     setLoading(false);
@@ -122,15 +142,16 @@ const SignUp = () => {
                   name="nickname"
                   value={formData.nickname}
                   onChange={handleChange}
-                  placeholder="이메일"
+                  placeholder="닉네임"
                   className="flex-1 h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
                   disabled={loading}
                   required
                 />
                 <button
                   type="button"
-                  className="w-20 lg:w-24 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-xs lg:text-sm font-semibold lg:font-normal transition-colors"
+                  className="cursor-pointer w-20 lg:w-24 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-xs lg:text-sm font-semibold lg:font-normal transition-colors"
                   disabled={loading}
+                  onClick={handleNickname}
                 >
                   중복 확인
                 </button>
@@ -157,8 +178,27 @@ const SignUp = () => {
                 required
               />
               <p className="mt-1 text-xs lg:text-xs text-gray-600">
-                비밀번호는 8자 이상 대/소문자 및 특수문자를 포함하여야 합니다
+                비밀번호는 6자 이상 대/소문자 및 특수문자를 포함하여야 합니다
               </p>
+            </div>
+
+            <div>
+              <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
+                비밀번호 확인 *
+              </label>
+              <input
+                type="password"
+                name="passwordConfirm"
+                value={formData.passwordConfirm}
+                onChange={handleChange}
+                placeholder="비밀번호 확인"
+                className="w-full h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
+                disabled={loading}
+                required
+              />
+              {formData.password && formData.passwordConfirm && formData.password !== formData.passwordConfirm && (
+                <p className="mt-1 text-xs lg:text-xs text-red-600">비밀번호가 틀립니다. 다시 확인해 주세요</p>
+              )}
             </div>
 
             <div>
@@ -176,25 +216,6 @@ const SignUp = () => {
                 required
               />
               <p className="mt-1 text-xs lg:text-sm text-red-600">생년월일은 '-'를 제외한 8자리 입력해주세요</p>
-            </div>
-
-            <div>
-              <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                비밀번호 확인 *
-              </label>
-              <input
-                type="password"
-                name="passwordConfirm"
-                value={formData.passwordConfirm}
-                onChange={handleChange}
-                placeholder="이메일"
-                className="w-full h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
-                disabled={loading}
-                required
-              />
-              {formData.password && formData.passwordConfirm && formData.password !== formData.passwordConfirm && (
-                <p className="mt-1 text-xs lg:text-xs text-red-600">비밀번호가 틀립니다. 다시 확인해 주세요</p>
-              )}
             </div>
 
             <div>
@@ -229,7 +250,7 @@ const SignUp = () => {
                 </select>
                 <button
                   type="button"
-                  className="w-24 lg:w-28 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-[10px] lg:text-xs font-semibold lg:font-normal transition-colors leading-tight"
+                  className="cursor-pointer w-24 lg:w-28 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-[10px] lg:text-xs font-semibold lg:font-normal transition-colors leading-tight"
                   disabled={loading}
                 >
                   MBTI 검사하기
@@ -257,7 +278,7 @@ const SignUp = () => {
 
             <button
               type="submit"
-              className="mt-3 lg:mt-6 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal disabled:opacity-50 transition-colors"
+              className="cursor-pointer mt-3 lg:mt-6 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal disabled:opacity-50 transition-colors"
               disabled={loading}
             >
               {loading ? '가입 중...' : '회원가입'}
@@ -294,13 +315,11 @@ const SignUp = () => {
             </div>
             <h3 className="text-2xl lg:text-[30px] font-bold lg:font-semibold mb-3 text-gray-800">회원 가입 완료</h3>
             <p className="text-sm lg:text-base text-gray-600 mb-6">정상적으로 회원 가입이 완료되었습니다</p>
-            <Link
-              to="/member/signin"
-              className="block w-full h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal leading-[3rem] transition-colors"
-              onClick={() => setIsSuccessOpen(false)}
-            >
-              로그인으로
-            </Link>
+            <button className="block w-full h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal leading-[3rem] transition-colors cursor-pointer">
+              <Link to="/member/signin" onClick={() => setIsSuccessOpen(false)}>
+                로그인으로
+              </Link>
+            </button>
           </div>
         </div>
       )}

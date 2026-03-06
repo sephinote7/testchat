@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { authApi } from '../axios/Auth';
+import { useAuthStore } from '../store/auth.store';
+import { useNavigate } from 'react-router-dom';
 
 export default function useAuth() {
   // 초기 상태: 로그아웃 상태
@@ -12,6 +15,11 @@ export default function useAuth() {
   });
   const [loading, setLoading] = useState(true);
 
+  const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const setStoreEmail = useAuthStore((state) => state.setEmail);
+  const setLoginStatus = useAuthStore((state) => state.setLoginStatus);
+  const navigate = useNavigate();
+
   useEffect(() => {
     // 현재 세션 확인
     const checkSession = async () => {
@@ -19,7 +27,7 @@ export default function useAuth() {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           // Supabase 세션이 있으면 우선 사용
           const userRole = session.user.user_metadata?.role || 'USER';
@@ -28,7 +36,9 @@ export default function useAuth() {
             role: userRole,
             email: session.user.email,
             id: session.user.id,
-            nickname: session.user.user_metadata?.nickname || session.user.email?.split('@')[0],
+            nickname:
+              session.user.user_metadata?.nickname ||
+              session.user.email?.split('@')[0],
           });
         } else {
           // Supabase 세션이 없으면 더미 유저 확인 (개발/테스트용)
@@ -90,7 +100,7 @@ export default function useAuth() {
         setLoading(false);
       }
     };
-    
+
     checkSession();
 
     // 인증 상태 변경 리스너
@@ -105,7 +115,9 @@ export default function useAuth() {
           role: userRole,
           email: session.user.email,
           id: session.user.id,
-          nickname: session.user.user_metadata?.nickname || session.user.email?.split('@')[0],
+          nickname:
+            session.user.user_metadata?.nickname ||
+            session.user.email?.split('@')[0],
         });
         // Supabase 로그인 성공 시 더미 유저는 제거
         localStorage.removeItem('dummyUser');
@@ -148,20 +160,25 @@ export default function useAuth() {
   // 로그인 함수
   const signIn = async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await authApi.post('/api/member/login', null, {
+        params: { email, password },
       });
 
-      if (error) throw error;
-      
-      // Supabase 로그인 성공 시 더미 유저 제거
-      localStorage.removeItem('dummyUser');
-      
-      return { success: true, data };
+      console.log('로그인 테스트 : ', response.data);
+
+      if (response.data.accessToken) {
+        setAccessToken(response.data.accessToken);
+        setLoginStatus(true);
+
+        if (response.data.email) setStoreEmail(response.data.email);
+        else setStoreEmail(email);
+        return { success: true };
+      } else return { success: false, error: 'accessToken이 없습니다.' };
     } catch (error) {
-      console.error('로그인 오류:', error);
+      console.error('로그인에 실패했습니다.', error);
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -199,68 +216,52 @@ export default function useAuth() {
   };
 
   // 회원가입 함수
-  const signUp = async (email, password, metadata = {}) => {
+  const signUp = async ({
+    email,
+    password,
+    nickname,
+    social = false,
+    gender = null,
+    mbti = null,
+    birth = null,
+    persona = null,
+    profile = null,
+    text = null,
+  }) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data } = await authApi.post('/api/member/signup', {
         email,
         password,
-        options: {
-          data: {
-            role: metadata.role || 'USER',
-            nickname: metadata.nickname || '',
-            birthdate: metadata.birthdate || '',
-            mbti: metadata.mbti || '',
-            introduction: metadata.introduction || '',
-          },
+        nickname,
+        social,
+        gender,
+        mbti,
+        birth,
+        persona,
+        profile,
+        text,
+      });
+
+      console.log('회원가입 완료', data);
+      return data;
+    } catch (error) {
+      console.error('회원가입 실패', error);
+    }
+  };
+
+  // 닉네임 중복 확인 함수
+  const getmemberInfoNicknameCheckYn = async (nickname) => {
+    try {
+      const { data } = await authApi.get('/api/member_InfoNicknameChk', {
+        params: {
+          nickname,
         },
       });
 
-      if (error) throw error;
-      
-      // Supabase 회원가입 성공 시 더미 유저 제거
-      localStorage.removeItem('dummyUser');
-      
-      return { success: true, data };
+      return data;
     } catch (error) {
-      console.error('회원가입 오류:', error);
-      return { success: false, error: error.message };
+      console.error('닉네임 중복 확인 실패', error);
     }
   };
-
-  // 로그아웃 함수
-  const signOut = async () => {
-    try {
-      // Supabase 로그아웃
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      // 더미 유저도 제거 (개발/테스트용)
-      localStorage.removeItem('dummyUser');
-      
-      // 로그아웃 상태로 변경
-      setUser({
-        isLogin: false,
-        role: 'USER',
-        email: null,
-        id: null,
-        nickname: null,
-      });
-      
-      return { success: true };
-    } catch (error) {
-      console.error('로그아웃 오류:', error);
-      // 오류가 발생해도 로컬 상태는 초기화
-      localStorage.removeItem('dummyUser');
-      setUser({
-        isLogin: false,
-        role: 'USER',
-        email: null,
-        id: null,
-        nickname: null,
-      });
-      return { success: false, error: error.message };
-    }
-  };
-
-  return { user, loading, signIn, signUp, signOut, dummySignIn };
+  return { user, loading, signIn, signUp, getmemberInfoNicknameCheckYn };
 }

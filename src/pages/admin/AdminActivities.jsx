@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/auth.store';
+import { signOut } from '../../axios/Auth';
 
 const AdminActivities = () => {
-  const { user } = useAuth();
+  const { email, nickname } = useAuthStore();
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
   const [currentPage, setCurrentPage] = useState(1);
 
   // ========== 더미 데이터 시작 (DB 연동 시 삭제) ==========
@@ -173,12 +180,10 @@ const AdminActivities = () => {
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">
-              {user?.email?.split('@')[0] || 'OOO'} 관리자님
-            </span>
+            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={handleLogout}
             className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
           >
             로그아웃
@@ -218,13 +223,12 @@ const AdminActivities = () => {
                       <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.type}</td>
                       <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.counselor}</td>
                       <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.counselorName}</td>
-                      <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">
-                        {activity.keyword}
-                      </td>
-                      <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">
-                        {activity.riskLevel}
-                      </td>
-                      <td className="px-6 py-4 text-center text-sm font-semibold" style={{ color: activity.statusColor }}>
+                      <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">{activity.keyword}</td>
+                      <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">{activity.riskLevel}</td>
+                      <td
+                        className="px-6 py-4 text-center text-sm font-semibold"
+                        style={{ color: activity.statusColor }}
+                      >
                         {activity.status}
                       </td>
                     </tr>

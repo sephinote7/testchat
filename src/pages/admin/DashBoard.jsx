@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import {
+  getCategoryRevenueStatistics,
+  getLatestlyCounselorRevenue,
+  getRealtimeRiskDetectionStatus,
+  getTypeRevenueStatistics,
+} from '../../api/adminApi';
+import { useAuthStore } from '../../store/auth.store';
+import { signOut } from '../../axios/Auth';
 
 // TODO: DB 연동 가이드
 // 이 페이지는 관리자 대시보드로 상담 통계를 표시합니다
@@ -32,59 +40,263 @@ import useAuth from '../../hooks/useAuth';
 //    - 위험 단어 감지 시 즉시 알림
 
 const DashBoard = () => {
-  const { user, signOut } = useAuth();
+  const { nickname, email } = useAuthStore();
   const navigate = useNavigate();
-  const [dateRange, setDateRange] = useState('2026-01-19 ~ 2026-01-25');
+  const [periodFilter, setPeriodFilter] = useState('오늘'); // 오늘, 이번 주, 일주일, 이번 달, 1개월, 이번 분기
+  const [counselStats, setCounselStats] = useState([]);
+  const [riskActivities, setRiskActivities] = useState([]);
+  const [settlements, setSettlements] = useState([]);
 
   const handleLogout = async () => {
-    const result = await signOut();
-    if (result.success) {
-      navigate('/');
-    }
+    await signOut();
+    navigate('/');
   };
 
-  // ========== 더미 데이터 시작 (DB 연동 시 삭제) ==========
-  // 상담 통계 카드 데이터
-  const counselStats = [
-    {
-      title: '고민 상담 건수',
-      thisWeek: '0 건',
-      avgTime: 'N 분',
-      keywords: ['□ □', '□ □', '□ □'],
-      risk: 'N 건',
-    },
-    {
-      title: '커리어 상담 건수',
-      thisWeek: '0 건',
-      avgTime: 'N 분',
-      keywords: ['□ □', '□ □', '□ □'],
-      risk: null,
-    },
-    {
-      title: '취업 상담 건수',
-      thisWeek: '0 건',
-      avgTime: 'N 분',
-      keywords: ['□ □', '□ □', '□ □'],
-      risk: null,
-    },
-  ];
+  // 날짜 포맷 계산(date -> string) 함수 (날짜 계산 완료 후 사용해야 함)
+  const formatDate = (date) => date.toISOString().split('T')[0];
+
+  const now = new Date();
+
+  /* ===========================
+   오늘
+  =========================== */
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  /* ===========================
+   이번 주 (월요일 시작)
+  =========================== */
+  const day = now.getDay(); // 0(일) ~ 6(토)
+  const diff = day === 0 ? -6 : 1 - day;
+
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(now.getDate() + diff);
+  thisWeekStart.setHours(0, 0, 0, 0);
+
+  const thisWeekEnd = new Date(now);
+  thisWeekEnd.setHours(23, 59, 59, 999);
+
+  /* ===========================
+   지난 7일 (rolling)
+  =========================== */
+  const last7DaysStart = new Date(now);
+  last7DaysStart.setDate(now.getDate() - 7);
+
+  const last7DaysEnd = now;
+
+  /* ===========================
+   이번 달
+  =========================== */
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  thisMonthStart.setHours(0, 0, 0, 0);
+
+  const thisMonthEnd = new Date(now);
+  thisMonthEnd.setHours(23, 59, 59, 999);
+
+  /* ===========================
+   지난 30일 (rolling)
+  =========================== */
+  const last30DaysStart = new Date(now);
+  last30DaysStart.setDate(now.getDate() - 30);
+
+  const last30DaysEnd = now;
+
+  /* ===========================
+   이번 분기
+  =========================== */
+  const month = now.getMonth();
+  const quarterStartMonth = Math.floor(month / 3) * 3;
+
+  const thisQuarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+  thisQuarterStart.setHours(0, 0, 0, 0);
+
+  const thisQuarterEnd = new Date(now);
+  thisQuarterEnd.setHours(23, 59, 59, 999);
+
+  useEffect(() => {
+    try {
+      let startDate, endDate;
+      if (periodFilter === '오늘' || !periodFilter) {
+        startDate = todayStart;
+        endDate = todayEnd;
+      } else if (periodFilter === '이번 주') {
+        startDate = thisWeekStart;
+        endDate = thisWeekEnd;
+      } else if (periodFilter === '일주일') {
+        startDate = last7DaysStart;
+        endDate = last7DaysEnd;
+      } else if (periodFilter === '이번 달') {
+        startDate = thisMonthStart;
+        endDate = thisMonthEnd;
+      } else if (periodFilter === '1개월') {
+        startDate = last30DaysStart;
+        endDate = last30DaysEnd;
+      } else {
+        // 이번 분기
+        startDate = thisQuarterStart;
+        endDate = thisQuarterEnd;
+      }
+
+      // 기간 내 상담 건수 및 수익 : 카테고리별
+      const fetchCategoryRevenueStatistics = async () => {
+        const data = await getCategoryRevenueStatistics({
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate),
+        });
+        setCounselStats(data);
+      };
+
+      // 기간 내 상담 건수 및 수익 : 상담 유형별
+      const fetchTypeRevenueStatistics = async () => {
+        const data = await getTypeRevenueStatistics({
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate),
+        });
+
+        // console.log(data);
+      };
+
+      // 실시간 위험 감지 및 조치 현황
+      const fetchRealtimeRiskDetectionStatus = async () => {
+        const data = await getRealtimeRiskDetectionStatus();
+        // console.log(data);
+        setRiskActivities(data);
+      };
+
+      // 정산현황 : 일자별전체 상담사 내역 관련 집계 (최근일, 상담매출액순)
+      const fetchLatestlyCounselorRevenue = async () => {
+        const { content: data } = await getLatestlyCounselorRevenue();
+        console.log(data);
+        setSettlements(data);
+      };
+
+      fetchCategoryRevenueStatistics();
+      fetchTypeRevenueStatistics();
+      fetchRealtimeRiskDetectionStatus();
+      fetchLatestlyCounselorRevenue();
+    } catch (error) {
+      console.error('dahsboard', error);
+      throw error;
+    }
+  }, [periodFilter, email]);
 
   // 실시간 위험 감지 조치 현황
-  const riskActivities = [
-    { id: 1, date: '2026-02-04 / 15:00', type: '고민', counselor: 'OOO', counselorName: 'AI', keyword: '자살', riskLevel: '높음', status: '높음' },
-    { id: 2, date: '2026-02-04 / 15:00', type: '커리어', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '실기 실타', riskLevel: '중위', status: '조치' },
-    { id: 3, date: '2026-02-04 / 15:00', type: '취업', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '죽고 싶다', riskLevel: '높음', status: '완료' },
-    { id: 4, date: '2026-02-04 / 15:00', type: '취업', counselor: 'OOO', counselorName: 'OOO 상담사', keyword: '자살', riskLevel: '높음', status: '완료' },
-  ];
+  // const riskActivities = [
+  //   {
+  //     id: 1,
+  //     date: '2026-02-04 / 15:00',
+  //     type: '고민',
+  //     counselor: 'OOO',
+  //     counselorName: 'AI',
+  //     keyword: '자살',
+  //     riskLevel: '높음',
+  //     status: '높음',
+  //   },
+  //   {
+  //     id: 2,
+  //     date: '2026-02-04 / 15:00',
+  //     type: '커리어',
+  //     counselor: 'OOO',
+  //     counselorName: 'OOO 상담사',
+  //     keyword: '실기 실타',
+  //     riskLevel: '중위',
+  //     status: '조치',
+  //   },
+  //   {
+  //     id: 3,
+  //     date: '2026-02-04 / 15:00',
+  //     type: '취업',
+  //     counselor: 'OOO',
+  //     counselorName: 'OOO 상담사',
+  //     keyword: '죽고 싶다',
+  //     riskLevel: '높음',
+  //     status: '완료',
+  //   },
+  //   {
+  //     id: 4,
+  //     date: '2026-02-04 / 15:00',
+  //     type: '취업',
+  //     counselor: 'OOO',
+  //     counselorName: 'OOO 상담사',
+  //     keyword: '자살',
+  //     riskLevel: '높음',
+  //     status: '완료',
+  //   },
+  // ];
 
-  // 최근 정산 현황
-  const settlements = [
-    { id: 1, date: '2026-02-01', counselor: '커리어', counselorName: 'AAA 상담사', totalCounsel: '45건', totalAmount: '1,200,000원', platformFee: '240,000원', netAmount: '960,000원', status: '대기' },
-    { id: 2, date: '2026-02-01', counselor: '커리어', counselorName: 'BBB 상담사', totalCounsel: '32건', totalAmount: '850,000원', platformFee: '170,000원', netAmount: '680,000원', status: '대기' },
-    { id: 3, date: '2026-02-01', counselor: '취업', counselorName: 'AAA 상담사', totalCounsel: '45건', totalAmount: '1,200,000원', platformFee: '240,000원', netAmount: '960,000원', status: '완료' },
-    { id: 4, date: '2026-02-01', counselor: '취업', counselorName: 'BBB 상담사', totalCounsel: '32건', totalAmount: '850,000원', platformFee: '170,000원', netAmount: '680,000원', status: '완료' },
-  ];
-  // ========== 더미 데이터 끝 ==========
+  // // 최근 정산 현황
+  // const settlements = [
+  //   {
+  //     id: 1,
+  //     date: '2026-02-01',
+  //     counselor: '커리어',
+  //     counselorName: 'AAA 상담사',
+  //     totalCounsel: '45건',
+  //     totalAmount: '1,200,000원',
+  //     platformFee: '240,000원',
+  //     netAmount: '960,000원',
+  //     status: '대기',
+  //   },
+  //   {
+  //     id: 2,
+  //     date: '2026-02-01',
+  //     counselor: '커리어',
+  //     counselorName: 'BBB 상담사',
+  //     totalCounsel: '32건',
+  //     totalAmount: '850,000원',
+  //     platformFee: '170,000원',
+  //     netAmount: '680,000원',
+  //     status: '대기',
+  //   },
+  //   {
+  //     id: 3,
+  //     date: '2026-02-01',
+  //     counselor: '취업',
+  //     counselorName: 'AAA 상담사',
+  //     totalCounsel: '45건',
+  //     totalAmount: '1,200,000원',
+  //     platformFee: '240,000원',
+  //     netAmount: '960,000원',
+  //     status: '완료',
+  //   },
+  //   {
+  //     id: 4,
+  //     date: '2026-02-01',
+  //     counselor: '취업',
+  //     counselorName: 'BBB 상담사',
+  //     totalCounsel: '32건',
+  //     totalAmount: '850,000원',
+  //     platformFee: '170,000원',
+  //     netAmount: '680,000원',
+  //     status: '완료',
+  //   },
+  // ];
+  // // ========== 더미 데이터 끝 ==========
+
+  // 평균 시간 포맷 함수
+  const formatDuration = (timeString) => {
+    const [hours, minutes, seconds] = timeString.split(':').map(Number);
+
+    let result = '';
+
+    if (hours > 0) {
+      result += `${hours} 시간 `;
+    }
+
+    if (minutes > 0) {
+      result += `${minutes} 분 `;
+    }
+
+    if (seconds > 0 && hours === 0) {
+      // 시간 단위가 없을 때만 초 표시 (선택적)
+      result += `${seconds} 초`;
+    }
+
+    return result.trim() || '0분';
+  };
 
   return (
     <div className="flex min-h-screen bg-[#f3f7ff]">
@@ -175,9 +387,7 @@ const DashBoard = () => {
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">
-              {user?.email?.split('@')[0] || 'OOO'} 관리자님
-            </span>
+            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
           </div>
           <button
             onClick={handleLogout}
@@ -193,15 +403,22 @@ const DashBoard = () => {
             {/* TITLE & DATE SELECTOR */}
             <div className="flex items-center justify-between mb-10">
               <h1 className="text-4xl font-bold text-gray-800">대시보드</h1>
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="h-12 px-6 bg-white border-2 border-gray-300 rounded-xl text-base focus:outline-none focus:border-[#2563eb] transition-colors"
-              >
-                <option value="2026-01-19 ~ 2026-01-25">2026-01-19 ~ 2026-01-25</option>
-                <option value="2026-01-12 ~ 2026-01-18">2026-01-12 ~ 2026-01-18</option>
-                <option value="2026-01-05 ~ 2026-01-11">2026-01-05 ~ 2026-01-11</option>
-              </select>
+              {/* 기간 필터 버튼 */}
+              <div className="flex items-center gap-3">
+                {['오늘', '이번 주', '일주일', '이번 달', '1개월', '이번 분기'].map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setPeriodFilter(filter)}
+                    className={`cursor-pointer px-6 py-2.5 rounded-xl text-base font-medium transition-colors ${
+                      periodFilter === filter
+                        ? 'bg-[#2563eb] text-white shadow-lg border-[#2563eb]'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-[#2563eb]'
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* STATS CARDS - 3 COLUMN GRID */}
@@ -209,38 +426,27 @@ const DashBoard = () => {
               {counselStats.map((stat, index) => (
                 <div key={index} className="bg-white rounded-2xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold text-gray-800 mb-4 pb-3 border-b-2 border-gray-200">
-                    {stat.title}
+                    {stat?.codeName?.split('상담')[0]} 상담 건수
                   </h3>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">이번 주 상담 :</span>
-                      <span className="text-lg font-bold text-green-600">{stat.thisWeek}</span>
+                      <span className="text-sm text-gray-600">{periodFilter} 상담 :</span>
+                      <span className="text-lg font-bold text-gray-800">
+                        {stat.cnslCount} <span className="text-gray-800">건</span>
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">평균 상담 시간 :</span>
-                      <span className="text-base font-semibold text-gray-800">{stat.avgTime}</span>
+                      <span className="text-base font-semibold text-gray-800">{formatDuration(stat?.avgCnslTime)}</span>
                     </div>
-                    <div>
-                      <span className="text-sm text-gray-600 block mb-2">주요 상담 키워드 :</span>
-                      <div className="flex flex-wrap gap-2">
-                        {stat.keywords.map((keyword, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium"
-                          >
-                            {keyword}
-                          </span>
-                        ))}
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">매출액 :</span>
+                      <span className="text-lg font-bold text-gray-800">{stat?.cnslPriceSum} 원</span>
                     </div>
-                    {stat.risk && (
-                      <div className="pt-2 border-t border-gray-200">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">위험 단어 감지 :</span>
-                          <span className="text-lg font-bold text-red-600">{stat.risk}</span>
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">플랫폼 수수료 :</span>
+                      <span className="text-lg font-bold text-gray-800">{stat?.cnslPriceCmsn} 원</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -251,7 +457,7 @@ const DashBoard = () => {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">실시간 위험 감지 조치 현황</h2>
                 <Link to="/admin/activities" className="text-[#2563eb] font-semibold hover:underline">
-                  자세 보러가기
+                  자세히 보러가기
                 </Link>
               </div>
 
@@ -261,9 +467,8 @@ const DashBoard = () => {
                   <thead>
                     <tr className="bg-[#2563eb] text-white">
                       <th className="px-4 py-3 text-center font-bold text-sm">날짜</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">상담</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">상담자</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">상담사</th>
+                      <th className="px-4 py-3 text-center font-bold text-sm">게시판</th>
+                      <th className="px-4 py-3 text-center font-bold text-sm">작성자</th>
                       <th className="px-4 py-3 text-center font-bold text-sm">감지단어</th>
                       <th className="px-4 py-3 text-center font-bold text-sm">위험단계</th>
                       <th className="px-4 py-3 text-center font-bold text-sm">확인 및 조치</th>
@@ -277,15 +482,16 @@ const DashBoard = () => {
                           index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
                         }`}
                       >
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity.date}</td>
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity.type}</td>
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity.counselor}</td>
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity.counselorName}</td>
-                        <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">{activity.keyword}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity?.riskDate}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity?.type}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity?.nickname}</td>
                         <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">
-                          {activity.riskLevel}
+                          {activity?.keyword || ''}
                         </td>
-                        <td className="px-4 py-3 text-center text-xs font-semibold text-cyan-500">{activity.status}</td>
+                        <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">높음</td>
+                        <td className="px-4 py-3 text-center text-xs font-semibold text-cyan-500">
+                          {activity?.action}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -297,9 +503,6 @@ const DashBoard = () => {
             <div className="mb-10">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">최근 정산 현황</h2>
-                <Link to="/admin/settlements" className="text-[#2563eb] font-semibold hover:underline">
-                  상세한 분석까기
-                </Link>
               </div>
 
               {/* TABLE */}
@@ -307,41 +510,34 @@ const DashBoard = () => {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-[#2563eb] text-white">
-                      <th className="px-3 py-3 text-center font-bold text-sm">정산날짜</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">상담</th>
+                      <th className="px-3 py-3 text-center font-bold text-sm">상담 일자</th>
                       <th className="px-3 py-3 text-center font-bold text-sm">상담사</th>
                       <th className="px-3 py-3 text-center font-bold text-sm">총 상담 건수</th>
                       <th className="px-3 py-3 text-center font-bold text-sm">총 매출액</th>
                       <th className="px-3 py-3 text-center font-bold text-sm">플랫폼 수수료</th>
                       <th className="px-3 py-3 text-center font-bold text-sm">지급액</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">정산 상태</th>
                     </tr>
                   </thead>
                   <tbody>
                     {settlements.map((item, index) => (
                       <tr
-                        key={item.id}
-                        className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
+                        key={item?.cnslerId}
+                        className={`cursor-pointer border-b border-gray-200 hover:bg-gray-50 transition-colors ${
                           index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
                         }`}
+                        onClick={() => navigate(`/${null}`)}
                       >
-                        <td className="px-3 py-3 text-center text-xs text-gray-700">{item.date}</td>
-                        <td className="px-3 py-3 text-center text-xs text-gray-700">{item.counselor}</td>
-                        <td className="px-3 py-3 text-center text-xs text-gray-700">{item.counselorName}</td>
-                        <td className="px-3 py-3 text-center text-xs font-semibold text-blue-600">
-                          {item.totalCounsel}
+                        <td className="px-3 py-3 text-center text-sm text-gray-700">{item?.cnslDt}</td>
+                        <td className="px-3 py-3 text-center text-sm text-gray-700">{item?.nickName}</td>
+                        <td className="px-3 py-3 text-center text-sm font-semibold text-blue-600">
+                          {item?.cnslCount} 건
                         </td>
-                        <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">
-                          {item.totalAmount}
+                        <td className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
+                          {item?.cnslPriceSum} 원
                         </td>
-                        <td className="px-3 py-3 text-center text-xs text-gray-700">{item.platformFee}</td>
-                        <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700">{item.netAmount}</td>
-                        <td
-                          className={`px-3 py-3 text-center text-xs font-semibold ${
-                            item.status === '대기' ? 'text-yellow-600' : 'text-blue-500'
-                          }`}
-                        >
-                          {item.status}
+                        <td className="px-3 py-3 text-center text-sm text-gray-700">{item?.cnslPriceCmsn} 원</td>
+                        <td className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
+                          {item?.cnslExctSum} 원
                         </td>
                       </tr>
                     ))}

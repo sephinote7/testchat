@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/auth.store';
+import { signOut } from '../../axios/Auth';
 
 const EditAdminInfo = () => {
-  const { user } = useAuth();
+  const { email, nickname } = useAuthStore();
   const navigate = useNavigate();
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   // ========== 더미 데이터 시작 (DB 연동 시 삭제) ==========
   const [formData, setFormData] = useState({
@@ -133,12 +139,10 @@ const EditAdminInfo = () => {
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">
-              {user?.email?.split('@')[0] || 'OOO'} 관리자님
-            </span>
+            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={handleLogout}
             className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
           >
             로그아웃
@@ -154,11 +158,7 @@ const EditAdminInfo = () => {
             {/* PROFILE IMAGE */}
             <div className="flex flex-col items-center mb-12">
               <div className="w-40 h-40 bg-gray-300 rounded-full mb-6 overflow-hidden">
-                <img
-                  src="https://via.placeholder.com/160"
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
+                <img src="https://via.placeholder.com/160" alt="Profile" className="w-full h-full object-cover" />
               </div>
               <div className="flex gap-4">
                 <button className="px-6 py-2.5 bg-[#2563eb] text-white rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors">

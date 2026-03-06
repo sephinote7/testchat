@@ -19,6 +19,7 @@ import Admin from '../../admin/Admin';
 import AdminActivities from '../../admin/AdminActivities';
 import PointCharge from './PointCharge';
 import PointUsageHistory from './PointUsageHistory';
+import { useAuthStore } from '../../../store/auth.store';
 
 const MyPage = () => {
   const { user } = useAuth();

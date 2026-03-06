@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import Home from './pages/common/home/Home';
 import Chat from './pages/user/chat/Chat';
@@ -29,8 +29,19 @@ import EditCounselorAbout from './pages/system/info/EditCounselorAbout';
 import CounselorClientChat from './pages/system/info/CounselorClientChat';
 import ScheduleManagement from './pages/system/info/ScheduleManagement';
 import RiskCaseList from './pages/system/info/RiskCaseList';
+import { refreshAccessToken } from './axios/Auth';
+import { useAuthStore } from './store/auth.store';
 
 const App = () => {
+  const { accessToken } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    console.log('acc', accessToken);
+    if (!accessToken) refreshAccessToken().finally(() => setIsLoading(false));
+  }, []);
+
+  if (isLoading) return <div>로딩 중 ...</div>;
+
   return (
     <>
       <Routes>
@@ -56,18 +67,18 @@ const App = () => {
         <Route
           path="/board/*"
           element={
-            <ProtectedRoute allowRoles={['USER']}>
-              <Board />
-            </ProtectedRoute>
+            <Board />
+            // <ProtectedRoute allowRoles={['USER']}>
+            // </ProtectedRoute>
           }
         />
         {/* INFO */}
         <Route
           path="/info/*"
           element={
-            <ProtectedRoute allowRoles={['USER']}>
-              <Info />
-            </ProtectedRoute>
+            <Info />
+            // <ProtectedRoute allowRoles={['USER']}>
+            // </ProtectedRoute>
           }
         />
 
@@ -76,7 +87,7 @@ const App = () => {
         <Route
           path="/system/mypage"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <CounselorDefaultPage />
             </ProtectedRoute>
           }
@@ -85,7 +96,7 @@ const App = () => {
         <Route
           path="/system/info/profile"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <CounselorProfile />
             </ProtectedRoute>
           }
@@ -94,7 +105,7 @@ const App = () => {
         <Route
           path="/system/info/edit"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <EditCounselorInfo />
             </ProtectedRoute>
           }
@@ -103,7 +114,7 @@ const App = () => {
         <Route
           path="/system/info/about"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <EditCounselorAbout />
             </ProtectedRoute>
           }
@@ -112,7 +123,7 @@ const App = () => {
         <Route
           path="/system/info/schedule"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <ScheduleManagement />
             </ProtectedRoute>
           }
@@ -121,7 +132,7 @@ const App = () => {
         <Route
           path="/system/info/risk-cases"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <RiskCaseList />
             </ProtectedRoute>
           }
@@ -130,7 +141,7 @@ const App = () => {
         <Route
           path="/system/info/reviews"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <ReviewList />
             </ProtectedRoute>
           }
@@ -139,7 +150,7 @@ const App = () => {
         <Route
           path="/system/info/review/:reviewId"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <ReviewDetail />
             </ProtectedRoute>
           }
@@ -148,7 +159,7 @@ const App = () => {
         <Route
           path="/system/info/counsel-history"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <MyCounsel />
             </ProtectedRoute>
           }
@@ -157,16 +168,27 @@ const App = () => {
         <Route
           path="/system/info/counsel-history-list"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <MyCounselHistory />
             </ProtectedRoute>
           }
         />
+
+        {/* COUNSEL RESERVATION LIST - 내 상담 예약 관리 */}
+        <Route
+          path="/system/info/counsel-reservation-list"
+          element={
+            <ProtectedRoute allowRoles={['SYSTEM']}>
+              <MyCounselReservations />
+            </ProtectedRoute>
+          }
+        />
+
         {/* OLD ROUTES - 기존 라우트 유지 */}
         <Route
           path="editinfo"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <EditInfo />
             </ProtectedRoute>
           }
@@ -174,7 +196,7 @@ const App = () => {
         <Route
           path="mycounsel"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <MyCounsel />
             </ProtectedRoute>
           }
@@ -182,7 +204,7 @@ const App = () => {
         <Route
           path="mycounsel/history"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <MyCounselHistory />
             </ProtectedRoute>
           }
@@ -190,15 +212,15 @@ const App = () => {
         <Route
           path="mycounsel/reservations"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <MyCounselReservations />
             </ProtectedRoute>
           }
         />
         <Route
-          path="mycounsel/:id"
+          path="/system/info/counsel/:id"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <MyCounselDetail />
             </ProtectedRoute>
           }
@@ -206,7 +228,7 @@ const App = () => {
         <Route
           path="about/*"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <About />
             </ProtectedRoute>
           }
@@ -216,7 +238,7 @@ const App = () => {
         <Route
           path="/counselor/:clientId/chat"
           element={
-            <ProtectedRoute allowRoles={['COUNSELOR']}>
+            <ProtectedRoute allowRoles={['SYSTEM']}>
               <CounselorClientChat />
             </ProtectedRoute>
           }

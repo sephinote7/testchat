@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/auth.store';
+import { signOut } from '../../axios/Auth';
 
 // ============================================================
 // TODO: DB 연동 가이드
@@ -15,7 +17,7 @@ import useAuth from '../../hooks/useAuth';
 //    - 요청 파라미터:
 //      * startDate: 시작 날짜 (YYYY-MM-DD)
 //      * endDate: 종료 날짜 (YYYY-MM-DD)
-//    
+//
 //    - 응답 형식:
 //      {
 //        keywords: [
@@ -28,7 +30,7 @@ import useAuth from '../../hooks/useAuth';
 //        totalCount: number,     // 전체 키워드 합계
 //        period: { start: string, end: string }
 //      }
-//    
+//
 //    - 주의사항:
 //      * 색상(color, hex)은 프론트엔드에서 매핑 (colorMap 사용)
 //      * percentage는 소수점 첫째자리까지 반올림 권장
@@ -40,7 +42,7 @@ import useAuth from '../../hooks/useAuth';
 //    - 요청 파라미터:
 //      * startDate: 시작 날짜 (YYYY-MM-DD)
 //      * endDate: 종료 날짜 (YYYY-MM-DD)
-//    
+//
 //    - 응답 형식:
 //      {
 //        categories: [
@@ -72,26 +74,24 @@ import useAuth from '../../hooks/useAuth';
 // ============================================================
 
 const Statistics = () => {
-  const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { email, nickname } = useAuthStore();
   const [dateRange, setDateRange] = useState('2026-01-19 ~ 2026-01-25');
   const [hoveredSegment, setHoveredSegment] = useState(null);
 
   const handleLogout = async () => {
-    const result = await signOut();
-    if (result.success) {
-      navigate('/');
-    }
+    await signOut();
+    navigate('/');
   };
 
   // ========== 더미 데이터 시작 (DB 연동 시 삭제) ==========
   // TODO: DB 연동 시 아래 더미 데이터를 API 호출로 대체
   // API 엔드포인트: GET /api/admin/statistics/keywords?startDate={start}&endDate={end}
-  // 
+  //
   // 예시 코드:
   // const [chartData, setChartData] = useState([]);
   // const [loading, setLoading] = useState(true);
-  // 
+  //
   // useEffect(() => {
   //   const fetchKeywordStats = async () => {
   //     try {
@@ -99,7 +99,7 @@ const Statistics = () => {
   //         `/api/admin/statistics/keywords?startDate=${startDate}&endDate=${endDate}`
   //       );
   //       const data = await response.json();
-  //       
+  //
   //       // API 응답 데이터 형식:
   //       // {
   //       //   keywords: [
@@ -109,7 +109,7 @@ const Statistics = () => {
   //       //   ],
   //       //   totalCount: 180
   //       // }
-  //       
+  //
   //       // 색상 매핑 추가
   //       const colorMap = {
   //         '고민': { color: 'bg-[#5DD8D0]', hex: '#5DD8D0' },
@@ -119,12 +119,12 @@ const Statistics = () => {
   //         '스트레스': { color: 'bg-[#C77EFF]', hex: '#C77EFF' },
   //         '자기계발': { color: 'bg-[#82E8E8]', hex: '#82E8E8' },
   //       };
-  //       
+  //
   //       const enrichedData = data.keywords.map(item => ({
   //         ...item,
   //         ...colorMap[item.label],
   //       }));
-  //       
+  //
   //       setChartData(enrichedData);
   //       setLoading(false);
   //     } catch (error) {
@@ -132,10 +132,10 @@ const Statistics = () => {
   //       setLoading(false);
   //     }
   //   };
-  //   
+  //
   //   fetchKeywordStats();
   // }, [dateRange]);
-  
+
   // 파이차트 색상 및 비율 데이터 (더미)
   const chartData = [
     { label: '고민', count: 45, percentage: 25, color: 'bg-[#5DD8D0]', hex: '#5DD8D0' },
@@ -151,18 +151,18 @@ const Statistics = () => {
   // chartData가 API에서 받아온 데이터로 대체되어도 동일하게 작동함
   const radius = 40; // SVG 원의 반지름
   const circumference = 2 * Math.PI * radius; // 원의 둘레 (약 251.33)
-  
+
   let cumulativePercentage = 0;
   const pieSegments = chartData.map((item) => {
     // 각 세그먼트의 길이 계산
     const segmentLength = (circumference * item.percentage) / 100;
     const gapLength = circumference - segmentLength;
-    
+
     // 누적 오프셋 계산 (이전 세그먼트들의 합)
     const offset = -(cumulativePercentage * circumference) / 100;
-    
+
     cumulativePercentage += item.percentage;
-    
+
     return {
       ...item,
       strokeDasharray: `${segmentLength} ${gapLength}`,
@@ -172,7 +172,7 @@ const Statistics = () => {
 
   // TODO: DB 연동 시 아래 더미 데이터를 API 호출로 대체
   // API 엔드포인트: GET /api/admin/statistics/avg-time?startDate={start}&endDate={end}
-  // 
+  //
   // 예시 응답:
   // {
   //   categories: [
@@ -180,7 +180,7 @@ const Statistics = () => {
   //     { label: '취업', avgMinutes: 50, color: '#FFA07A' },
   //   ]
   // }
-  
+
   // 카테고리별 평균 상담 시간 데이터 (더미)
   const avgTimeData = [
     { label: '커리어', percentage: 40, color: '#FF6B6B' },
@@ -277,9 +277,7 @@ const Statistics = () => {
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">
-              {user?.email?.split('@')[0] || 'OOO'} 관리자님
-            </span>
+            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
           </div>
           <button
             onClick={handleLogout}
@@ -326,7 +324,7 @@ const Statistics = () => {
                         />
                       ))}
                     </svg>
-                    
+
                     {/* 마우스 호버 시 중앙에 표시되는 툴팁 */}
                     {/* DB 연동 후에도 동일하게 작동 - pieSegments 데이터만 교체됨 */}
                     {hoveredSegment !== null && (
@@ -334,17 +332,13 @@ const Statistics = () => {
                         <div className="bg-white px-6 py-4 rounded-xl shadow-2xl border-2 border-gray-200">
                           <div className="text-center">
                             <div className="flex items-center justify-center gap-2 mb-2">
-                              <div 
-                                className="w-4 h-4 rounded-full" 
+                              <div
+                                className="w-4 h-4 rounded-full"
                                 style={{ backgroundColor: pieSegments[hoveredSegment].hex }}
                               ></div>
-                              <p className="text-xl font-bold text-gray-800">
-                                {pieSegments[hoveredSegment].label}
-                              </p>
+                              <p className="text-xl font-bold text-gray-800">{pieSegments[hoveredSegment].label}</p>
                             </div>
-                            <p className="text-lg text-gray-600">
-                              {pieSegments[hoveredSegment].count}건
-                            </p>
+                            <p className="text-lg text-gray-600">{pieSegments[hoveredSegment].count}건</p>
                             <p className="text-2xl font-bold text-[#2563eb]">
                               {pieSegments[hoveredSegment].percentage}%
                             </p>
@@ -386,11 +380,16 @@ const Statistics = () => {
                   {/* DB 연동 후에도 동일한 구조로 chartData만 API 데이터로 대체 */}
                   <div className="grid grid-cols-2 gap-4">
                     {chartData.map((item, index) => (
-                      <div key={index} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                      >
                         <div className={`w-8 h-8 rounded-full ${item.color} shadow-md flex-shrink-0`}></div>
                         <div className="flex flex-col">
                           <span className="text-lg font-semibold text-gray-800">{item.label}</span>
-                          <span className="text-sm text-gray-500">{item.count}건 ({item.percentage}%)</span>
+                          <span className="text-sm text-gray-500">
+                            {item.count}건 ({item.percentage}%)
+                          </span>
                         </div>
                       </div>
                     ))}

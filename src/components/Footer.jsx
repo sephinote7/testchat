@@ -1,11 +1,14 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuthStore } from '../store/auth.store';
 
 const Footer = () => {
   const location = useLocation();
+  const { roleName } = useAuthStore();
 
   // 채팅 페이지에서는 푸터 숨김
   if (location.pathname.startsWith('/chat')) return null;
+  if (roleName === 'ADMIN') return null;
 
   return (
     <footer className="w-full bg-[#1f2937] text-white py-6 lg:py-8">

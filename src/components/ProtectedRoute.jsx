@@ -1,8 +1,10 @@
 import { Navigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { useAuthStore } from '../store/auth.store';
 
 export default function ProtectedRoute({ children, allowRoles }) {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
+  const { roleName, accessToken } = useAuthStore();
 
   // 로딩 중일 때는 아무것도 표시하지 않음
   if (loading) {
@@ -17,12 +19,12 @@ export default function ProtectedRoute({ children, allowRoles }) {
   }
 
   // 로그인하지 않은 경우
-  if (!user || !user.isLogin) {
+  if (!accessToken) {
     return <Navigate to="/member/signin" replace />;
   }
 
   // 권한이 없는 경우
-  if (allowRoles && !allowRoles.includes(user.role)) {
+  if (allowRoles && !allowRoles.includes(roleName)) {
     return <Navigate to="/" replace />;
   }
 

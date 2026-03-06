@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
+import { useAuthStore } from '../../../store/auth.store';
+import { authApi } from '../../../axios/Auth';
 
 const SignIn = () => {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const setStoreEmail = useAuthStore((state) => state.setEmail);
+  const setLoginStatus = useAuthStore((state) => state.setLoginStatus);
+  const setRoleName = useAuthStore((state) => state.setRoleName);
+  const setNickname = useAuthStore((state) => state.setNickname);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,23 +28,48 @@ const SignIn = () => {
       return;
     }
 
-    const result = await signIn(email, password);
+    try {
+      const res = await authApi.post('/api/member/login', null, {
+        params: {
+          username: email,
+          password: password,
+        },
+      });
 
-    if (result.success) {
-      setShowSuccessModal(true);
-      setTimeout(() => {
-        navigate('/');
-      }, 1500);
-    } else {
-      setError(result.error || '로그인에 실패했습니다.');
+      console.log('로그인 테스트 == ', res);
+      if (res.data.accessToken) {
+        setAccessToken(res.data.accessToken);
+        setLoginStatus(true);
+        setRoleName(res.data.roleNames[0]);
+        setNickname(res.data.nickname);
+
+        if (res.data.email) {
+          setStoreEmail(res.data.email);
+        } else setStoreEmail(email);
+
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          if (res.data.roleNames[0] === 'USER') navigate('/');
+          else if (res.data.roleNames[0] === 'SYSTEM') navigate('/system/mypage');
+          else navigate('/alarm');
+        }, 1500);
+      } else {
+        const errorMessage = '로그인에 실패했습니다.';
+        console.log(errorMessage);
+        setError(errorMessage);
+      }
+    } catch (error) {
+      const errorMessage = '로그인에 실패했습니다.';
+      console.error(error);
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleKakaoLogin = () => {
     // TODO: 카카오톡 로그인 API 연동
-    console.log('카카오톡 로그인 클릭');
+    window.location.href = 'http://localhost:8080/oauth2/authorization/kakao';
   };
 
   return (
@@ -101,7 +132,7 @@ const SignIn = () => {
 
             <button
               type="submit"
-              className="mt-2 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal disabled:opacity-50 transition-colors"
+              className="mt-2 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal disabled:opacity-50 transition-colors cursor-pointer"
               disabled={loading}
             >
               {loading ? '로그인 중...' : '로그인'}
@@ -111,7 +142,7 @@ const SignIn = () => {
             <button
               type="button"
               onClick={handleKakaoLogin}
-              className="h-11 lg:h-12 rounded-xl bg-[#FEE500] hover:bg-[#FDDC00] text-[#191919] text-sm lg:text-base font-semibold lg:font-normal flex items-center justify-center gap-2 transition-colors"
+              className="h-11 lg:h-12 rounded-xl bg-[#FEE500] hover:bg-[#FDDC00] text-[#191919] text-sm lg:text-base font-semibold lg:font-normal flex items-center justify-center gap-2 transition-colors cursor-pointer"
               disabled={loading}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -123,13 +154,13 @@ const SignIn = () => {
             <div className="flex gap-3 mt-1">
               <button
                 type="button"
-                className="flex-1 h-10 lg:h-11 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-xs lg:text-sm font-semibold lg:font-normal transition-colors"
+                className="flex-1 h-10 lg:h-11 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-xs lg:text-sm font-semibold lg:font-normal transition-colors cursor-pointer"
               >
                 아이디/비밀번호 찾기
               </button>
               <Link
                 to="/member/signup"
-                className="flex-1 h-10 lg:h-11 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-xs lg:text-sm font-semibold lg:font-normal flex items-center justify-center transition-colors"
+                className="flex-1 h-10 lg:h-11 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-xs lg:text-sm font-semibold lg:font-normal flex items-center justify-center transition-colors cursor-pointer"
               >
                 회원가입
               </Link>
@@ -168,9 +199,9 @@ const SignIn = () => {
             <p className="text-sm lg:text-base text-gray-600 mb-6">정상적으로 로그인 되었습니다</p>
             <button
               onClick={() => navigate('/')}
-              className="w-full h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal transition-colors"
+              className="cursor-pointer w-full h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal transition-colors"
             >
-              로그인으로
+              메인으로
             </button>
           </div>
         </div>

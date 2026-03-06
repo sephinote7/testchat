@@ -1,17 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuth from '../../../hooks/useAuth';
+import { signOut } from '../../../axios/Auth';
+import { useAuthStore } from '../../../store/auth.store';
 
 const CounselorDefaultPage = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { nickname } = useAuthStore();
 
   const handleLogout = async () => {
     if (window.confirm('로그아웃 하시겠습니까?')) {
-      const result = await signOut();
-      if (result.success) {
-        navigate('/');
-      }
+      await signOut();
+      navigate('/');
     }
   };
 
@@ -33,7 +32,7 @@ const CounselorDefaultPage = () => {
         <main className="px-[18px] pt-4 flex flex-col gap-[22px] pb-[24px]">
           {/* 환영 메시지 */}
           <section className="bg-white rounded-[14px] p-4 text-center shadow-[0_4px_8px_rgba(0,0,0,0.08)]">
-            <p className="text-[#1f2937] font-medium">안녕하세요, 홍길동 상담사님.</p>
+            <p className="text-[#1f2937] font-medium">안녕하세요, {nickname} 상담사님.</p>
           </section>
 
           {/* 페이지 타이틀 */}
@@ -151,7 +150,7 @@ const CounselorDefaultPage = () => {
           <div className="flex items-center justify-between mb-12">
             <div>
               <p className="text-lg text-gray-600 mb-2">
-                안녕하세요 <span className="font-bold text-[#2563eb]">홍길동</span> 상담사님
+                안녕하세요 <span className="font-bold text-[#2563eb]">{nickname}</span> 상담사님.
               </p>
               <h1 className="text-4xl font-bold text-gray-800">마이페이지</h1>
             </div>

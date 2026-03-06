@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
-import { useAiConsultStore } from '../../../stores/useAiConsultStore';
+import { useAiConsultStore } from '../../../store/useAiConsultStore';
 
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
 // GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)

@@ -1,16 +1,16 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import { useAuthStore } from '../../store/auth.store';
+import { signOut } from '../../axios/Auth';
 
 const Admin = () => {
-  const { user, signOut } = useAuth();
+  const { email, nickname } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    const result = await signOut();
-    if (result.success) {
-      navigate('/');
-    }
+    await signOut();
+    navigate('/');
   };
 
   return (
@@ -102,9 +102,7 @@ const Admin = () => {
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">
-              {user?.email?.split('@')[0] || 'OOO'} 관리자님
-            </span>
+            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
           </div>
           <button
             onClick={handleLogout}
