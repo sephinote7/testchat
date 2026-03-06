@@ -489,11 +489,56 @@ const VisualChat = () => {
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
     try {
+      const apiBase = resolveApiBase();
+      if (apiBase) {
+        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
+          method: 'GET',
+          headers: { 'X-User-Email': me.email },
+          mode: 'cors',
+        });
+        if (r.ok) {
+          const apiList = await r.json().catch(() => []);
+          const mapped = mapApiMessagesToUI(apiList);
+          setChatMessages((prev) => {
+            const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
+            if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
+            const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
+            const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
+            const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            return merged.length > 0 ? merged : prev;
+          });
+          return;
+        }
+        const t = await r.text().catch(() => '');
+        console.warn('채팅 API 조회 실패:', r.status, t);
+      }
       const list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
-      setChatMessages(mapped);
+      setChatMessages((prev) => {
+        const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
+        if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
+        const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
+        const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
+        if (stillPending.length === 0) return mapped.length > 0 ? mapped : prev;
+        const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        return merged.length > 0 ? merged : prev;
+      });
     } catch (err) {
       console.warn('채팅 조회 실패:', err);
+      try {
+        const list = await fetchFromSupabase();
+        const mapped = mapApiMessagesToUI(list);
+        setChatMessages((prev) => {
+          const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
+          if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
+          const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
+          const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
+          const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          return merged.length > 0 ? merged : prev;
+        });
+      } catch (e) {
+        console.warn('Supabase 채팅 조회 실패:', e);
+      }
     }
   };
 
@@ -1349,15 +1394,28 @@ const VisualChat = () => {
     const trimmed = chatInput.trim();
     if (!trimmed || !me) return;
 
+    const now = Date.now();
+    const tempId = `local-${now}`;
+    const newMsg = {
+      id: tempId,
+      role: me.role,
+      nickname: me.nickname ?? '',
+      text: trimmed,
+      timestamp: now,
+    };
+
+    setChatMessages((prev) => [...prev, newMsg]);
+    lastLocalAddAtRef.current = now;
     setChatInput('');
 
     try {
-      await insertChatToSupabase(trimmed);
-      // Supabase Realtime 이벤트를 통해 양측 화면이 동기화되므로 별도 재조회는 최소화
+      const apiBase = resolveApiBase();
+      if (apiBase) await postChatToApi(trimmed);
+      else await insertChatToSupabase(trimmed);
+
+      setTimeout(() => fetchChatMessagesRef.current?.(), 200);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
-      // 실패 시 한 번만 수동 재조회
-      fetchChatMessagesRef.current?.();
     }
   };
 
