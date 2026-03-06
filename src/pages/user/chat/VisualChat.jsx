@@ -30,9 +30,20 @@ function roleDisplayLabel(role) {
   return role === 'USER' ? '상담자' : '상담사';
 }
 
+function formatChatTime(ts) {
+  const time = Number(ts);
+  if (!Number.isFinite(time) || time <= 0) return '';
+  return new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(time));
+}
+
 /** MediaRecorder 호환 MIME 타입 선택 (Safari 등 브라우저별 지원 차이 대응) */
 function getSupportedAudioMime() {
-  const options = ['audio/webm', 'audio/mp4', 'audio/ogg'];
+  // opus(webm) 우선: 동일 시간 대비 파일 크기가 작고 Whisper 호환도 좋음
+  const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
   for (const m of options) {
     if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
   }
@@ -45,19 +56,29 @@ function getSupportedAudioMime() {
  */
 function startAudioRecorderSafe(stream, onChunk, onStop) {
   if (!stream?.getAudioTracks().length || typeof MediaRecorder === 'undefined') return null;
+  // 일부 환경에서 비디오+오디오 혼합 스트림 녹음 시 0바이트가 나오는 케이스가 있어 오디오 트랙만 분리
+  const audioOnlyStream = new MediaStream(stream.getAudioTracks());
+  const targetBps = 16000; // 용량 절감(24MB 제한 회피) + 음성 인식 품질 균형
   const attempts = [
     () => {
       const mime = getSupportedAudioMime();
-      return mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+      return mime
+        ? { mimeType: mime, audioBitsPerSecond: targetBps, bitsPerSecond: targetBps }
+        : { audioBitsPerSecond: targetBps, bitsPerSecond: targetBps };
     },
-    () => ({ audioBitsPerSecond: 32000 }),
+    () => {
+      const mime = getSupportedAudioMime();
+      return mime ? { mimeType: mime } : {};
+    },
+    () => ({ audioBitsPerSecond: targetBps, bitsPerSecond: targetBps }),
     () => ({}),
   ];
   for (const getOpts of attempts) {
     try {
       const opts = getOpts();
-      const rec = new MediaRecorder(stream, opts);
+      const rec = new MediaRecorder(audioOnlyStream, opts);
       rec.ondataavailable = (e) => { if (e.data?.size) onChunk(e.data); };
+      rec.onerror = (e) => console.warn('오디오 녹음 오류:', e);
       rec.onstop = onStop;
       try {
         rec.start(1000);
@@ -1024,20 +1045,34 @@ const VisualChat = () => {
     formData.append('msg_data', JSON.stringify(basePayload));
     const MAX_AUDIO_UPLOAD_BYTES = 24 * 1024 * 1024;
     const audioKey = me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user';
-    const audioFilename = (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm';
+    const detectedMime =
+      (audioChunks || []).find((b) => b && typeof b.type === 'string' && b.type)?.type ||
+      getSupportedAudioMime() ||
+      'audio/webm';
+    const ext =
+      detectedMime.includes('mp4') ? 'mp4'
+        : detectedMime.includes('ogg') ? 'ogg'
+          : 'webm';
+    const audioFilename = (me.role === 'SYSTEM' ? 'cnsler' : 'user') + `.${ext}`;
     if (audioChunks?.length) {
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      if (blob.size > 0 && blob.size <= MAX_AUDIO_UPLOAD_BYTES) {
-        formData.append(audioKey, blob, audioFilename);
+      const audioBlob = new Blob(audioChunks, { type: detectedMime });
+      if (audioBlob.size > 0 && audioBlob.size <= MAX_AUDIO_UPLOAD_BYTES) {
+        formData.append(audioKey, audioBlob, audioFilename);
       } else {
-        formData.append(audioKey, new Blob([], { type: 'audio/webm' }), audioFilename);
+        formData.append(audioKey, new Blob([], { type: detectedMime }), audioFilename);
       }
     } else {
-      formData.append(audioKey, new Blob([], { type: 'audio/webm' }), audioFilename);
+      formData.append(audioKey, new Blob([], { type: detectedMime }), audioFilename);
     }
 
-    const blob = audioChunks?.length ? new Blob(audioChunks, { type: 'audio/webm' }) : null;
-    console.log('[STT] 요청', { audioChunks: audioChunks?.length ?? 0, blobSize: blob?.size ?? 0, url: summarizeUrl });
+    const debugBlob = audioChunks?.length ? new Blob(audioChunks, { type: detectedMime }) : null;
+    console.log('[STT] 요청', {
+      audioChunks: audioChunks?.length ?? 0,
+      blobSize: debugBlob?.size ?? 0,
+      mime: detectedMime,
+      filename: audioFilename,
+      url: summarizeUrl,
+    });
 
     if (summarizeUrl) {
       try {
@@ -1196,6 +1231,7 @@ const VisualChat = () => {
           if (!skipSaveAndStat) {
             audioRecorder.onstop = () => setTimeout(() => saveSummaryInBackground(), 400);
           }
+          try { audioRecorder.requestData?.(); } catch (_) {}
           audioRecorder.stop();
         } else if (!skipSaveAndStat) {
           setTimeout(() => saveSummaryInBackground(), 400);
@@ -1444,9 +1480,14 @@ const VisualChat = () => {
                           msg.role === me.role ? 'items-end' : 'items-start'
                         }`}
                       >
-                        <p className="text-[10px] font-medium text-[#6b7280]">
-                          {msg.nickname || roleDisplayLabel(msg.role)}
-                        </p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-[10px] font-medium text-[#6b7280]">
+                            {msg.nickname || roleDisplayLabel(msg.role)}
+                          </p>
+                          <span className="text-[10px] text-[#9ca3af]">
+                            {formatChatTime(msg.timestamp)}
+                          </span>
+                        </div>
                         <div
                           className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-tight border ${
                             msg.role === me.role
@@ -1663,9 +1704,14 @@ const VisualChat = () => {
                             key={msg.id}
                             className={`flex flex-col gap-1 ${msg.role === me.role ? 'items-end' : 'items-start'}`}
                           >
-                            <p className={`text-[11px] text-[#6b7280] ${msg.role === me.role ? 'text-right' : 'text-left'}`}>
-                              {msg.nickname || roleDisplayLabel(msg.role)}
-                            </p>
+                            <div className={`flex items-center gap-2 ${msg.role === me.role ? 'justify-end' : 'justify-start'}`}>
+                              <p className="text-[11px] text-[#6b7280]">
+                                {msg.nickname || roleDisplayLabel(msg.role)}
+                              </p>
+                              <span className="text-[11px] text-[#9ca3af]">
+                                {formatChatTime(msg.timestamp)}
+                              </span>
+                            </div>
                             <div
                               className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-5 border ${
                                 msg.role === me.role
