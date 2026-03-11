@@ -270,16 +270,7 @@ const Home = () => {
               </Link>
             </section>
 
-            <section>
-              <h4 className="text-[18px] font-bold mb-3">이번 주 키워드</h4>
-              <div className="relative h-[210px] bg-white rounded-[14px] shadow-[0_10px_20px_rgba(31,41,55,0.08)] overflow-hidden flex items-center justify-center">
-                <img
-                  src="http://localhost:8000/weekly-wordcloud"
-                  className="max-w-full max-h-full"
-                  alt="주간 워드클라우드"
-                />
-              </div>
-            </section>
+            {/* 운영 환경에서는 localhost 이미지 호출을 사용하지 않습니다. */}
 
             <section className="bg-white rounded-[14px] pt-[14px] px-3 pb-3 shadow-[0_10px_20px_rgba(31,41,55,0.08)]">
               <div className="flex items-center justify-between">
