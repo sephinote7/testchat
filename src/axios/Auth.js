@@ -29,7 +29,7 @@ export const refreshAccessToken = async () => {
 
   try {
     const accessToken = useAuthStore.getState().accessToken;
-    const res = await authApi.post('/api/auth/refresh', null, {
+    const res = await authApi.post('/auth/refresh', null, {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
     const data = res.data;
@@ -52,7 +52,7 @@ export const signOut = async () => {
   const clearAuth = useAuthStore.getState().clearAuth;
 
   try {
-    const { data } = await authApi.post('/api/auth/signout');
+    const { data } = await authApi.post('/auth/signout');
     return data;
   } catch (error) {
     console.error('로그아웃 요청 실패 : ', error);
