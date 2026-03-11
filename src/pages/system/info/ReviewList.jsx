@@ -1,15 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { counselorReviews } from './counselorProfileData';
+import { reviewsApi } from '../../../api/backendApi';
 
 const ReviewList = () => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [pageData, setPageData] = useState({ content: [], totalPages: 1 });
+  const [loading, setLoading] = useState(true);
 
-  const totalPages = Math.ceil(counselorReviews.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = counselorReviews.slice(startIndex, startIndex + itemsPerPage);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    reviewsApi.getList({ page: currentPage, limit: itemsPerPage })
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res.content || []).map((r) => ({
+          id: r.reviewId,
+          author: r.memberId?.nickname ?? r.memberId?.memberId ?? '—',
+          date: r.created_at ? new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '—',
+          rating: r.evalPt ?? 0,
+          views: 0,
+          content: r.content ?? r.title ?? '—',
+        }));
+        setPageData({
+          content: list,
+          totalPages: Math.max(1, res.totalPages ?? 1),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPageData({ content: [], totalPages: 1 });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [currentPage]);
+
+  const totalPages = pageData.totalPages;
+  const currentItems = pageData.content;
 
   // 별점 렌더링
   const renderStars = (rating) => {
@@ -85,7 +114,12 @@ const ReviewList = () => {
 
         {/* 리뷰 리스트 */}
         <div className="p-4 space-y-4">
-          {currentItems.map((review) => (
+          {loading ? (
+            <div className="py-8 text-center text-gray-500">로딩 중...</div>
+          ) : currentItems.length === 0 ? (
+            <div className="py-8 text-center text-gray-500">등록된 리뷰가 없습니다.</div>
+          ) : (
+          currentItems.map((review) => (
             <div
               key={review.id}
               className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 cursor-pointer hover:bg-gray-50 transition"
@@ -101,7 +135,8 @@ const ReviewList = () => {
               </div>
               <p className="text-sm text-gray-700 line-clamp-3">{review.content}</p>
             </div>
-          ))}
+          ))
+          )}
         </div>
 
         {/* 페이지네이션 */}
@@ -124,7 +159,12 @@ const ReviewList = () => {
 
           {/* 리뷰 리스트 */}
           <div className="space-y-4">
-            {currentItems.map((review) => (
+            {loading ? (
+              <div className="py-12 text-center text-gray-500">로딩 중...</div>
+            ) : currentItems.length === 0 ? (
+              <div className="py-12 text-center text-gray-500">등록된 리뷰가 없습니다.</div>
+            ) : (
+            currentItems.map((review) => (
               <div
                 key={review.id}
                 className="bg-white rounded-2xl shadow-sm p-8 cursor-pointer hover:shadow-lg transition-all"
@@ -153,7 +193,8 @@ const ReviewList = () => {
                 </div>
                 <p className="text-base text-gray-700 leading-relaxed">{review.content}</p>
               </div>
-            ))}
+            ))
+            )}
           </div>
 
           {/* 페이지네이션 */}

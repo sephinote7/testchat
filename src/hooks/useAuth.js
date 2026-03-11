@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { authApi } from '../axios/Auth';
 import { useAuthStore } from '../store/auth.store';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from './../lib/supabase';
+import { memberApi } from '../api/backendApi';
 
 export default function useAuth() {
   // 초기 상태: 로그아웃 상태
@@ -12,8 +13,11 @@ export default function useAuth() {
     email: null,
     id: null,
     nickname: null,
+    provider: null,
+    kakao_additional_done: false,
   });
   const [loading, setLoading] = useState(true);
+  const accessToken = useAuthStore((state) => state.accessToken); // accessToken 상태를 가져옵니다.
 
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const setStoreEmail = useAuthStore((state) => state.setEmail);
@@ -27,19 +31,24 @@ export default function useAuth() {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-
         if (session?.user) {
           // Supabase 세션이 있으면 우선 사용
+          const provider = session.user.app_metadata?.provider;
           const userRole = session.user.user_metadata?.role || 'USER';
+          const kakaoAdditionalDone = !!session.user.user_metadata?.kakao_additional_done;
+          const nickname = session.user.user_metadata?.nickname || session.user.email?.split('@')[0] || 'user';
           setUser({
             isLogin: true,
             role: userRole,
             email: session.user.email,
             id: session.user.id,
-            nickname:
-              session.user.user_metadata?.nickname ||
-              session.user.email?.split('@')[0],
+            nickname,
+            provider: provider || null,
+            kakao_additional_done: kakaoAdditionalDone,
           });
+          // 백엔드 member 테이블에 동기화 (게시글 작성 등에 필요)
+          const memberId = session.user.email || session.user.id;
+          memberApi.sync({ memberId, nickname }).catch(() => {});
         } else {
           // Supabase 세션이 없으면 더미 유저 확인 (개발/테스트용)
           const savedDummyUser = localStorage.getItem('dummyUser');
@@ -56,6 +65,8 @@ export default function useAuth() {
                 email: null,
                 id: null,
                 nickname: null,
+                provider: null,
+                kakao_additional_done: false,
               });
             }
           } else {
@@ -66,6 +77,8 @@ export default function useAuth() {
               email: null,
               id: null,
               nickname: null,
+              provider: null,
+              kakao_additional_done: false,
             });
           }
         }
@@ -85,6 +98,8 @@ export default function useAuth() {
               email: null,
               id: null,
               nickname: null,
+              provider: null,
+              kakao_additional_done: false,
             });
           }
         } else {
@@ -94,13 +109,14 @@ export default function useAuth() {
             email: null,
             id: null,
             nickname: null,
+            provider: null,
+            kakao_additional_done: false,
           });
         }
       } finally {
         setLoading(false);
       }
     };
-
     checkSession();
 
     // 인증 상태 변경 리스너
@@ -109,18 +125,24 @@ export default function useAuth() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         // Supabase 로그인 시
+        const provider = session.user.app_metadata?.provider;
         const userRole = session.user.user_metadata?.role || 'USER';
+        const kakaoAdditionalDone = !!session.user.user_metadata?.kakao_additional_done;
+        const nickname = session.user.user_metadata?.nickname || session.user.email?.split('@')[0] || 'user';
         setUser({
           isLogin: true,
           role: userRole,
           email: session.user.email,
           id: session.user.id,
-          nickname:
-            session.user.user_metadata?.nickname ||
-            session.user.email?.split('@')[0],
+          nickname,
+          provider: provider || null,
+          kakao_additional_done: kakaoAdditionalDone,
         });
         // Supabase 로그인 성공 시 더미 유저는 제거
         localStorage.removeItem('dummyUser');
+        // 백엔드 member 테이블에 동기화 (게시글 작성 등에 필요)
+        const memberId = session.user.email || session.user.id;
+        memberApi.sync({ memberId, nickname }).catch(() => {});
       } else {
         // Supabase 로그아웃 시
         const savedDummyUser = localStorage.getItem('dummyUser');
@@ -147,6 +169,8 @@ export default function useAuth() {
             email: null,
             id: null,
             nickname: null,
+            provider: null,
+            kakao_additional_done: false,
           });
         }
       }
@@ -180,39 +204,6 @@ export default function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // 더미 로그인 함수 (개발/테스트용)
-  const dummySignIn = (role = 'USER') => {
-    const dummyUsers = {
-      USER: {
-        isLogin: true,
-        role: 'USER',
-        email: 'user@test.com',
-        id: 'user-123',
-        nickname: '일반사용자',
-      },
-      COUNSELOR: {
-        isLogin: true,
-        role: 'COUNSELOR',
-        email: 'counselor@test.com',
-        id: 'counselor-123',
-        nickname: '상담사',
-      },
-      ADMIN: {
-        isLogin: true,
-        role: 'ADMIN',
-        email: 'admin@test.com',
-        id: 'admin-123',
-        nickname: '관리자',
-      },
-    };
-
-    const selectedUser = dummyUsers[role] || dummyUsers.USER;
-    setUser(selectedUser);
-    // localStorage에 저장하여 새로고침 시에도 유지
-    localStorage.setItem('dummyUser', JSON.stringify(selectedUser));
-    return { success: true };
   };
 
   // 회원가입 함수
@@ -249,6 +240,18 @@ export default function useAuth() {
     }
   };
 
+  // 카카오 회원가입
+  const kakaoSignUp = async (formData) => {
+    try {
+      const { data } = await authApi.patch('/api/member/kakao-signup', formData);
+
+      console.log('회원가입 완료', data);
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   // 닉네임 중복 확인 함수
   const getmemberInfoNicknameCheckYn = async (nickname) => {
     try {
@@ -263,5 +266,63 @@ export default function useAuth() {
       console.error('닉네임 중복 확인 실패', error);
     }
   };
-  return { user, loading, signIn, signUp, getmemberInfoNicknameCheckYn };
+
+  const uploadProfileImage = async (file) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+
+    const filePath = `profile/${fileName}`;
+
+    const { error } = await supabase.storage.from('profile-images').upload(filePath, file, {
+      upsert: false,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data } = supabase.storage.from('profile-images').getPublicUrl(filePath);
+
+    return {
+      img_name: fileName,
+      img_url: data.publicUrl,
+    };
+  };
+
+  const saveProfileImage = async (memberId, imgName, imgUrl) => {
+    const { error } = await supabase
+      .from('member')
+      .update({
+        img_name: imgName,
+        img_url: imgUrl,
+      })
+      .eq('member_id', memberId);
+
+    if (error) {
+      throw error;
+    }
+  };
+
+  const editInfo = async (formData) => {
+    const { data } = await authApi.patch('/api/mypage/modify', formData);
+    return data;
+  };
+
+  const getUserInfo = async () => {
+    const { data } = await authApi.get('/api/mypage');
+    return data;
+  };
+
+  return {
+    user,
+    loading,
+    signIn,
+    signUp,
+    getmemberInfoNicknameCheckYn,
+    kakaoSignUp,
+    uploadProfileImage,
+    saveProfileImage,
+    editInfo,
+    getUserInfo,
+  };
 }

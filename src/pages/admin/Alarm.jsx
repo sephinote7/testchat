@@ -4,65 +4,19 @@ import useAuth from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/auth.store';
 import { getCategoryRevenueStatistics } from '../../api/adminApi';
 import { signOut } from '../../axios/Auth';
+import { bbsApi, risksApi } from '../../api/backendApi';
 
-// TODO: DB 연동 가이드
-// 이 페이지는 관리자 알림 및 위험 단어 감지를 관리합니다
-//
-// DB 연동 시 필요한 작업:
-// 1. 공지사항 조회 API
-//    - API: GET /api/admin/notices?page={page}&pageSize={pageSize}
-//    - 응답:
-//      {
-//        notices: [
-//          {
-//            id: string,
-//            title: string,
-//            content: string,
-//            createdAt: string,
-//            isRead: boolean
-//          }
-//        ],
-//        totalCount: number,
-//        totalPages: number
-//      }
-//
-// 2. 위험 단어 감지 알림 조회 API
-//    - API: GET /api/admin/risk-alerts?page={page}&pageSize={pageSize}&status={status}
-//    - 요청 파라미터:
-//      * status: 'pending' | 'resolved' | 'all'
-//    - 응답:
-//      {
-//        alerts: [
-//          {
-//            id: string,
-//            type: 'concern' | 'career' | 'job',
-//            counselorName: string,
-//            userId: string,
-//            keyword: string,
-//            riskLevel: 'high' | 'medium' | 'low',
-//            status: 'pending' | 'resolved',
-//            content: string,         // 전체 대화 내용
-//            detectedAt: string,
-//            resolvedAt: string
-//          }
-//        ],
-//        totalCount: number
-//      }
-//
-// 3. 위험 단어 감지 처리 API
-//    - API: PUT /api/admin/risk-alerts/:id/resolve
-//    - 요청: { action: string, note: string }
-//    - 응답: { success: boolean, alert: {...} }
-//
-// 4. 실시간 알림
-//    - WebSocket: ws://api/admin/alerts
-//    - 새로운 위험 단어 감지 시 즉시 푸시
-//    - 브라우저 알림 (Notification API) 연동
+const NOTICES_PAGE_SIZE = 6;
 
 const Alarm = () => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const { nickname, email } = useAuthStore();
+  const [notices, setNotices] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [noticesLoading, setNoticesLoading] = useState(true);
+  const [riskAlerts, setRiskAlerts] = useState([]);
+  const [riskAlertsLoading, setRiskAlertsLoading] = useState(true);
 
   const handleLogout = async () => {
     const result = await signOut();
@@ -71,120 +25,93 @@ const Alarm = () => {
     }
   };
 
-  // TODO: DB 연동 시 알림 목록 조회
-  // useEffect(() => {
-  //   const fetchNotices = async () => {
-  //     const response = await fetch(
-  //       `/api/admin/notices?page=${currentPage}&pageSize=5`
-  //     );
-  //     const data = await response.json();
-  //     setAlarmNotices(data.notices);
-  //   };
-  //   fetchNotices();
-  // }, [currentPage]);
+  // 공지사항 목록: 게시판(BBS) API bbs_div=NOTI 로 연동
+  useEffect(() => {
+    let cancelled = false;
+    setNoticesLoading(true);
+    bbsApi
+      .getList({
+        page: currentPage,
+        limit: NOTICES_PAGE_SIZE,
+        bbs_div: 'NOTI',
+        del_yn: 'N',
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const content = res.content || [];
+        setNotices(content);
+        setTotalPages(
+          (res.totalPages ??
+            Math.ceil((res.totalElements || 0) / NOTICES_PAGE_SIZE)) ||
+            1,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setNotices([]);
+      })
+      .finally(() => {
+        if (!cancelled) setNoticesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage]);
 
-  // useEffect(() => {
-  //   const fetchRiskAlerts = async () => {
-  //     const response = await fetch(
-  //       `/api/admin/risk-alerts?page=${currentPage}&pageSize=10&status=all`
-  //     );
-  //     const data = await response.json();
-  //     setRiskAlerts(data.alerts);
-  //   };
-  //   fetchRiskAlerts();
-  // }, [currentPage]);
-
-  // ========== 더미 데이터 시작 (DB 연동 시 삭제) ==========
-  // 더미 알림 데이터
-  const alarmNotices = [
-    { id: 1, text: '중독, 끊는다고 끝나지 않는다? 반복 중독 막기 ...' },
-    { id: 2, text: '중독, 끊는다고 끝나지 않는다? 반복 중독 막기 ...' },
-    { id: 3, text: '중독, 끊는다고 끝나지 않는다? 반복 중독 막기 ...' },
-    { id: 4, text: '중독, 끊는다고 끝나지 않는다? 반복 중독 막기 ...' },
-    { id: 5, text: '중독, 끊는다고 끝나지 않는다? 반복 중독 막기 ...' },
-    { id: 6, text: '중독, 끊는다고 끝나지 않는다? 반복 중독 막기 ...' },
-  ];
-
-  // 더미 위험 단어 감지 알림 테이블
-  const allRiskAlerts = [
-    {
-      id: 1,
-      date: '2026-02-04 / 15:00',
-      type: '고민',
-      counselor: 'OOO',
-      counselorName: 'AI',
-      keyword: '자살',
-      riskLevel: '높음',
-      status: '진행 중',
-      statusColor: 'text-yellow-500',
-    },
-    {
-      id: 2,
-      date: '2026-02-04 / 15:00',
-      type: '커리어',
-      counselor: 'OOO',
-      counselorName: 'OOO 상담사',
-      keyword: '실기 실타',
-      riskLevel: '중위',
-      status: '조치',
-      statusColor: 'text-yellow-600',
-    },
-    {
-      id: 3,
-      date: '2026-02-04 / 15:00',
-      type: '취업',
-      counselor: 'OOO',
-      counselorName: 'OOO 상담사',
-      keyword: '죽고 싶다',
-      riskLevel: '높음',
-      status: '완료',
-      statusColor: 'text-cyan-400',
-    },
-    {
-      id: 4,
-      date: '2026-02-04 / 15:00',
-      type: '취업',
-      counselor: 'OOO',
-      counselorName: 'OOO 상담사',
-      keyword: '자살',
-      riskLevel: '높음',
-      status: '완료',
-      statusColor: 'text-cyan-400',
-    },
-    {
-      id: 5,
-      date: '2026-02-04 / 15:00',
-      type: '취업',
-      counselor: 'OOO',
-      counselorName: 'OOO 상담사',
-      keyword: '죽고 싶다',
-      riskLevel: '중위',
-      status: '완료',
-      statusColor: 'text-cyan-400',
-    },
-    {
-      id: 6,
-      date: '2026-02-04 / 15:00',
-      type: '취업',
-      counselor: 'OOO',
-      counselorName: 'OOO 상담사',
-      keyword: '자살',
-      riskLevel: '높음',
-      status: '완료',
-      statusColor: 'text-cyan-400',
-    },
-  ];
-
-  const itemsPerPage = 6;
-  const totalPages = Math.ceil(allRiskAlerts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const riskAlerts = allRiskAlerts.slice(startIndex, startIndex + itemsPerPage);
-  // ========== 더미 데이터 끝 ==========
+  // 최근 위험 단어 감지: risks API 연동 (최근 24시간)
+  useEffect(() => {
+    let cancelled = false;
+    setRiskAlertsLoading(true);
+    risksApi
+      .getRecent()
+      .then((list) => {
+        if (cancelled) return;
+        const items = Array.isArray(list) ? list : (list?.content ?? []);
+        setRiskAlerts(
+          items.map((r) => ({
+            id: r.id,
+            date: (() => {
+              if (!r.createdAt) return '-';
+              const d = new Date(r.createdAt);
+              const Y = d.getFullYear();
+              const M = String(d.getMonth() + 1).padStart(2, '0');
+              const D = String(d.getDate()).padStart(2, '0');
+              const h = String(d.getHours()).padStart(2, '0');
+              const m = String(d.getMinutes()).padStart(2, '0');
+              return `${Y}-${M}-${D} / ${h}:${m}`;
+            })(),
+            type: r.bbsDiv || '상담',
+            counselor: r.memberId
+              ? `${String(r.memberId).slice(0, 2)}***`
+              : '-',
+            counselorName: '-',
+            keyword: r.detectedKeywords || '-',
+            riskLevel: '높음',
+            status: r.action || '진행 중',
+            statusColor:
+              r.action === '완료'
+                ? 'text-cyan-400'
+                : r.action === '조치'
+                  ? 'text-yellow-600'
+                  : 'text-yellow-500',
+            bbsId: r.bbsId,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setRiskAlerts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRiskAlertsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <div className="flex min-h-screen bg-[#f3f7ff]">
-      {/* LEFT SIDEBAR */}
-      <aside className="w-[280px] bg-[#2d3e50] text-white flex-shrink-0">
+    <>
+      {/* LEFT SIDEBAR - 뷰포트 전체 높이 고정 */}
+      <aside className="fixed top-0 left-0 bottom-0 z-10 w-[280px] bg-[#2d3e50] text-white flex flex-col">
         {/* LOGO */}
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <div className="w-10 h-10 bg-[#2ed3c6] rounded-full flex items-center justify-center">
@@ -201,7 +128,12 @@ const Alarm = () => {
                 to="/alarm"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg bg-white/10 transition-colors text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -217,7 +149,12 @@ const Alarm = () => {
                 to="/dashboard"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -233,7 +170,12 @@ const Alarm = () => {
                 to="/stats"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -249,7 +191,12 @@ const Alarm = () => {
                 to="/admin"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -265,137 +212,240 @@ const Alarm = () => {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col">
-        {/* TOP BAR */}
-        <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="cursor-pointer px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
-          >
-            로그아웃
-          </button>
-        </header>
-
-        {/* CONTENT AREA */}
-        <div className="flex-1 px-16 py-12 overflow-y-auto">
-          <div className="max-w-[1520px] mx-auto">
-            {/* TITLE & SUBTITLE */}
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">최신 정보</h1>
-              <div className="flex items-center justify-between">
-                <p className="text-lg text-gray-600">공지 사항</p>
-                <Link to="/alarm/all" className="text-[#2563eb] font-semibold hover:underline">
-                  공지 사항 추가 하기 →
-                </Link>
-              </div>
+      <div className="min-h-screen flex flex-col pl-[280px] bg-[#f3f7ff]">
+        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          {/* TOP BAR */}
+          <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
+              <span className="text-lg font-semibold text-gray-700">
+                {nickname || ''} 관리자님
+              </span>
             </div>
+            <button
+              onClick={handleLogout}
+              className="cursor-pointer px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
+            >
+              로그아웃
+            </button>
+          </header>
 
-            {/* 공지 버튼 리스트 */}
-            <div className="mb-12">
-              <div className="space-y-3">
-                {alarmNotices.map((notice) => (
-                  <button
-                    key={notice.id}
-                    className="w-full bg-white py-5 px-6 rounded-xl text-left hover:bg-gray-50 transition-colors border border-gray-200 flex items-center gap-4"
+          {/* CONTENT AREA */}
+          <div className="flex-1 px-16 py-12 overflow-y-auto">
+            <div className="max-w-[1520px] mx-auto">
+              {/* TITLE & SUBTITLE */}
+              <div className="mb-8">
+                <h1 className="text-4xl font-bold text-gray-800 mb-2">
+                  최신 정보
+                </h1>
+                <div className="flex items-center justify-between">
+                  <p className="text-lg text-gray-600">공지사항</p>
+                  <Link
+                    to="/alarm/notice/write"
+                    className="text-[#2563eb] font-semibold hover:underline"
                   >
-                    <span className="px-4 py-1.5 bg-[#2563eb] text-white rounded-lg text-sm font-semibold">공 지</span>
-                    <span className="text-base text-gray-700">{notice.text}</span>
+                    공지사항 추가 하기 →
+                  </Link>
+                </div>
+              </div>
+
+              {/* 공지 버튼 리스트 - 게시판(NOTI) 연동 */}
+              <div className="mb-12">
+                {noticesLoading ? (
+                  <div className="py-12 text-center text-gray-500">
+                    공지사항을 불러오는 중...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {notices.length === 0 ? (
+                      <div className="w-full bg-white py-10 px-6 rounded-xl text-center text-gray-500 border border-gray-200">
+                        등록된 공지사항이 없습니다.
+                      </div>
+                    ) : (
+                      notices.map((notice) => (
+                        <Link
+                          key={notice.bbsId}
+                          to={`/board/view/${notice.bbsId}`}
+                          className="w-full bg-white py-5 px-6 rounded-xl text-left hover:bg-gray-50 transition-colors border border-gray-200 flex items-center gap-4 block"
+                        >
+                          <span className="px-4 py-1.5 bg-[#2563eb] text-white rounded-lg text-sm font-semibold">
+                            공 지
+                          </span>
+                          <span className="text-base text-gray-700 flex-1 truncate">
+                            {notice.title || '(제목 없음)'}
+                          </span>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* PAGINATION FOR NOTICES */}
+              {!noticesLoading && totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 mb-12">
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-white rounded-lg transition-colors"
+                    disabled={currentPage === 1}
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
                   </button>
-                ))}
-              </div>
-            </div>
+                  {Array.from(
+                    { length: Math.min(5, totalPages) },
+                    (_, i) => i + 1,
+                  ).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-10 h-10 flex items-center justify-center rounded-lg font-semibold transition-colors ${
+                        currentPage === page
+                          ? 'bg-[#2563eb] text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-white rounded-lg transition-colors"
+                    disabled={currentPage === totalPages}
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              )}
 
-            {/* PAGINATION FOR NOTICES */}
-            <div className="flex items-center justify-center gap-3 mb-12">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-white rounded-lg transition-colors"
-                disabled={currentPage === 1}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              {[1, 2, 3, 4, 5].map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-10 h-10 flex items-center justify-center rounded-lg font-semibold transition-colors ${
-                    currentPage === page
-                      ? 'bg-[#2563eb] text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-white rounded-lg transition-colors"
-                disabled={currentPage === totalPages}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+              {/* 최근 위험 단어 감지 */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    최근 위험 단어 감지
+                  </h2>
+                  <Link
+                    to="/admin/activities"
+                    className="text-[#2563eb] font-semibold hover:underline"
+                  >
+                    더보기 →
+                  </Link>
+                </div>
 
-            {/* 최근 위험 단어 감지 */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">최근 위험 단어 감지</h2>
-                <Link to="/admin/activities" className="text-[#2563eb] font-semibold hover:underline">
-                  더보기 →
-                </Link>
-              </div>
-
-              {/* TABLE */}
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-[#2563eb] text-white">
-                      <th className="px-6 py-4 text-center font-bold text-base">날짜</th>
-                      <th className="px-6 py-4 text-center font-bold text-base">상담</th>
-                      <th className="px-6 py-4 text-center font-bold text-base">상담자</th>
-                      <th className="px-6 py-4 text-center font-bold text-base">상담사</th>
-                      <th className="px-6 py-4 text-center font-bold text-base">감지단어</th>
-                      <th className="px-6 py-4 text-center font-bold text-base">위험단계</th>
-                      <th className="px-6 py-4 text-center font-bold text-base">확인 및 조치</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {riskAlerts.map((activity, index) => (
-                      <tr
-                        key={activity.id}
-                        className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                        }`}
-                      >
-                        <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.date}</td>
-                        <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.type}</td>
-                        <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.counselor}</td>
-                        <td className="px-6 py-4 text-center text-sm text-gray-700">{activity.counselorName}</td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">{activity.keyword}</td>
-                        <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">
-                          {activity.riskLevel}
-                        </td>
-                        <td className={`px-6 py-4 text-center text-sm font-semibold ${activity.statusColor}`}>
-                          {activity.status}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {/* TABLE */}
+                <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                  {riskAlertsLoading ? (
+                    <div className="py-12 text-center text-gray-500">
+                      위험 단어 감지 목록을 불러오는 중...
+                    </div>
+                  ) : (
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-[#2563eb] text-white">
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            날짜
+                          </th>
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            상담
+                          </th>
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            상담자
+                          </th>
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            상담사
+                          </th>
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            감지단어
+                          </th>
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            위험단계
+                          </th>
+                          <th className="px-6 py-4 text-center font-bold text-base">
+                            확인 및 조치
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {riskAlerts.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="px-6 py-10 text-center text-gray-500"
+                            >
+                              최근 24시간 내 감지된 위험 단어가 없습니다.
+                            </td>
+                          </tr>
+                        ) : (
+                          riskAlerts.map((activity, index) => (
+                            <tr
+                              key={activity.id}
+                              className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
+                                index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                              }`}
+                            >
+                              <td className="px-6 py-4 text-center text-sm text-gray-700">
+                                {activity.date}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm text-gray-700">
+                                {activity.type}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm text-gray-700">
+                                {activity.counselor}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm text-gray-700">
+                                {activity.counselorName}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">
+                                {activity.keyword}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm font-semibold text-red-600">
+                                {activity.riskLevel}
+                              </td>
+                              <td
+                                className={`px-6 py-4 text-center text-sm font-semibold ${activity.statusColor}`}
+                              >
+                                {activity.status}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 };
 

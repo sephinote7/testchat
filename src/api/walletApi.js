@@ -36,3 +36,14 @@ export const cancelPayment = async (paymentId) => {
     console.error('cancelpayment error', error);
   }
 };
+
+// 내 결제 내역
+export const getPointHistory = async () => {
+  try {
+    const { data } = await authApi.get('/api/mypage/points');
+    return data;
+  } catch (error) {
+    console.error('getPointHistory Error', error);
+    throw error;
+  }
+};

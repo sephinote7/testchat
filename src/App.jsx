@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useNavigate } from 'react-router-dom';
+import KakaoAdditionalRedirect from './components/KakaoAdditionalRedirect';
 import Home from './pages/common/home/Home';
 import Chat from './pages/user/chat/Chat';
 import Board from './pages/user/board/Board';
@@ -9,11 +10,15 @@ import MyPage from './pages/common/mypage/MyPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import FloatingChatbot from './components/FloatingChatbot';
 import Alarm from './pages/admin/Alarm';
+import AdminNoticeForm from './pages/admin/AdminNoticeForm';
 import Statistics from './pages/admin/Statistics';
 import Admin from './pages/admin/Admin';
 import AdminActivities from './pages/admin/AdminActivities';
+import AdminKeywords from './pages/admin/AdminKeywords';
 import EditAdminInfo from './pages/admin/EditAdminInfo';
 import DashBoard from './pages/admin/DashBoard';
+import SettlementsList from './pages/admin/SettlementsList';
+import CounselorSettlementDetail from './pages/admin/CounselorSettlementDetail';
 import EditInfo from './pages/system/info/EditInfo';
 import MyCounsel from './pages/system/info/MyCounsel';
 import MyCounselDetail from './pages/system/info/MyCounselDetail';
@@ -36,14 +41,15 @@ const App = () => {
   const { accessToken } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
-    console.log('acc', accessToken);
     if (!accessToken) refreshAccessToken().finally(() => setIsLoading(false));
+    else setIsLoading(false);
   }, []);
 
   if (isLoading) return <div>로딩 중 ...</div>;
 
   return (
     <>
+      {/* <KakaoAdditionalRedirect /> */}
       <Routes>
         {/* COMMON */}
         {/* HOME */}
@@ -64,23 +70,9 @@ const App = () => {
           }
         />
         {/* BOARD */}
-        <Route
-          path="/board/*"
-          element={
-            <Board />
-            // <ProtectedRoute allowRoles={['USER']}>
-            // </ProtectedRoute>
-          }
-        />
+        <Route path="/board/*" element={<Board />} />
         {/* INFO */}
-        <Route
-          path="/info/*"
-          element={
-            <Info />
-            // <ProtectedRoute allowRoles={['USER']}>
-            // </ProtectedRoute>
-          }
-        />
+        <Route path="/info/*" element={<Info />} />
 
         {/* SYSTEM */}
         {/* COUNSELOR MY PAGE */}
@@ -263,6 +255,15 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+        {/* ADMIN KEYWORDS */}
+        <Route
+          path="/admin/keywords"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <AdminKeywords />
+            </ProtectedRoute>
+          }
+        />
         {/* ADMIN INFO EDIT */}
         <Route
           path="/admin/edit"
@@ -273,6 +274,14 @@ const App = () => {
           }
         />
         {/* ALARM */}
+        <Route
+          path="/alarm/notice/write"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <AdminNoticeForm />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/alarm"
           element={
@@ -287,6 +296,24 @@ const App = () => {
           element={
             <ProtectedRoute allowRoles={['ADMIN']}>
               <DashBoard />
+            </ProtectedRoute>
+          }
+        />
+        {/* 정산 현황 · 상담사 전체 보기 */}
+        <Route
+          path="/admin/settlements"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <SettlementsList />
+            </ProtectedRoute>
+          }
+        />
+        {/* 상담사별 정산 상세 */}
+        <Route
+          path="/admin/settlements/:counselorId"
+          element={
+            <ProtectedRoute allowRoles={['ADMIN']}>
+              <CounselorSettlementDetail />
             </ProtectedRoute>
           }
         />

@@ -14,9 +14,9 @@ const Admin = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f3f7ff]">
-      {/* LEFT SIDEBAR */}
-      <aside className="w-[280px] bg-[#2d3e50] text-white flex-shrink-0">
+    <>
+      {/* LEFT SIDEBAR - 뷰포트 전체 높이 고정 */}
+      <aside className="fixed top-0 left-0 bottom-0 z-10 w-[280px] bg-[#2d3e50] text-white flex flex-col">
         {/* LOGO */}
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <div className="w-10 h-10 bg-[#2ed3c6] rounded-full flex items-center justify-center">
@@ -97,7 +97,8 @@ const Admin = () => {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col">
+      <div className="min-h-screen flex flex-col pl-[280px] bg-[#f3f7ff]">
+      <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         {/* TOP BAR */}
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -173,7 +174,8 @@ const Admin = () => {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 };
 

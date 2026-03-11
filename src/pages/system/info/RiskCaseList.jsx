@@ -1,155 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { risksApi } from '../../../api/backendApi';
 
-// TODO: DB 연동 가이드
-// 이 페이지는 위험군 조치 내역 목록 페이지입니다
-//
-// DB 연동 시 필요한 작업:
-// 1. 위험군 케이스 목록 조회 API
-//    - API: GET /api/counselors/me/risk-cases?page={page}&pageSize={pageSize}
-//    - 요청 파라미터:
-//      * page: 페이지 번호 (기본값: 1)
-//      * pageSize: 페이지당 항목 수 (기본값: 10)
-//    - 응답:
-//      {
-//        cases: [
-//          {
-//            id: string,
-//            title: string,
-//            clientName: string,
-//            status: string,           // '완료', '진행중', '대기중'
-//            riskLevel: string,        // '고위험', '중위험', '저위험'
-//            createdAt: string,        // 'YYYY.MM.DD'
-//            reportedAt: string,       // 'YYYY.MM.DD HH:mm'
-//            processedAt: string | null // 'YYYY.MM.DD HH:mm'
-//          }
-//        ],
-//        totalCount: number,
-//        totalPages: number,
-//        currentPage: number
-//      }
-//
-// 2. 위험군 케이스 상세 조회 API
-//    - API: GET /api/counselors/me/risk-cases/:id
-//    - 상세 페이지로 이동 시 사용
+const formatRiskDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}.${m}.${day}`;
+};
+
+const formatRiskDateTime = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = d.getHours();
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${y}.${m}.${day} - ${h}시 ${min}분`;
+};
 
 const RiskCaseList = () => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [pageData, setPageData] = useState({ content: [], totalPages: 1 });
+  const [loading, setLoading] = useState(true);
 
-  // TODO: DB 연동 시 상태로 관리
-  // useEffect(() => {
-  //   const fetchRiskCases = async () => {
-  //     const response = await fetch(
-  //       `/api/counselors/me/risk-cases?page=${currentPage}&pageSize=${itemsPerPage}`,
-  //       { headers: { 'Authorization': `Bearer ${token}` } }
-  //     );
-  //     const data = await response.json();
-  //     setRiskCases(data.cases);
-  //     setTotalPages(data.totalPages);
-  //   };
-  //   fetchRiskCases();
-  // }, [currentPage]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    risksApi.getList({ page: currentPage, limit: itemsPerPage })
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res.content ?? []).map((r) => ({
+          id: r.id,
+          title: (r.content || '').slice(0, 50) || `[${r.bbsDiv}] 게시글 #${r.bbsId}`,
+          clientName: r.memberId ?? '—',
+          status: r.action ?? '—',
+          createdAt: formatRiskDate(r.createdAt),
+          reportedAt: formatRiskDateTime(r.createdAt),
+          processedAt: r.updatedAt ? formatRiskDateTime(r.updatedAt) : '—',
+        }));
+        setPageData({
+          content: list,
+          totalPages: Math.max(1, res.totalPages ?? 1),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPageData({ content: [], totalPages: 1 });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [currentPage]);
 
-  // ========== 더미 데이터 시작 (DB 연동 시 아래 전체 삭제) ==========
-  const allRiskCases = [
-    {
-      id: 1,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 2,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 3,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 4,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 5,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 6,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 7,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 8,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 9,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-    {
-      id: 10,
-      title: '상담제목 : 나랑같이나무르는걸알아아아아아아아아야...',
-      clientName: '김철수',
-      status: '완료',
-      createdAt: '2026.01.12',
-      reportedAt: '2026.01.12 - 10시 38분',
-      processedAt: '2026.01.13 06:00'
-    },
-  ];
-  // ========== 더미 데이터 끝 (여기까지 삭제) ==========
-
-  const totalPages = Math.ceil(allRiskCases.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = allRiskCases.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = pageData.totalPages;
+  const currentItems = pageData.content;
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -194,7 +104,12 @@ const RiskCaseList = () => {
 
           {/* 위험군 케이스 리스트 */}
           <div className="space-y-4 mb-8">
-            {currentItems.map((riskCase) => (
+            {loading ? (
+              <div className="py-12 text-center text-gray-500">로딩 중...</div>
+            ) : currentItems.length === 0 ? (
+              <div className="py-12 text-center text-gray-500">위험 게시물 내역이 없습니다.</div>
+            ) : (
+            currentItems.map((riskCase) => (
               <div
                 key={riskCase.id}
                 className="bg-white rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all cursor-pointer"
@@ -225,7 +140,8 @@ const RiskCaseList = () => {
                   </button>
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </div>
 
           {/* 페이지네이션 */}

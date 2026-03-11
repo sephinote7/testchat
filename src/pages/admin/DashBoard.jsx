@@ -146,6 +146,8 @@ const DashBoard = () => {
           startDate: formatDate(startDate),
           endDate: formatDate(endDate),
         });
+
+        console.log('titi', data);
         setCounselStats(data);
       };
 
@@ -155,21 +157,17 @@ const DashBoard = () => {
           startDate: formatDate(startDate),
           endDate: formatDate(endDate),
         });
-
-        // console.log(data);
       };
 
       // 실시간 위험 감지 및 조치 현황
       const fetchRealtimeRiskDetectionStatus = async () => {
         const data = await getRealtimeRiskDetectionStatus();
-        // console.log(data);
         setRiskActivities(data);
       };
 
       // 정산현황 : 일자별전체 상담사 내역 관련 집계 (최근일, 상담매출액순)
       const fetchLatestlyCounselorRevenue = async () => {
         const { content: data } = await getLatestlyCounselorRevenue();
-        console.log(data);
         setSettlements(data);
       };
 
@@ -299,9 +297,9 @@ const DashBoard = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f3f7ff]">
-      {/* LEFT SIDEBAR */}
-      <aside className="w-[280px] bg-[#2d3e50] text-white flex-shrink-0">
+    <>
+      {/* LEFT SIDEBAR - 뷰포트 전체 높이 고정 */}
+      <aside className="fixed top-0 left-0 bottom-0 z-10 w-[280px] bg-[#2d3e50] text-white flex flex-col">
         {/* LOGO */}
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <div className="w-10 h-10 bg-[#2ed3c6] rounded-full flex items-center justify-center">
@@ -318,7 +316,12 @@ const DashBoard = () => {
                 to="/alarm"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -334,7 +337,12 @@ const DashBoard = () => {
                 to="/dashboard"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg bg-white/10 transition-colors text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -350,7 +358,12 @@ const DashBoard = () => {
                 to="/stats"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -366,7 +379,12 @@ const DashBoard = () => {
                 to="/admin"
                 className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -382,173 +400,245 @@ const DashBoard = () => {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col">
-        {/* TOP BAR */}
-        <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
-          >
-            로그아웃
-          </button>
-        </header>
-
-        {/* CONTENT AREA */}
-        <div className="flex-1 px-16 py-12 overflow-y-auto">
-          <div className="max-w-[1520px] mx-auto">
-            {/* TITLE & DATE SELECTOR */}
-            <div className="flex items-center justify-between mb-10">
-              <h1 className="text-4xl font-bold text-gray-800">대시보드</h1>
-              {/* 기간 필터 버튼 */}
-              <div className="flex items-center gap-3">
-                {['오늘', '이번 주', '일주일', '이번 달', '1개월', '이번 분기'].map((filter) => (
-                  <button
-                    key={filter}
-                    onClick={() => setPeriodFilter(filter)}
-                    className={`cursor-pointer px-6 py-2.5 rounded-xl text-base font-medium transition-colors ${
-                      periodFilter === filter
-                        ? 'bg-[#2563eb] text-white shadow-lg border-[#2563eb]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-[#2563eb]'
-                    }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
+      <div className="min-h-screen flex flex-col pl-[280px] bg-[#f3f7ff]">
+        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          {/* TOP BAR */}
+          <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
+              <span className="text-lg font-semibold text-gray-700">
+                {nickname || ''} 관리자님
+              </span>
             </div>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
+            >
+              로그아웃
+            </button>
+          </header>
 
-            {/* STATS CARDS - 3 COLUMN GRID */}
-            <div className="grid grid-cols-3 gap-6 mb-12">
-              {counselStats.map((stat, index) => (
-                <div key={index} className="bg-white rounded-2xl p-6 shadow-lg">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4 pb-3 border-b-2 border-gray-200">
-                    {stat?.codeName?.split('상담')[0]} 상담 건수
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">{periodFilter} 상담 :</span>
-                      <span className="text-lg font-bold text-gray-800">
-                        {stat.cnslCount} <span className="text-gray-800">건</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">평균 상담 시간 :</span>
-                      <span className="text-base font-semibold text-gray-800">{formatDuration(stat?.avgCnslTime)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">매출액 :</span>
-                      <span className="text-lg font-bold text-gray-800">{stat?.cnslPriceSum} 원</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">플랫폼 수수료 :</span>
-                      <span className="text-lg font-bold text-gray-800">{stat?.cnslPriceCmsn} 원</span>
+          {/* CONTENT AREA */}
+          <div className="flex-1 px-16 py-12 overflow-y-auto">
+            <div className="max-w-[1520px] mx-auto">
+              {/* TITLE & DATE SELECTOR */}
+              <div className="flex items-center justify-between mb-10">
+                <h1 className="text-4xl font-bold text-gray-800">대시보드</h1>
+                {/* 기간 필터 버튼 */}
+                <div className="flex items-center gap-3">
+                  {[
+                    '오늘',
+                    '이번 주',
+                    '일주일',
+                    '이번 달',
+                    '1개월',
+                    '이번 분기',
+                  ].map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setPeriodFilter(filter)}
+                      className={`cursor-pointer px-6 py-2.5 rounded-xl text-base font-medium transition-colors duration-200 ${
+                        periodFilter === filter
+                          ? 'bg-[#2563eb] text-white shadow-lg border-[#2563eb]'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-[#e0f0ff] hover:text-[#2563eb] hover:border-[#2563eb]'
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* STATS CARDS - 3 COLUMN GRID */}
+              <div className="grid grid-cols-3 gap-6 mb-12">
+                {counselStats.map((stat, index) => (
+                  <div
+                    key={index}
+                    className="bg-white rounded-2xl p-6 shadow-lg"
+                  >
+                    <h3 className="text-xl font-bold text-gray-800 mb-4 pb-3 border-b-2 border-gray-200">
+                      {stat?.codeName?.split('상담')[0]} 상담 건수
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          {periodFilter} 상담 :
+                        </span>
+                        <span className="text-lg font-bold text-gray-800">
+                          {stat.cnslCount}{' '}
+                          <span className="text-gray-800">건</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          평균 상담 시간 :
+                        </span>
+                        <span className="text-base font-semibold text-gray-800">
+                          {formatDuration(stat?.avgCnslTime)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">매출액 :</span>
+                        <span className="text-lg font-bold text-gray-800">
+                          {stat?.cnslPriceSum} 원
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          플랫폼 수수료 :
+                        </span>
+                        <span className="text-lg font-bold text-gray-800">
+                          {stat?.cnslPriceCmsn} 원
+                        </span>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+
+              {/* 실시간 위험 감지 조치 현황 */}
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    실시간 위험 감지 조치 현황
+                  </h2>
+                  <Link
+                    to="/admin/activities"
+                    className="text-[#2563eb] font-semibold hover:underline"
+                  >
+                    자세히 보러가기
+                  </Link>
                 </div>
-              ))}
-            </div>
 
-            {/* 실시간 위험 감지 조치 현황 */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">실시간 위험 감지 조치 현황</h2>
-                <Link to="/admin/activities" className="text-[#2563eb] font-semibold hover:underline">
-                  자세히 보러가기
-                </Link>
-              </div>
-
-              {/* TABLE */}
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-[#2563eb] text-white">
-                      <th className="px-4 py-3 text-center font-bold text-sm">날짜</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">게시판</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">작성자</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">감지단어</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">위험단계</th>
-                      <th className="px-4 py-3 text-center font-bold text-sm">확인 및 조치</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {riskActivities.map((activity, index) => (
-                      <tr
-                        key={activity.id}
-                        className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity?.riskDate}</td>
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity?.type}</td>
-                        <td className="px-4 py-3 text-center text-xs text-gray-700">{activity?.nickname}</td>
-                        <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">
-                          {activity?.keyword || ''}
-                        </td>
-                        <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">높음</td>
-                        <td className="px-4 py-3 text-center text-xs font-semibold text-cyan-500">
-                          {activity?.action}
-                        </td>
+                {/* TABLE */}
+                <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-[#2563eb] text-white">
+                        <th className="px-4 py-3 text-center font-bold text-sm">
+                          날짜
+                        </th>
+                        <th className="px-4 py-3 text-center font-bold text-sm">
+                          게시판
+                        </th>
+                        <th className="px-4 py-3 text-center font-bold text-sm">
+                          작성자
+                        </th>
+                        <th className="px-4 py-3 text-center font-bold text-sm">
+                          감지단어
+                        </th>
+                        <th className="px-4 py-3 text-center font-bold text-sm">
+                          위험단계
+                        </th>
+                        <th className="px-4 py-3 text-center font-bold text-sm">
+                          확인 및 조치
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {riskActivities.map((activity, index) => (
+                        <tr
+                          key={activity.id}
+                          className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
+                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                          }`}
+                        >
+                          <td className="px-4 py-3 text-center text-xs text-gray-700">
+                            {activity?.riskDate}
+                          </td>
+                          <td className="px-4 py-3 text-center text-xs text-gray-700">
+                            {activity?.type}
+                          </td>
+                          <td className="px-4 py-3 text-center text-xs text-gray-700">
+                            {activity?.nickname}
+                          </td>
+                          <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">
+                            {activity?.keyword || ''}
+                          </td>
+                          <td className="px-4 py-3 text-center text-xs font-semibold text-red-600">
+                            높음
+                          </td>
+                          <td className="px-4 py-3 text-center text-xs font-semibold text-cyan-500">
+                            {activity?.action}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            {/* 최근 정산 현황 */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">최근 정산 현황</h2>
-              </div>
+              {/* 최근 정산 현황 */}
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    최근 정산 현황
+                  </h2>
+                </div>
 
-              {/* TABLE */}
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-[#2563eb] text-white">
-                      <th className="px-3 py-3 text-center font-bold text-sm">상담 일자</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">상담사</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">총 상담 건수</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">총 매출액</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">플랫폼 수수료</th>
-                      <th className="px-3 py-3 text-center font-bold text-sm">지급액</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {settlements.map((item, index) => (
-                      <tr
-                        key={item?.cnslerId}
-                        className={`cursor-pointer border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                        }`}
-                        onClick={() => navigate(`/${null}`)}
-                      >
-                        <td className="px-3 py-3 text-center text-sm text-gray-700">{item?.cnslDt}</td>
-                        <td className="px-3 py-3 text-center text-sm text-gray-700">{item?.nickName}</td>
-                        <td className="px-3 py-3 text-center text-sm font-semibold text-blue-600">
-                          {item?.cnslCount} 건
-                        </td>
-                        <td className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
-                          {item?.cnslPriceSum} 원
-                        </td>
-                        <td className="px-3 py-3 text-center text-sm text-gray-700">{item?.cnslPriceCmsn} 원</td>
-                        <td className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
-                          {item?.cnslExctSum} 원
-                        </td>
+                {/* TABLE */}
+                <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-[#2563eb] text-white">
+                        <th className="px-3 py-3 text-center font-bold text-sm">
+                          상담 일자
+                        </th>
+                        <th className="px-3 py-3 text-center font-bold text-sm">
+                          상담사
+                        </th>
+                        <th className="px-3 py-3 text-center font-bold text-sm">
+                          총 상담 건수
+                        </th>
+                        <th className="px-3 py-3 text-center font-bold text-sm">
+                          총 매출액
+                        </th>
+                        <th className="px-3 py-3 text-center font-bold text-sm">
+                          플랫폼 수수료
+                        </th>
+                        <th className="px-3 py-3 text-center font-bold text-sm">
+                          지급액
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {settlements.map((item, index) => (
+                        <tr
+                          key={index}
+                          className={`cursor-pointer border-b border-gray-200 hover:bg-gray-50 transition-colors ${
+                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                          }`}
+                          onClick={() => navigate(`/${null}`)}
+                        >
+                          <td className="px-3 py-3 text-center text-sm text-gray-700">
+                            {item?.cnslDt}
+                          </td>
+                          <td className="px-3 py-3 text-center text-sm text-gray-700">
+                            {item?.nickName}
+                          </td>
+                          <td className="px-3 py-3 text-center text-sm font-semibold text-blue-600">
+                            {item?.cnslCount} 건
+                          </td>
+                          <td className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
+                            {item?.cnslPriceSum} 원
+                          </td>
+                          <td className="px-3 py-3 text-center text-sm text-gray-700">
+                            {item?.cnslPriceCmsn} 원
+                          </td>
+                          <td className="px-3 py-3 text-center text-sm font-semibold text-gray-700">
+                            {item?.cnslExctSum} 원
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 };
 

@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth.store';
 
 export default function ProtectedRoute({ children, allowRoles }) {
   const { loading } = useAuth();
-  const { roleName, accessToken } = useAuthStore();
+  const { roleName, accessToken, nickname } = useAuthStore();
 
   // 로딩 중일 때는 아무것도 표시하지 않음
   if (loading) {
@@ -22,6 +22,9 @@ export default function ProtectedRoute({ children, allowRoles }) {
   if (!accessToken) {
     return <Navigate to="/member/signin" replace />;
   }
+
+  if (nickname.split('_')[0] === 'social')
+    return <Navigate to="/member/kakao-additional" replace />;
 
   // 권한이 없는 경우
   if (allowRoles && !allowRoles.includes(roleName)) {

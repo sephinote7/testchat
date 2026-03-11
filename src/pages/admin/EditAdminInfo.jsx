@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/auth.store';
 import { signOut } from '../../axios/Auth';
+import { modifyMemberInfo } from '../../api/adminModifyApi';
 
 const EditAdminInfo = () => {
   const { email, nickname } = useAuthStore();
@@ -12,20 +13,13 @@ const EditAdminInfo = () => {
     navigate('/');
   };
 
-  // ========== 더미 데이터 시작 (DB 연동 시 삭제) ==========
+  // 1. formData 상태 선언 (초기값으로 현재 닉네임 설정)
   const [formData, setFormData] = useState({
-    nickname: '',
+    nickname: nickname || '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
-
-  const [notifications, setNotifications] = useState({
-    riskAlert: false,
-    hourlyCheck: false,
-    weeklyReport: false,
-  });
-  // ========== 더미 데이터 끝 ==========
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -37,13 +31,45 @@ const EditAdminInfo = () => {
     setNotifications((prev) => ({ ...prev, [name]: checked }));
   };
 
-  const handleSubmit = () => {
-    // TODO: DB 연동 가이드
-    // 관리자 정보 수정 API 호출
-    // POST /api/admin/profile
-    // Body: { nickname, currentPassword, newPassword, notifications }
-    console.log('Submitting:', { formData, notifications });
-    alert('정보가 수정되었습니다.');
+  const handleSubmit = async () => {
+    if (formData.newPassword !== formData.confirmPassword) {
+      alert('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    // 2. DTO 구조에 맞게 데이터 변환 (MemberModifyDto와 필드명 매칭)
+    const modifydto = {
+      nickname: formData.nickname,
+      pw: formData.newPassword || null, // 새 비밀번호가 없으면 null 혹은 기존 처리 방식에 따름
+      persona: null,
+      mbti: null,
+      profile: null,
+      text: null,
+      hashTags: null,
+    };
+
+    try {
+      // 3. API 호출
+      const response = await modifyMemberInfo(modifydto);
+      useAuthStore.setState({ nickname: formData.nickname });
+
+      // 4. 성공 처리
+      alert(response); // "회원 정보가 성공적으로 수정되었습니다."
+      navigate('/admin');
+    } catch (error) {
+      // 콘솔을 열어 이 메시지를 꼭 확인하세요!
+      console.error('실제 발생한 에러:', error);
+
+      if (error.response) {
+        // 서버가 에러 코드를 준 경우
+        alert(`서버 오류: ${error.response.data.message || error.response.data}`);
+      } else if (error.message) {
+        // 코드가 잘못되었거나 함수가 정의되지 않은 경우
+        alert(`클라이언트 오류: ${error.message}`);
+      } else {
+        alert('정보 수정 중 알 수 없는 오류가 발생했습니다.');
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -51,9 +77,9 @@ const EditAdminInfo = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f3f7ff]">
-      {/* LEFT SIDEBAR */}
-      <aside className="w-[280px] bg-[#2d3e50] text-white flex-shrink-0">
+    <>
+      {/* LEFT SIDEBAR - 뷰포트 전체 높이 고정 */}
+      <aside className="fixed top-0 left-0 bottom-0 z-10 w-[280px] bg-[#2d3e50] text-white flex flex-col">
         {/* LOGO */}
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <div className="w-10 h-10 bg-[#2ed3c6] rounded-full flex items-center justify-center">
@@ -134,156 +160,131 @@ const EditAdminInfo = () => {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col">
-        {/* TOP BAR */}
-        <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
-            <span className="text-lg font-semibold text-gray-700">{nickname || ''} 관리자님</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
-          >
-            로그아웃
-          </button>
-        </header>
-
-        {/* CONTENT AREA */}
-        <div className="flex-1 px-16 py-12 overflow-y-auto">
-          <div className="max-w-[1520px] mx-auto">
-            {/* TITLE */}
-            <h1 className="text-4xl font-bold text-gray-800 mb-12 text-center">관리자 정보 수정</h1>
-
-            {/* PROFILE IMAGE */}
-            <div className="flex flex-col items-center mb-12">
-              <div className="w-40 h-40 bg-gray-300 rounded-full mb-6 overflow-hidden">
-                <img src="https://via.placeholder.com/160" alt="Profile" className="w-full h-full object-cover" />
+      <div className="min-h-screen flex flex-col pl-[280px] bg-[#f3f7ff]">
+        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+          {/* TOP BAR */}
+          <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-[#2563eb] font-bold">
+                {nickname ? nickname.charAt(0) : 'A'}
               </div>
-              <div className="flex gap-4">
-                <button className="px-6 py-2.5 bg-[#2563eb] text-white rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors">
-                  프로필 사진 변경
+              <div className="flex flex-col">
+                <span className="text-lg font-semibold text-gray-700">{nickname || '관리자'} 님</span>
+                <span className="text-xs text-gray-400">{email}</span>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-lg text-base font-semibold hover:bg-blue-50 transition-colors"
+            >
+              로그아웃
+            </button>
+          </header>
+
+          <div className="flex-1 px-16 py-12 overflow-y-auto">
+            <div className="max-w-[1520px] mx-auto">
+              <h1 className="text-4xl font-bold text-gray-800 mb-12 text-center">관리자 정보 수정</h1>
+
+              {/* PROFILE IMAGE */}
+              <div className="flex flex-col items-center mb-12">
+                <div className="w-40 h-40 bg-gray-300 rounded-full mb-6 overflow-hidden">
+                  <img src="https://via.placeholder.com/160" alt="Profile" className="w-full h-full object-cover" />
+                </div>
+
+                <div className="flex gap-4">
+                  <button className="px-6 py-2.5 bg-[#2563eb] text-white rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors">
+                    프로필 사진 변경
+                  </button>
+
+                  <button className="px-6 py-2.5 bg-[#2563eb] text-white rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors">
+                    프로필 사진 저장
+                  </button>
+                </div>
+              </div>
+
+              {/* FORM SECTION */}
+              <div className="bg-white rounded-2xl shadow-lg p-10 mb-10">
+                <h2 className="text-2xl font-bold text-gray-800 mb-8 border-b pb-4">기본 정보 수정</h2>
+                <div className="space-y-8">
+                  {/* 닉네임 변경 */}
+                  <div className="flex items-center">
+                    <label className="w-48 text-lg font-semibold text-gray-700">닉네임</label>
+                    <input
+                      type="text"
+                      name="nickname"
+                      value={formData.nickname}
+                      onChange={handleInputChange}
+                      placeholder="수정할 닉네임을 입력하세요"
+                      className="flex-1 px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+
+                  {/* 비밀번호 섹션 구분선 */}
+                  <div className="pt-4 border-t border-gray-100">
+                    <p className="text-sm text-blue-600 mb-6">* 비밀번호 변경 시에만 아래 필드를 입력해 주세요.</p>
+                  </div>
+
+                  {/* 현재 비밀번호 */}
+                  <div className="flex items-center">
+                    <label className="w-48 text-lg font-semibold text-gray-700">현재 비밀번호</label>
+                    <input
+                      type="password"
+                      name="currentPassword"
+                      value={formData.currentPassword}
+                      onChange={handleInputChange}
+                      placeholder="기존 비밀번호 확인"
+                      className="flex-1 px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+
+                  {/* 새 비밀번호 */}
+                  <div className="flex items-center">
+                    <label className="w-48 text-lg font-semibold text-gray-700">새 비밀번호</label>
+                    <input
+                      type="password"
+                      name="newPassword"
+                      value={formData.newPassword}
+                      onChange={handleInputChange}
+                      placeholder="새 비밀번호 (최소 8자 이상)"
+                      className="flex-1 px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+
+                  {/* 비밀번호 확인 */}
+                  <div className="flex items-center">
+                    <label className="w-48 text-lg font-semibold text-gray-700">비밀번호 확인</label>
+                    <input
+                      type="password"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      placeholder="새 비밀번호 다시 입력"
+                      className="flex-1 px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center justify-center gap-6 mt-12">
+                <button
+                  onClick={handleCancel}
+                  className="px-16 py-4 bg-white border-2 border-gray-300 text-gray-600 rounded-xl text-lg font-bold hover:bg-gray-50 transition-all"
+                >
+                  취소
                 </button>
-                <button className="px-6 py-2.5 bg-[#2563eb] text-white rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors">
-                  프로필 사진 저장
+                <button
+                  onClick={handleSubmit}
+                  className="px-16 py-4 bg-[#2563eb] text-white rounded-xl text-lg font-bold hover:bg-blue-700 hover:shadow-lg transition-all"
+                >
+                  수정 완료
                 </button>
               </div>
-            </div>
-
-            {/* FORM SECTION */}
-            <div className="bg-white rounded-2xl shadow-lg p-10 mb-10">
-              <h2 className="text-2xl font-bold text-gray-800 mb-8">기본 정보 수정</h2>
-              <div className="space-y-6">
-                {/* 닉네임 변경 */}
-                <div className="flex items-center">
-                  <label className="w-48 text-lg font-semibold text-gray-700">닉네임 변경</label>
-                  <input
-                    type="text"
-                    name="nickname"
-                    value={formData.nickname}
-                    onChange={handleInputChange}
-                    placeholder="새 닉네임"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* 현재 비밀번호 */}
-                <div className="flex items-center">
-                  <label className="w-48 text-lg font-semibold text-gray-700">현재 비밀번호</label>
-                  <input
-                    type="password"
-                    name="currentPassword"
-                    value={formData.currentPassword}
-                    onChange={handleInputChange}
-                    placeholder="현재 비밀번호"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* 새 비밀번호 */}
-                <div className="flex items-center">
-                  <label className="w-48 text-lg font-semibold text-gray-700">새 비밀번호</label>
-                  <input
-                    type="password"
-                    name="newPassword"
-                    value={formData.newPassword}
-                    onChange={handleInputChange}
-                    placeholder="새 비밀번호"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* 비밀번호 확인 */}
-                <div className="flex items-center">
-                  <label className="w-48 text-lg font-semibold text-gray-700">비밀번호 확인</label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    placeholder="비밀번호 확인"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* NOTIFICATION SETTINGS */}
-            <div className="bg-white rounded-2xl shadow-lg p-10 mb-10">
-              <h2 className="text-2xl font-bold text-gray-800 mb-8">알림 설정</h2>
-              <div className="flex items-center gap-8 flex-wrap">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="riskAlert"
-                    checked={notifications.riskAlert}
-                    onChange={handleCheckboxChange}
-                    className="w-6 h-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-lg text-gray-700 whitespace-nowrap">위험 단어 감지 시 즉시 알림</span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="hourlyCheck"
-                    checked={notifications.hourlyCheck}
-                    onChange={handleCheckboxChange}
-                    className="w-6 h-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-lg text-gray-700 whitespace-nowrap">정시간 마감리 위험 건 재알림</span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="weeklyReport"
-                    checked={notifications.weeklyReport}
-                    onChange={handleCheckboxChange}
-                    className="w-6 h-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-lg text-gray-700 whitespace-nowrap">주간 통계자료 수신</span>
-                </label>
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS */}
-            <div className="flex items-center justify-center gap-6">
-              <button
-                onClick={handleCancel}
-                className="px-12 py-3.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg text-lg font-semibold hover:bg-gray-50 transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="px-12 py-3.5 bg-[#2563eb] text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
-              >
-                완료
-              </button>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 };
 

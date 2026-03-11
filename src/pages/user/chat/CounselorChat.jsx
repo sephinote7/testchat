@@ -69,7 +69,10 @@ const CounselorChat = () => {
       setErrorMsg('');
 
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
         if (authError || !user) {
           setErrorMsg('로그인 정보가 없습니다. 다시 로그인해 주세요.');
           setLoading(false);
@@ -109,7 +112,10 @@ const CounselorChat = () => {
           return;
         }
 
-        const stat = String(cnslRow.cnsl_stat || 'A').trim().toUpperCase() || 'A';
+        const stat =
+          String(cnslRow.cnsl_stat || 'A')
+            .trim()
+            .toUpperCase() || 'A';
         if (stat === 'A') {
           const { data: inProgressRows } = await supabase
             .from('cnsl_reg')
@@ -117,7 +123,9 @@ const CounselorChat = () => {
             .eq('cnsl_tp', '4')
             .eq('cnsl_stat', 'C');
           const inProgressItem = inProgressRows?.find(
-            (r) => (String(r.member_id || '') === currentEmail || String(r.cnsler_id || '') === currentEmail) && Number(r.cnsl_id) !== cnslIdNum
+            (r) =>
+              (String(r.member_id || '') === currentEmail || String(r.cnsler_id || '') === currentEmail) &&
+              Number(r.cnsl_id) !== cnslIdNum,
           );
           if (inProgressItem?.cnsl_id) {
             setLoading(false);
@@ -192,8 +200,7 @@ const CounselorChat = () => {
     (Array.isArray(list) ? list : []).map((msg) => {
       const role = (msg.role || '').toLowerCase() === 'counselor' ? 'SYSTEM' : 'USER';
       const senderEmail = role === 'SYSTEM' ? msg.cnslerId : msg.memberId;
-      const nickname =
-        senderEmail === me?.email ? me?.nickname : (other?.nickname ?? senderEmail ?? role);
+      const nickname = senderEmail === me?.email ? me?.nickname : (other?.nickname ?? senderEmail ?? role);
       const createdAt = msg.createdAt ?? msg.created_at;
       return {
         id: msg.chatId ?? `msg-${createdAt ?? Date.now()}`,
@@ -357,7 +364,7 @@ const CounselorChat = () => {
       summaryText = summaryText.slice(0, 300);
       const userFirst = basePayload.find((x) => (x.speaker || '').toLowerCase() === 'user')?.text?.trim();
       const core = userFirst || texts[0] || full;
-      summaryLine = core && core.length > 80 ? core.slice(0, 77) + '...' : (core || summaryText.slice(0, 80));
+      summaryLine = core && core.length > 80 ? core.slice(0, 77) + '...' : core || summaryText.slice(0, 80);
     }
     if (!summaryText) {
       summaryText = `상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
@@ -389,7 +396,9 @@ const CounselorChat = () => {
     if (existing) {
       await supabase.from('chat_msg').update({ msg_data, summary: summaryPayload }).eq('cnsl_id', cnslIdNum);
     } else {
-      await supabase.from('chat_msg').insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: 'user', msg_data, summary: summaryPayload });
+      await supabase
+        .from('chat_msg')
+        .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: 'user', msg_data, summary: summaryPayload });
     }
   };
 
@@ -449,16 +458,24 @@ const CounselorChat = () => {
 
     const channel = supabase
       .channel(`counselor_chat:${cnsl_id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` }, () =>
-        fetchChatMessagesRef.current?.()
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` },
+        () => fetchChatMessagesRef.current?.(),
       )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` }, () =>
-        fetchChatMessagesRef.current?.()
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` },
+        () => fetchChatMessagesRef.current?.(),
       )
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cnsl_reg', filter: `cnsl_id=eq.${cnslIdNum}` }, (payload) => {
-        const newStat = payload?.new?.cnsl_stat;
-        if (newStat) setCnslStat(String(newStat).trim().toUpperCase());
-      })
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'cnsl_reg', filter: `cnsl_id=eq.${cnslIdNum}` },
+        (payload) => {
+          const newStat = payload?.new?.cnsl_stat;
+          if (newStat) setCnslStat(String(newStat).trim().toUpperCase());
+        },
+      )
       .subscribe();
 
     const pollChat = setInterval(() => fetchChatMessagesRef.current?.(), 2000);
@@ -508,7 +525,10 @@ const CounselorChat = () => {
     if (!trimmed || !me) return;
 
     const now = Date.now();
-    setChatMessages((prev) => [...prev, { id: `local-${now}`, role: me.role, nickname: me.nickname ?? '', text: trimmed, timestamp: now }]);
+    setChatMessages((prev) => [
+      ...prev,
+      { id: `local-${now}`, role: me.role, nickname: me.nickname ?? '', text: trimmed, timestamp: now },
+    ]);
     lastLocalAddAtRef.current = now;
     setChatInput('');
 
@@ -551,7 +571,7 @@ const CounselorChat = () => {
     return (
       <div className="w-full min-h-screen flex items-center justify-center bg-[#f3f7ff]">
         <p className="text-gray-600">로딩 중...</p>
-            </div>
+      </div>
     );
   }
 
@@ -561,8 +581,8 @@ const CounselorChat = () => {
         <p className="text-gray-800">{errorMsg}</p>
         <Link to="/chat/counselor" className="text-[#2f80ed] font-semibold hover:underline">
           상담 목록으로
-            </Link>
-          </div>
+        </Link>
+      </div>
     );
   }
 
@@ -574,25 +594,36 @@ const CounselorChat = () => {
           <span>{peer.nickname} 상담</span>
           <div className="flex gap-2">
             {me?.role === 'SYSTEM' && isBeforeStart && (
-              <button type="button" onClick={handleStartCounseling} disabled={isStarting} className="h-8 px-3 rounded-lg bg-main-02 text-white text-sm font-semibold shadow disabled:opacity-70">
+              <button
+                type="button"
+                onClick={handleStartCounseling}
+                disabled={isStarting}
+                className="h-8 px-3 rounded-lg bg-main-02 text-white text-sm font-semibold shadow disabled:opacity-70"
+              >
                 상담 시작
               </button>
             )}
             {!isEnded && !isBeforeStart && !isEndingState && (
-              <button type="button" onClick={handleEndCounseling} className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform">
+              <button
+                type="button"
+                onClick={handleEndCounseling}
+                className="h-8 px-3 rounded-lg bg-white/20 text-sm font-semibold active:scale-95 active:opacity-80 transition-transform"
+              >
                 상담 종료
               </button>
             )}
           </div>
         </header>
-          <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-hidden">
+        <main className="flex-1 flex flex-col px-4 pt-4 pb-24 gap-3 min-h-0 overflow-hidden">
           <section className="shrink-0 flex flex-col rounded-2xl border border-[#e5e7eb] overflow-hidden bg-[#f9fafb] min-h-[210px] max-h-[42vh]">
             <div className="flex-1 min-h-0 flex flex-col overflow-y-auto border-b border-[#e5e7eb] p-3">
               {cnslInfo && (
                 <>
                   <h2 className="text-base font-semibold text-gray-800 mb-1">상담 정보</h2>
                   {cnslInfo.title && <p className="font-medium text-gray-800 mb-0.5 text-sm">{cnslInfo.title}</p>}
-                  {cnslInfo.requesterNick && <p className="text-xs text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
+                  {cnslInfo.requesterNick && (
+                    <p className="text-xs text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>
+                  )}
                   {cnslInfo.content && <p className="text-xs text-[#374151] leading-relaxed">{cnslInfo.content}</p>}
                 </>
               )}
@@ -604,7 +635,9 @@ const CounselorChat = () => {
                   <p className="text-sm font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
                   {infoToShow.mbti && <p className="text-xs text-[#6b7280]">MBTI: {infoToShow.mbti}</p>}
                   {(infoToShow.persona || infoToShow.profile) && (
-                    <div className="mt-1 overflow-y-auto text-xs text-[#374151] leading-relaxed">{infoToShow.persona || infoToShow.profile}</div>
+                    <div className="mt-1 overflow-y-auto text-xs text-[#374151] leading-relaxed">
+                      {infoToShow.persona || infoToShow.profile}
+                    </div>
                   )}
                 </>
               )}
@@ -612,7 +645,11 @@ const CounselorChat = () => {
           </section>
           <div className="flex-1 min-h-[120px] flex flex-col gap-0 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden">
             {endError && <p className="shrink-0 text-xs text-red-600 px-3 py-1 bg-red-50">{endError}</p>}
-            <div ref={chatScrollRefMobile} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-2 flex flex-col gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div
+              ref={chatScrollRefMobile}
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-2 flex flex-col gap-2"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
               {isEnded ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 처리되었습니다.</p>
               ) : isEndingState ? (
@@ -625,11 +662,16 @@ const CounselorChat = () => {
                 <p className="text-xs text-[#9ca3af]">메시지를 입력해 주세요.</p>
               ) : (
                 chatMessages.map((msg) => (
-                  <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.role === me.role ? 'items-end' : 'items-start'}`}>
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col gap-0.5 ${msg.role === me.role ? 'items-end' : 'items-start'}`}
+                  >
                     <p className="text-[10px] text-[#6b7280]">{msg.nickname}</p>
                     <div
                       className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-xs border ${
-                        msg.role === me.role ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]' : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
+                        msg.role === me.role
+                          ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]'
+                          : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
                       }`}
                     >
                       {msg.text}
@@ -637,19 +679,23 @@ const CounselorChat = () => {
                   </div>
                 ))
               )}
-                </div>
+            </div>
             <form onSubmit={handleChatSubmit} className="flex gap-2 p-3 border-t border-[#e5e7eb] shrink-0">
-            <input
-              type="text"
+              <input
+                type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={isInputDisabled ? '상담 시작 후 메시지를 입력할 수 있습니다.' : '메시지를 입력하세요'}
                 disabled={isInputDisabled}
                 className={`flex-1 h-9 rounded-[10px] border border-[#dbe3f1] px-2 text-xs ${isInputDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
               />
-              <button type="submit" disabled={isInputDisabled} className="h-9 px-3 rounded-[10px] bg-[#2f80ed] text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-              전송
-            </button>
+              <button
+                type="submit"
+                disabled={isInputDisabled}
+                className="h-9 px-3 rounded-[10px] bg-[#2f80ed] text-white text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                전송
+              </button>
             </form>
           </div>
         </main>
@@ -664,18 +710,29 @@ const CounselorChat = () => {
                 {peer.nickname?.slice(0, 1) || '상'}
               </div>
               <div className="flex flex-col">
-                <span>{peer.nickname} {roleDisplayLabel(peerRoleLabel)}</span>
+                <span>
+                  {peer.nickname} {roleDisplayLabel(peerRoleLabel)}
+                </span>
                 <span className="text-sm font-normal opacity-90">1:1 텍스트 상담</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
               {me?.role === 'SYSTEM' && isBeforeStart && (
-                <button type="button" onClick={handleStartCounseling} disabled={isStarting} className="h-10 px-5 rounded-xl bg-main-02 text-white text-sm font-semibold shadow hover:opacity-90 disabled:opacity-70">
+                <button
+                  type="button"
+                  onClick={handleStartCounseling}
+                  disabled={isStarting}
+                  className="h-10 px-5 rounded-xl bg-main-02 text-white text-sm font-semibold shadow hover:opacity-90 disabled:opacity-70"
+                >
                   상담 시작
                 </button>
               )}
               {!isEnded && !isBeforeStart && !isEndingState && (
-                <button type="button" onClick={handleEndCounseling} className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30">
+                <button
+                  type="button"
+                  onClick={handleEndCounseling}
+                  className="h-10 px-5 rounded-xl bg-white/20 text-sm font-semibold hover:bg-white/30"
+                >
                   상담 종료
                 </button>
               )}
@@ -691,8 +748,8 @@ const CounselorChat = () => {
                   {cnslInfo?.title && <p className="font-medium text-gray-800 mb-1">{cnslInfo.title}</p>}
                   {cnslInfo?.requesterNick && <p className="text-[#6b7280] mb-1">예약자: {cnslInfo.requesterNick}</p>}
                   {cnslInfo?.content && <p className="leading-relaxed whitespace-pre-line">{cnslInfo.content}</p>}
-                    </div>
-                  </div>
+                </div>
+              </div>
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <h3 className="text-lg font-semibold text-gray-800 px-4 py-2 shrink-0">{infoLabel}</h3>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
@@ -701,13 +758,15 @@ const CounselorChat = () => {
                       <p className="font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
                       {infoToShow.mbti && <p className="text-[#6b7280] mt-1">MBTI: {infoToShow.mbti}</p>}
                       {(infoToShow.persona || infoToShow.profile) && (
-                        <p className="mt-2 leading-relaxed whitespace-pre-line">{infoToShow.persona || infoToShow.profile}</p>
+                        <p className="mt-2 leading-relaxed whitespace-pre-line">
+                          {infoToShow.persona || infoToShow.profile}
+                        </p>
                       )}
                     </>
                   )}
-                  </div>
                 </div>
               </div>
+            </div>
 
             {/* 우측 채팅 영역 */}
             <div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-2xl border border-[#e5e7eb] bg-white shadow-lg overflow-hidden">
@@ -729,7 +788,10 @@ const CounselorChat = () => {
                   <p className="text-sm text-[#9ca3af]">메시지를 입력해 주세요.</p>
                 ) : (
                   chatMessages.map((msg) => (
-                    <div key={msg.id} className={`flex flex-col gap-1 ${msg.role === me.role ? 'items-end' : 'items-start'}`}>
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col gap-1 ${msg.role === me.role ? 'items-end' : 'items-start'}`}
+                    >
                       <p className={`text-xs text-[#6b7280] ${msg.role === me.role ? 'text-right' : 'text-left'}`}>
                         {msg.nickname}
                       </p>
@@ -745,19 +807,23 @@ const CounselorChat = () => {
                     </div>
                   ))
                 )}
-                </div>
+              </div>
               <form onSubmit={handleChatSubmit} className="flex gap-3 p-4 border-t border-[#e5e7eb] shrink-0">
-                  <input
-                    type="text"
+                <input
+                  type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder={isInputDisabled ? '상담 시작 후 메시지를 입력할 수 있습니다.' : '메시지를 입력하세요'}
                   disabled={isInputDisabled}
                   className={`flex-1 h-12 rounded-xl border border-[#dbe3f1] px-4 text-sm focus:outline-none focus:border-[#2f80ed] ${isInputDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                 />
-                <button type="submit" disabled={isInputDisabled} className="h-12 px-6 rounded-xl bg-[#2f80ed] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-                    전송
-                  </button>
+                <button
+                  type="submit"
+                  disabled={isInputDisabled}
+                  className="h-12 px-6 rounded-xl bg-[#2f80ed] text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  전송
+                </button>
               </form>
             </div>
           </main>

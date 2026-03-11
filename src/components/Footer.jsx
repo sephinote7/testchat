@@ -6,6 +6,8 @@ const Footer = () => {
   const location = useLocation();
   const { roleName } = useAuthStore();
 
+  const f_logo = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png";
+
   // 채팅 페이지에서는 푸터 숨김
   if (location.pathname.startsWith('/chat')) return null;
   if (roleName === 'ADMIN') return null;
@@ -16,13 +18,7 @@ const Footer = () => {
         <div className="flex flex-col gap-4 lg:gap-5">
           {/* 로고 섹션 */}
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 lg:w-10 lg:h-10 bg-[#2ed3c6] rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm lg:text-base">★</span>
-            </div>
-            <div>
-              <div className="text-[10px] lg:text-xs text-gray-400">Healing Therapy</div>
-              <div className="font-bold text-sm lg:text-lg">고민순삭</div>
-            </div>
+            <img src={f_logo} alt="고민순삭 로고" className="w-28 h-auto" />
           </div>
 
           {/* 설명 */}

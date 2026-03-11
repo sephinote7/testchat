@@ -32,15 +32,19 @@ const CounselorDefaultPage = () => {
         <main className="px-[18px] pt-4 flex flex-col gap-[22px] pb-[24px]">
           {/* 환영 메시지 */}
           <section className="bg-white rounded-[14px] p-4 text-center shadow-[0_4px_8px_rgba(0,0,0,0.08)]">
-            <p className="text-[#1f2937] font-medium">안녕하세요, {nickname} 상담사님.</p>
+            <p className="text-[#1f2937] font-medium">
+              안녕하세요, {nickname} 상담사님.
+            </p>
           </section>
 
           {/* 페이지 타이틀 */}
           <section className="flex flex-col gap-3">
-            <h1 className="text-[#1f2937] text-xl font-bold">상담사 마이페이지</h1>
+            <h1 className="text-[#1f2937] text-xl font-bold">
+              상담사 마이페이지
+            </h1>
             <button
               onClick={handleLogout}
-              className="bg-[#2f80ed] text-white px-6 py-2.5 rounded-[12px] font-medium hover:bg-[#2a5eea] transition shadow-[0_4px_8px_rgba(0,0,0,0.08)]"
+              className="bg-[#2f80ed] text-white px-6 py-2.5 rounded-[12px] font-medium hover:bg-[#2a5eea] transition shadow-[0_4px_8px_rgba(0,0,0,0.08)] cursor-pointer"
             >
               로그아웃
             </button>
@@ -51,11 +55,16 @@ const CounselorDefaultPage = () => {
             {/* 상담사 정보 수정 */}
             <button
               onClick={() => navigate('/system/info/edit')}
-              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)]"
+              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)] cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-[#e3f2fd] rounded-[12px] flex items-center justify-center">
-                  <svg className="w-7 h-7 text-[#2f80ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-7 h-7 text-[#2f80ed]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -64,21 +73,38 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-[#1f2937] text-base font-semibold">상담사 정보 수정</span>
+                <span className="text-[#1f2937] text-base font-semibold">
+                  상담사 정보 수정
+                </span>
               </div>
-              <svg className="w-5 h-5 text-[#9ca3af]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg
+                className="w-5 h-5 text-[#9ca3af]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </button>
 
             {/* 상담 내역 */}
             <button
               onClick={() => navigate('/system/info/counsel-history')}
-              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)]"
+              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)] cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-[#e3f2fd] rounded-[12px] flex items-center justify-center">
-                  <svg className="w-7 h-7 text-[#2f80ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-7 h-7 text-[#2f80ed]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -87,21 +113,38 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-[#1f2937] text-base font-semibold">상담 내역</span>
+                <span className="text-[#1f2937] text-base font-semibold">
+                  상담 내역
+                </span>
               </div>
-              <svg className="w-5 h-5 text-[#9ca3af]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg
+                className="w-5 h-5 text-[#9ca3af]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </button>
 
             {/* 상담사 소개페이지 */}
             <button
               onClick={() => navigate('/system/info/profile')}
-              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)]"
+              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)] cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-[#e3f2fd] rounded-[12px] flex items-center justify-center">
-                  <svg className="w-7 h-7 text-[#2f80ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-7 h-7 text-[#2f80ed]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -110,21 +153,38 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-[#1f2937] text-base font-semibold">상담사 소개페이지</span>
+                <span className="text-[#1f2937] text-base font-semibold">
+                  상담사 소개페이지
+                </span>
               </div>
-              <svg className="w-5 h-5 text-[#9ca3af]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg
+                className="w-5 h-5 text-[#9ca3af]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </button>
 
             {/* 스케줄 관리 */}
             <button
               onClick={() => navigate('/system/info/schedule')}
-              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)]"
+              className="w-full bg-white hover:bg-gray-50 p-5 rounded-[14px] flex items-center justify-between transition shadow-[0_4px_8px_rgba(0,0,0,0.08)] cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-[#e3f2fd] rounded-[12px] flex items-center justify-center">
-                  <svg className="w-7 h-7 text-[#2f80ed]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-7 h-7 text-[#2f80ed]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -133,10 +193,22 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-[#1f2937] text-base font-semibold">스케줄 관리</span>
+                <span className="text-[#1f2937] text-base font-semibold">
+                  스케줄 관리
+                </span>
               </div>
-              <svg className="w-5 h-5 text-[#9ca3af]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <svg
+                className="w-5 h-5 text-[#9ca3af]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
               </svg>
             </button>
           </section>
@@ -150,13 +222,15 @@ const CounselorDefaultPage = () => {
           <div className="flex items-center justify-between mb-12">
             <div>
               <p className="text-lg text-gray-600 mb-2">
-                안녕하세요 <span className="font-bold text-[#2563eb]">{nickname}</span> 상담사님.
+                안녕하세요{' '}
+                <span className="font-bold text-[#2563eb]">{nickname}</span>{' '}
+                상담사님.
               </p>
               <h1 className="text-4xl font-bold text-gray-800">마이페이지</h1>
             </div>
             <button
               onClick={handleLogout}
-              className="px-8 py-3 bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white text-lg font-bold rounded-xl hover:shadow-lg transition-all"
+              className="px-8 py-3 bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white text-lg font-bold rounded-xl hover:shadow-lg transition-all cursor-pointer"
             >
               로그아웃
             </button>
@@ -167,11 +241,16 @@ const CounselorDefaultPage = () => {
             {/* 상담사 정보 수정 */}
             <button
               onClick={() => navigate('/system/info/edit')}
-              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105 cursor-pointer"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                  <svg className="w-20 h-20 text-[#2563eb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-20 h-20 text-[#2563eb]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -180,19 +259,28 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-4xl font-bold text-white mb-4">상담사 정보 수정</h2>
-                <p className="text-white/90 text-lg">프로필 및 상담 정보 관리</p>
+                <h2 className="text-4xl font-bold text-white mb-4">
+                  상담사 정보 수정
+                </h2>
+                <p className="text-white/90 text-lg">
+                  프로필 및 상담 정보 관리
+                </p>
               </div>
             </button>
 
             {/* 상담 내역 */}
             <button
               onClick={() => navigate('/system/info/counsel-history')}
-              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105 cursor-pointer"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                  <svg className="w-20 h-20 text-[#2563eb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-20 h-20 text-[#2563eb]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -201,7 +289,9 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-4xl font-bold text-white mb-4">상담 내역</h2>
+                <h2 className="text-4xl font-bold text-white mb-4">
+                  상담 내역
+                </h2>
                 <p className="text-white/90 text-lg">진행한 상담 내역 조회</p>
               </div>
             </button>
@@ -209,11 +299,16 @@ const CounselorDefaultPage = () => {
             {/* 상담사 소개페이지 */}
             <button
               onClick={() => navigate('/system/info/profile')}
-              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105 cursor-pointer"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                  <svg className="w-20 h-20 text-[#2563eb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-20 h-20 text-[#2563eb]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -222,7 +317,9 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-4xl font-bold text-white mb-4">상담사 소개페이지</h2>
+                <h2 className="text-4xl font-bold text-white mb-4">
+                  상담사 소개페이지
+                </h2>
                 <p className="text-white/90 text-lg">나의 소개 페이지 수정</p>
               </div>
             </button>
@@ -230,11 +327,16 @@ const CounselorDefaultPage = () => {
             {/* 스케줄 관리 (NEW) */}
             <button
               onClick={() => navigate('/system/info/schedule')}
-              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              className="group bg-gradient-to-br from-[#2563eb] to-[#1e40af] rounded-3xl p-16 shadow-xl hover:shadow-2xl transition-all hover:scale-105 cursor-pointer"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-40 h-40 bg-white rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
-                  <svg className="w-20 h-20 text-[#2563eb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-20 h-20 text-[#2563eb]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -243,7 +345,9 @@ const CounselorDefaultPage = () => {
                     />
                   </svg>
                 </div>
-                <h2 className="text-4xl font-bold text-white mb-4">스케줄 관리</h2>
+                <h2 className="text-4xl font-bold text-white mb-4">
+                  스케줄 관리
+                </h2>
                 <p className="text-white/90 text-lg">상담 가능 시간 설정</p>
               </div>
             </button>

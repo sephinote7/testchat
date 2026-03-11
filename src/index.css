@@ -111,7 +111,6 @@ body {
     /* zoom: 0.75; */
   }
 }
-
 /* ======================================== */
 
 /* PC 화면에서 컨텐츠는 1520px로 제한하되, #root는 전체 너비 사용 */
@@ -160,7 +159,6 @@ p {
   font-size: 14px;
   font-weight: 400;
 }
-
 .p_md {
   font-size: 14px;
   font-weight: 500;
@@ -194,48 +192,40 @@ a {
 
 @media (min-width: 768px) {
   h1 {
-    font-size: 60px;
-    /* Ag pc_h1 */
+    font-size: 60px; /* Ag pc_h1 */
     font-weight: 700;
   }
 
   h2 {
-    font-size: 48px;
-    /* Ag pc_h2 */
+    font-size: 48px; /* Ag pc_h2 */
     font-weight: 700;
   }
 
   h3 {
-    font-size: 40px;
-    /* Ag pc_h3 */
+    font-size: 40px; /* Ag pc_h3 */
     font-weight: 600;
   }
 
   h4 {
-    font-size: 30px;
-    /* Ag pc_h4 */
+    font-size: 30px; /* Ag pc_h4 */
     font-weight: 600;
   }
 
   h5 {
-    font-size: 24px;
-    /* Ag pc_h5 */
+    font-size: 24px; /* Ag pc_h5 */
     font-weight: 500;
   }
 
   h6 {
-    font-size: 18px;
-    /* Ag pc_h6 */
+    font-size: 18px; /* Ag pc_h6 */
     font-weight: 500;
   }
 
   p,
   a,
   input {
-    font-size: 16px;
-    /* Ag pc_p */
-    line-height: 20px;
-    /* Ag pc_p */
+    font-size: 16px; /* Ag pc_p */
+    line-height: 20px; /* Ag pc_p */
     font-weight: 400;
   }
 

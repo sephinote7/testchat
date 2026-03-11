@@ -30,67 +30,13 @@ function roleDisplayLabel(role) {
   return role === 'USER' ? '상담자' : '상담사';
 }
 
-function formatChatTime(ts) {
-  const time = Number(ts);
-  if (!Number.isFinite(time) || time <= 0) return '';
-  return new Intl.DateTimeFormat('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date(time));
-}
-
 /** MediaRecorder 호환 MIME 타입 선택 (Safari 등 브라우저별 지원 차이 대응) */
 function getSupportedAudioMime() {
-  // opus(webm) 우선: 동일 시간 대비 파일 크기가 작고 Whisper 호환도 좋음
-  const options = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  const options = ['audio/webm', 'audio/mp4', 'audio/ogg'];
   for (const m of options) {
     if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) return m;
   }
   return '';
-}
-
-/**
- * 오디오 스트림으로 MediaRecorder 생성·시작 (NotSupportedError 대응: MIME/옵션 폴백)
- * @returns {MediaRecorder | null}
- */
-function startAudioRecorderSafe(stream, onChunk, onStop) {
-  if (!stream?.getAudioTracks().length || typeof MediaRecorder === 'undefined') return null;
-  // 일부 환경에서 비디오+오디오 혼합 스트림 녹음 시 0바이트가 나오는 케이스가 있어 오디오 트랙만 분리
-  const audioOnlyStream = new MediaStream(stream.getAudioTracks());
-  const targetBps = 16000; // 용량 절감(24MB 제한 회피) + 음성 인식 품질 균형
-  const attempts = [
-    () => {
-      const mime = getSupportedAudioMime();
-      return mime
-        ? { mimeType: mime, audioBitsPerSecond: targetBps, bitsPerSecond: targetBps }
-        : { audioBitsPerSecond: targetBps, bitsPerSecond: targetBps };
-    },
-    () => {
-      const mime = getSupportedAudioMime();
-      return mime ? { mimeType: mime } : {};
-    },
-    () => ({ audioBitsPerSecond: targetBps, bitsPerSecond: targetBps }),
-    () => ({}),
-  ];
-  for (const getOpts of attempts) {
-    try {
-      const opts = getOpts();
-      const rec = new MediaRecorder(audioOnlyStream, opts);
-      rec.ondataavailable = (e) => { if (e.data?.size) onChunk(e.data); };
-      rec.onerror = (e) => console.warn('오디오 녹음 오류:', e);
-      rec.onstop = onStop;
-      try {
-        rec.start(1000);
-      } catch (startErr) {
-        rec.start();
-      }
-      return rec;
-    } catch (e) {
-      continue;
-    }
-  }
-  return null;
 }
 
 function getSupportedVideoMime() {
@@ -226,10 +172,8 @@ const VisualChat = () => {
   const [deviceError, setDeviceError] = useState(false);
   const [peerError, setPeerError] = useState('');
   const mediaRecorderRef = useRef(null);
-  const remoteAudioRecorderRef = useRef(null);
   const videoRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
-  const remoteRecordedChunksRef = useRef([]);
   const videoRecordedChunksRef = useRef([]);
   const hadVideoRecordingRef = useRef(false);
   const videoRefMobile = useRef(null);
@@ -259,18 +203,6 @@ const VisualChat = () => {
   const [callEnded, setCallEnded] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloadClicked, setDownloadClicked] = useState(false);
-
-  const resolveApiBase = () => {
-    let base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-    if (!base) {
-      const host = typeof window !== 'undefined' ? window.location?.hostname : '';
-      if (host && host !== 'localhost' && host !== '127.0.0.1') {
-        base = 'https://testchatpy.onrender.com';
-      }
-    }
-    if (!base) return '';
-    return base.endsWith('/api') ? base : `${base}/api`;
-  };
 
   useEffect(() => {
     const init = async () => {
@@ -452,90 +384,69 @@ const VisualChat = () => {
       .from('chat_msg')
       .select('chat_id, msg_data, member_id, cnsler_id')
       .eq('cnsl_id', cnslIdNum)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
     if (error) {
       console.warn('Supabase chat_msg 조회 실패:', error);
       return [];
     }
     if (!rows?.length) return [];
-
-    // cnsl_id당 여러 행이 있을 수 있으므로 모든 행의 content를 합친 뒤 시간순 정렬
-    const allItems = [];
-    rows.forEach((row, rowIdx) => {
-      const content = row?.msg_data?.content;
-      if (!Array.isArray(content)) return;
-      const memberId = row.member_id || '';
-      const cnslerId = row.cnsler_id || '';
-      content.forEach((item, idx) => {
-        const speaker = (item.speaker || 'user').toLowerCase();
-        const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
-        const ts = item.timestamp ?? 0;
-        allItems.push({
-          chatId: `chat-${row.chat_id ?? rowIdx}-${rowIdx}-${idx}`,
-          role,
-          content: item.text ?? '',
-          memberId,
-          cnslerId,
-          createdAt: ts,
-          created_at: ts,
-          _sortKey: ts,
-        });
-      });
+    const row = rows[0];
+    const content = row?.msg_data?.content;
+    if (!Array.isArray(content)) return [];
+    const memberId = row.member_id || '';
+    const cnslerId = row.cnsler_id || '';
+    return content.map((item, idx) => {
+      const speaker = (item.speaker || 'user').toLowerCase();
+      const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
+      return {
+        chatId: `${row.chat_id}-${idx}`,
+        role,
+        content: item.text ?? '',
+        memberId,
+        cnslerId,
+        createdAt: item.timestamp,
+        created_at: item.timestamp,
+      };
     });
-    allItems.sort((a, b) => (a._sortKey || 0) - (b._sortKey || 0));
-    return allItems.map(({ _sortKey, ...rest }) => rest);
   };
 
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
+    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
     try {
-      const apiBase = resolveApiBase();
-      if (apiBase) {
-        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-          method: 'GET',
-          headers: { 'X-User-Email': me.email },
-          mode: 'cors',
-        });
-        if (r.ok) {
-          const apiList = await r.json().catch(() => []);
-          const mapped = mapApiMessagesToUI(apiList);
-          setChatMessages((prev) => {
-            const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
-            if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
-            const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
-            const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
-            const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-            return merged.length > 0 ? merged : prev;
+      let list = [];
+      list = await fetchFromSupabase();
+      if (list.length === 0 && base) {
+        try {
+          const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
+            headers: {
+              Accept: 'application/json',
+              'X-User-Email': me.email,
+            },
+            mode: 'cors',
           });
-          return;
+          if (res.ok) {
+            const data = await res.json();
+            list = Array.isArray(data) ? data : [];
+          }
+        } catch {
+          /* API 실패 시 Supabase 결과 유지 */
         }
-        const t = await r.text().catch(() => '');
-        console.warn('채팅 API 조회 실패:', r.status, t);
       }
-      const list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
-        const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
-        if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
-        const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
-        const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
-        if (stillPending.length === 0) return mapped.length > 0 ? mapped : prev;
-        const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        return merged.length > 0 ? merged : prev;
+        if (mapped.length > 0) return mapped;
+        const justAdded = Date.now() - lastLocalAddAtRef.current < 5000;
+        if (justAdded && prev.length > 0) return prev;
+        return mapped;
       });
     } catch (err) {
       console.warn('채팅 조회 실패:', err);
       try {
         const list = await fetchFromSupabase();
         const mapped = mapApiMessagesToUI(list);
-        setChatMessages((prev) => {
-          const optimistic = prev.filter((m) => String(m.id || '').startsWith('local-'));
-          if (optimistic.length === 0) return mapped.length > 0 ? mapped : prev;
-          const serverTs = new Set(mapped.map((m) => `${m.timestamp}-${m.text}`));
-          const stillPending = optimistic.filter((m) => !serverTs.has(`${m.timestamp}-${m.text}`));
-          const merged = [...mapped, ...stillPending].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-          return merged.length > 0 ? merged : prev;
-        });
+        if (mapped.length > 0) setChatMessages(mapped);
       } catch (e) {
         console.warn('Supabase 채팅 조회 실패:', e);
       }
@@ -574,8 +485,12 @@ const VisualChat = () => {
 
     const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
     if (!error) return;
-    const base = resolveApiBase();
-    if (!base) return;
+    let base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+    if (!base) {
+      console.warn('cnsl_stat: Supabase 실패, API URL 미설정');
+      return;
+    }
+    if (!base.endsWith('/api')) base = `${base}/api`;
     try {
       const res = await fetch(`${base}/cnsl/${chatId}/stat`, {
         method: 'PATCH',
@@ -629,8 +544,10 @@ const VisualChat = () => {
       )
       .subscribe();
 
+    const pollInterval = setInterval(onChatChange, 5000);
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [chatId, me?.email]);
 
@@ -758,16 +675,23 @@ const VisualChat = () => {
         call.answer(stream);
         updateCnslStatRef.current?.('C');
         const hasAudio = stream.getAudioTracks().length > 0;
-        if (hasAudio) {
-          recordedChunksRef.current = [];
-          const audRec = startAudioRecorderSafe(
-            stream,
-            (blob) => { recordedChunksRef.current.push(blob); },
-            () => { if (recordedChunksRef.current.length > 0) setHasRecording(true); },
-          );
-          if (audRec) {
+        if (hasAudio && typeof MediaRecorder !== 'undefined') {
+          try {
+            const mime = getSupportedAudioMime();
+            const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+            const audRec = new MediaRecorder(stream, opts);
+            recordedChunksRef.current = [];
+            audRec.ondataavailable = (e) => {
+              if (e.data?.size) recordedChunksRef.current.push(e.data);
+            };
+            audRec.onstop = () => {
+              if (recordedChunksRef.current.length > 0) setHasRecording(true);
+            };
+            audRec.start();
             mediaRecorderRef.current = audRec;
             setIsRecording(true);
+          } catch (e) {
+            console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
           }
         }
         // 영상 녹화: 내 화면 + 상대 화면 합성
@@ -795,7 +719,6 @@ const VisualChat = () => {
         }
         call.on('stream', (remote) => {
           setRemoteStream(remote);
-          startRemoteAudioRecordingIfPossible(remote);
         });
         call.on('close', () => {
           setRemoteStream(null);
@@ -912,20 +835,6 @@ const VisualChat = () => {
     });
   };
 
-  const startRemoteAudioRecordingIfPossible = (remote) => {
-    try {
-      if (!remote?.getAudioTracks?.().length) return;
-      if (remoteAudioRecorderRef.current) return;
-      remoteRecordedChunksRef.current = [];
-      const rec = startAudioRecorderSafe(
-        remote,
-        (blob) => { remoteRecordedChunksRef.current.push(blob); },
-        () => {},
-      );
-      if (rec) remoteAudioRecorderRef.current = rec;
-    } catch (_) {}
-  };
-
   const handleStartCall = async () => {
     if (!isMeSystem || isCallActive || deviceError) return;
 
@@ -976,10 +885,7 @@ const VisualChat = () => {
             const call = peer.call(remoteId, stream);
             if (call) {
               currentCallRef.current = call;
-              call.on('stream', (remote) => {
-                setRemoteStream(remote);
-                startRemoteAudioRecordingIfPossible(remote);
-              });
+              call.on('stream', (remote) => setRemoteStream(remote));
               call.on('close', () => {
                 setRemoteStream(null);
                 runCallEndCleanupRef.current?.();
@@ -1003,19 +909,28 @@ const VisualChat = () => {
       }
 
       // 오디오 녹음 (요약/STT용, 부하 최소화)
-      if (canRecordAudio) {
-        recordedChunksRef.current = [];
-        const recorder = startAudioRecorderSafe(
-          stream,
-          (blob) => { recordedChunksRef.current.push(blob); },
-          () => {
+      if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
+        try {
+          const mime = getSupportedAudioMime();
+          const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+          const recorder = new MediaRecorder(stream, opts);
+          recordedChunksRef.current = [];
+          recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              recordedChunksRef.current.push(event.data);
+            }
+          };
+          recorder.onstop = () => {
             setIsRecording(false);
-            if (recordedChunksRef.current.length > 0) setHasRecording(true);
-          },
-        );
-        if (recorder) {
+            if (recordedChunksRef.current.length > 0) {
+              setHasRecording(true);
+            }
+          };
+          recorder.start();
           mediaRecorderRef.current = recorder;
           setIsRecording(true);
+        } catch (e) {
+          console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
         }
       }
       // 영상 녹화: 내 화면 + 상대 화면 합성 (다운로드용)
@@ -1062,17 +977,12 @@ const VisualChat = () => {
   /** 채팅 내역 + 마이크 입력(오디오) STT로 chat_msg 저장 */
   const saveSummaryInBackground = async () => {
     if (!chatId || !me?.email) return;
-    const apiBase = resolveApiBase();
-    let summarizeUrl =
+    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
+    const summarizeUrl =
       import.meta.env.VITE_SUMMARIZE_API_URL ||
       (apiBase ? `${apiBase}/summarize` : '') ||
-      '';
-    if (!summarizeUrl) {
-      summarizeUrl =
-        typeof window !== 'undefined' && window.location?.hostname !== 'localhost' && window.location?.hostname !== '127.0.0.1'
-          ? 'https://testchatpy.onrender.com/api/summarize'
-          : 'http://localhost:8000/api/summarize';
-    }
+      'http://localhost:8000/api/summarize';
 
     const basePayload = chatMessages.map((msg) => ({
       type: 'chat',
@@ -1086,42 +996,16 @@ const VisualChat = () => {
     let msgDataList = basePayload;
 
     const audioChunks = recordedChunksRef.current;
-    const remoteAudioChunks = remoteRecordedChunksRef.current;
     const formData = new FormData();
     formData.append('msg_data', JSON.stringify(basePayload));
-    const MAX_AUDIO_UPLOAD_BYTES = 24 * 1024 * 1024;
-    const localKey = me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user';
-    const remoteKey = me.role === 'SYSTEM' ? 'audio_user' : 'audio_cnsler';
-
-    const appendAudio = (key, chunks, filenamePrefix) => {
-      const detectedMime =
-        (chunks || []).find((b) => b && typeof b.type === 'string' && b.type)?.type ||
-        getSupportedAudioMime() ||
-        'audio/webm';
-      const ext =
-        detectedMime.includes('mp4') ? 'mp4'
-          : detectedMime.includes('ogg') ? 'ogg'
-            : 'webm';
-      const filename = `${filenamePrefix}.${ext}`;
-      if (chunks?.length) {
-        const blob = new Blob(chunks, { type: detectedMime });
-        if (blob.size > 0 && blob.size <= MAX_AUDIO_UPLOAD_BYTES) {
-          formData.append(key, blob, filename);
-          return { size: blob.size, mime: detectedMime, filename, sent: true };
-        }
-      }
-      formData.append(key, new Blob([], { type: detectedMime }), filename);
-      return { size: 0, mime: detectedMime, filename, sent: false };
-    };
-
-    const localInfo = appendAudio(localKey, audioChunks, localKey === 'audio_cnsler' ? 'cnsler' : 'user');
-    const remoteInfo = appendAudio(remoteKey, remoteAudioChunks, remoteKey === 'audio_cnsler' ? 'cnsler' : 'user');
-
-    console.log('[STT] 요청', {
-      url: summarizeUrl,
-      local: { key: localKey, chunks: audioChunks?.length ?? 0, ...localInfo },
-      remote: { key: remoteKey, chunks: remoteAudioChunks?.length ?? 0, ...remoteInfo },
-    });
+    if (audioChunks?.length) {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      formData.append(
+        me.role === 'SYSTEM' ? 'audio_cnsler' : 'audio_user',
+        blob,
+        (me.role === 'SYSTEM' ? 'cnsler' : 'user') + '.webm',
+      );
+    }
 
     if (summarizeUrl) {
       try {
@@ -1130,11 +1014,11 @@ const VisualChat = () => {
           body: formData,
           mode: 'cors',
         });
-        const data = summaryRes.ok ? await summaryRes.json().catch(() => ({})) : {};
         if (summaryRes.ok) {
-          summaryText = (data.summary || '').trim();
-          if (summaryText.length > 300) summaryText = summaryText.slice(0, 297) + '…';
+          const data = await summaryRes.json();
+          summaryText = (data.summary || '').slice(0, 300);
           summaryLine = (data.summary_line || '').trim();
+          // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
           const apiMsgData = data.msg_data;
           if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
             msgDataList = apiMsgData.map((item) => ({
@@ -1146,10 +1030,6 @@ const VisualChat = () => {
           } else {
             msgDataList = basePayload;
           }
-          console.log('[STT] 성공, msg_data 항목 수:', msgDataList.length);
-        } else {
-          const errText = await summaryRes.text().catch(() => '');
-          console.warn('[STT] 요약 API 실패', summaryRes.status, errText);
         }
       } catch (e) {
         console.warn('요약 API 실패:', e);
@@ -1157,11 +1037,17 @@ const VisualChat = () => {
     }
 
     if (!summaryText && basePayload.length > 0) {
-      summaryText = '상담 내용이 요약되지 않았습니다. (요약 API 미사용 또는 오류)';
-      summaryLine = '상담이 진행되었습니다.';
+      const texts = basePayload
+        .filter((x) => x.text && typeof x.text === 'string')
+        .map((x) => x.text)
+        .slice(0, 10);
+      summaryText = texts.length > 0
+        ? texts.join(' ').slice(0, 300)
+        : `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
+      summaryLine = texts[0] || summaryText;
     } else if (!summaryText) {
-      summaryText = '화상 상담이 진행되었습니다.';
-      summaryLine = '상담이 진행되었습니다.';
+      summaryText = `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
+      summaryLine = summaryText;
     }
 
     const summaryPayload = JSON.stringify({
@@ -1177,23 +1063,19 @@ const VisualChat = () => {
       const cnsler_id = me.role === 'USER' ? other.email : me.email;
       const msg_data = { content: msgDataList };
 
-      const { data: existing, error: existingErr } = await supabase
+      const { data: existing } = await supabase
         .from('chat_msg')
         .select('chat_id')
         .eq('cnsl_id', cnslIdNum)
-        .order('created_at', { ascending: true })
-        .limit(1)
         .maybeSingle();
-      if (existingErr) throw existingErr;
 
       if (existing) {
-        const { error: updErr } = await supabase
+        await supabase
           .from('chat_msg')
           .update({ msg_data, summary: summaryPayload })
-          .eq('chat_id', existing.chat_id);
-        if (updErr) throw updErr;
+          .eq('cnsl_id', cnslIdNum);
       } else {
-        const { error: insErr } = await supabase.from('chat_msg').insert({
+        await supabase.from('chat_msg').insert({
           cnsl_id: cnslIdNum,
           member_id,
           cnsler_id,
@@ -1201,44 +1083,69 @@ const VisualChat = () => {
           msg_data,
           summary: summaryPayload,
         });
-        if (insErr) throw insErr;
       }
     };
 
-    // 배포 환경에서 Supabase REST CORS가 막힐 수 있어 API 저장 우선
-    const apiBaseForSave = resolveApiBase();
-    if (apiBaseForSave) {
+    let apiSaved = false;
+    if (apiBase) {
       try {
-        const r = await fetch(`${apiBaseForSave}/cnsl/${chatId}/chat/summary-full`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': me.email,
-          },
-          body: JSON.stringify({
-            summary: summaryText,
-            summary_line: summaryLine || undefined,
-            msg_data: msgDataList,
-          }),
-          mode: 'cors',
-        });
-        if (r.ok) {
-          console.log('[STT] chat_msg API 저장 완료');
-          return;
+        if (msgDataList.length > 0) {
+          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-Email': me.email,
+            },
+            body: JSON.stringify({
+              summary: summaryText,
+              summary_line: summaryLine || undefined,
+              msg_data: msgDataList,
+            }),
+            mode: 'cors',
+          });
+          if (r.ok) apiSaved = true;
+          else {
+            const fallback = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-User-Email': me.email,
+              },
+              body: JSON.stringify({
+                role: 'summary',
+                content: summaryText,
+                summary: summaryText,
+              }),
+              mode: 'cors',
+            });
+            if (fallback.ok) apiSaved = true;
+          }
+        } else {
+          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-Email': me.email,
+            },
+            body: JSON.stringify({
+              role: 'summary',
+              content: summaryText,
+              summary: summaryText,
+            }),
+            mode: 'cors',
+          });
+          if (r.ok) apiSaved = true;
         }
-        const t = await r.text().catch(() => '');
-        console.warn('[STT] chat_msg API summary-full 실패', r.status, t);
       } catch (err) {
-        console.warn('[STT] chat_msg API 저장 실패:', err);
+        console.warn('chat_msg API 저장 실패:', err);
       }
     }
-
-    // API 저장 실패/미설정 시 Supabase 폴백
-    try {
-      await saveToSupabase();
-      console.log('[STT] Supabase 저장 완료');
-    } catch (err) {
-      console.warn('[STT] chat_msg Supabase 저장 오류:', err);
+    if (!apiSaved) {
+      try {
+        await saveToSupabase();
+      } catch (err) {
+        console.warn('chat_msg Supabase 저장 오류:', err);
+      }
     }
   };
 
@@ -1250,35 +1157,12 @@ const VisualChat = () => {
     if (!skipSaveAndStat) updateCnslStatRef.current?.('D');
     setRemoteStream(null);
 
-    const audioRecorder = mediaRecorderRef.current;
-    const remoteAudioRecorder = remoteAudioRecorderRef.current;
-    if (!skipSaveAndStat) {
-      let pendingStops = 0;
-      const scheduleSave = () => setTimeout(() => saveSummaryInBackground(), 400);
-      const onStopped = () => {
-        pendingStops -= 1;
-        if (pendingStops <= 0) scheduleSave();
-      };
-      const stopOne = (rec) => {
-        if (!rec) return;
-        try {
-          if (rec.state !== 'inactive') {
-            pendingStops += 1;
-            rec.onstop = onStopped;
-            try { rec.requestData?.(); } catch (_) {}
-            rec.stop();
-          }
-        } catch (_) {}
-      };
-      stopOne(audioRecorder);
-      stopOne(remoteAudioRecorder);
-      if (pendingStops === 0) scheduleSave();
-    } else {
-      try { audioRecorder?.stop?.(); } catch (_) {}
-      try { remoteAudioRecorder?.stop?.(); } catch (_) {}
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+      } catch {}
+      mediaRecorderRef.current = null;
     }
-    mediaRecorderRef.current = null;
-    remoteAudioRecorderRef.current = null;
     if (videoRecorderRef.current) {
       try {
         if (videoRecorderRef.current.state !== 'inactive') videoRecorderRef.current.stop();
@@ -1308,7 +1192,7 @@ const VisualChat = () => {
       },
     );
 
-    // 저장은 위 pendingStops 로직에서 처리
+    if (!skipSaveAndStat) setTimeout(() => saveSummaryInBackground(), 1500);
   };
   runCallEndCleanupRef.current = runCallEndCleanup;
 
@@ -1344,8 +1228,6 @@ const VisualChat = () => {
       .from('chat_msg')
       .select('chat_id, msg_data')
       .eq('cnsl_id', cnslIdNum)
-      .order('created_at', { ascending: true })
-      .limit(1)
       .maybeSingle();
 
     const content = Array.isArray(existing?.msg_data?.content)
@@ -1357,7 +1239,7 @@ const VisualChat = () => {
       const { error } = await supabase
         .from('chat_msg')
         .update({ msg_data })
-        .eq('chat_id', existing.chat_id);
+        .eq('cnsl_id', cnslIdNum);
       return error ? null : { chatId: existing.chat_id };
     }
     const { data: inserted, error } = await supabase
@@ -1366,27 +1248,6 @@ const VisualChat = () => {
       .select('chat_id')
       .single();
     return error ? null : { chatId: inserted?.chat_id };
-  };
-
-  const postChatToApi = async (trimmed) => {
-    const apiBase = resolveApiBase();
-    if (!apiBase || !me?.email) return null;
-    const role = me.role === 'SYSTEM' ? 'cnsler' : 'user';
-    const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-Email': me.email,
-      },
-      body: JSON.stringify({ role, content: trimmed }),
-      mode: 'cors',
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(() => '');
-      console.warn('채팅 API 저장 실패:', r.status, t);
-      return null;
-    }
-    return await r.json().catch(() => ({}));
   };
 
   const handleChatSubmit = async (event) => {
@@ -1408,12 +1269,28 @@ const VisualChat = () => {
     lastLocalAddAtRef.current = now;
     setChatInput('');
 
-    try {
-      const apiBase = resolveApiBase();
-      if (apiBase) await postChatToApi(trimmed);
-      else await insertChatToSupabase(trimmed);
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
 
-      setTimeout(() => fetchChatMessagesRef.current?.(), 200);
+    if (apiBase) {
+      try {
+        const res = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': me.email ?? '',
+          },
+          body: JSON.stringify({ role: roleForApi, content: trimmed }),
+          mode: 'cors',
+        });
+        if (res.ok) return;
+      } catch (err) {
+        console.warn('채팅 API 실패, Supabase fallback 시도:', err);
+      }
+    }
+
+    try {
+      await insertChatToSupabase(trimmed);
     } catch (err) {
       console.error('채팅 저장 오류:', err);
     }
@@ -1543,14 +1420,9 @@ const VisualChat = () => {
                           msg.role === me.role ? 'items-end' : 'items-start'
                         }`}
                       >
-                        <div className="flex items-center gap-1">
-                          <p className="text-[10px] font-medium text-[#6b7280]">
-                            {msg.nickname || roleDisplayLabel(msg.role)}
-                          </p>
-                          <span className="text-[12px] text-[#9ca3af]">
-                            {formatChatTime(msg.timestamp)}
-                          </span>
-                        </div>
+                        <p className="text-[10px] font-medium text-[#6b7280]">
+                          {msg.nickname || roleDisplayLabel(msg.role)}
+                        </p>
                         <div
                           className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-tight border ${
                             msg.role === me.role
@@ -1767,14 +1639,9 @@ const VisualChat = () => {
                             key={msg.id}
                             className={`flex flex-col gap-1 ${msg.role === me.role ? 'items-end' : 'items-start'}`}
                           >
-                            <div className={`flex items-center gap-2 ${msg.role === me.role ? 'justify-end' : 'justify-start'}`}>
-                              <p className="text-[11px] text-[#6b7280]">
-                                {msg.nickname || roleDisplayLabel(msg.role)}
-                              </p>
-                              <span className="text-[12px] text-[#9ca3af]">
-                                {formatChatTime(msg.timestamp)}
-                              </span>
-                            </div>
+                            <p className={`text-[11px] text-[#6b7280] ${msg.role === me.role ? 'text-right' : 'text-left'}`}>
+                              {msg.nickname || roleDisplayLabel(msg.role)}
+                            </p>
                             <div
                               className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-5 border ${
                                 msg.role === me.role

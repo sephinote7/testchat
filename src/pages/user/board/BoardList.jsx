@@ -1,6 +1,51 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { MBTI_OPTIONS, posts, toShortDate } from './boardData';
+import { MBTI_OPTIONS, toShortDate } from './boardData';
+import { bbsApi } from '../../../api/backendApi';
+
+// 인기글 응답 캐시 (탭별 90초) — 재요청 감소로 체감 속도 개선
+const POPULAR_CACHE_TTL_MS = 90 * 1000;
+const popularCache = { key: null, data: [], ts: 0 };
+
+// 목록 응답 캐시 (page+탭별 60초)
+const LIST_CACHE_TTL_MS = 60 * 1000;
+const listCache = { key: null, data: { content: [], totalPages: 1 }, ts: 0 };
+
+function mapPopularToPost(p) {
+  return {
+    id: p.bbsId,
+    category: p.bbs_div === 'NOTI' ? '공지' : p.bbs_div === 'FREE' ? '자유' : 'MBTI',
+    isNotice: p.bbs_div === 'NOTI',
+    title: p.title,
+    author: '-',
+    createdAt: p.createdAt,
+    views: p.views ?? 0,
+    likes: p.bbsLikeCount ?? 0,
+    comments: p.commentCount ?? 0,
+    mbti: p.mbti,
+    content: p.content,
+  };
+}
+
+// 백엔드 Bbs → 프론트 목록용 포스트 형태
+function mapBbsToPost(b) {
+  const author =
+    b.memberId?.nickname ?? b.memberId?.email ?? (typeof b.memberId === 'string' ? b.memberId : '알 수 없음');
+  const category = b.bbs_div === 'NOTI' ? '공지' : b.bbs_div === 'FREE' ? '자유' : b.bbs_div || '자유';
+  return {
+    id: b.bbsId,
+    category,
+    isNotice: b.bbs_div === 'NOTI',
+    title: b.title,
+    author,
+    createdAt: b.created_at,
+    views: b.views ?? 0,
+    likes: b.bbsLikeCount ?? 0,
+    comments: b.commentCount ?? 0,
+    mbti: b.mbti,
+    content: b.content,
+  };
+}
 
 const BoardList = () => {
   const location = useLocation();
@@ -18,6 +63,88 @@ const BoardList = () => {
   const [showMbtiDropdown, setShowMbtiDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
+  const [posts, setPosts] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [popularPosts, setPopularPosts] = useState([]);
+  const [popularLoading, setPopularLoading] = useState(true);
+
+  // 백엔드 목록 조회 (탭에 따라 bbs_div 전달)
+  const bbsDivParam = useMemo(() => {
+    if (activeTab === '자유') return 'FREE';
+    if (activeTab === 'MBTI') return 'MBTI';
+    if (activeTab === '공지') return 'NOTI';
+    return undefined;
+  }, [activeTab]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cacheKey = `${page}-${bbsDivParam ?? 'all'}`;
+    const hit = listCache.key === cacheKey && Date.now() - listCache.ts < LIST_CACHE_TTL_MS;
+    if (hit && listCache.data.content) {
+      setPosts(listCache.data.content.map(mapBbsToPost));
+      setTotalPages(listCache.data.totalPages);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    bbsApi
+      .getList({ page, limit: pageSize, bbs_div: bbsDivParam })
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res.content || []).map(mapBbsToPost);
+        setPosts(list);
+        const total = Math.max(1, res.totalPages ?? 1);
+        setTotalPages(total);
+        listCache.key = cacheKey;
+        listCache.data = { content: res.content || [], totalPages: total };
+        listCache.ts = Date.now();
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPosts([]);
+        setTotalPages(1);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, bbsDivParam]);
+
+  // 인기글 (실시간/주간) — 캐시 있으면 API 생략으로 즉시 표시
+  useEffect(() => {
+    let cancelled = false;
+    const cacheKey = popularTab;
+    const hit = popularCache.key === cacheKey && Date.now() - popularCache.ts < POPULAR_CACHE_TTL_MS;
+    if (hit && popularCache.data.length >= 0) {
+      setPopularPosts(popularCache.data);
+      setPopularLoading(false);
+      return;
+    }
+    setPopularLoading(true);
+    const api = popularTab === 'week' ? bbsApi.getPopularWeekly : bbsApi.getPopularRealtime;
+    api()
+      .then((list) => {
+        if (cancelled) return;
+        const mapped = Array.isArray(list) ? list.map(mapPopularToPost) : [];
+        setPopularPosts(mapped);
+        popularCache.key = cacheKey;
+        popularCache.data = mapped;
+        popularCache.ts = Date.now();
+      })
+      .catch(() => {
+        if (!cancelled) setPopularPosts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPopularLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [popularTab]);
+
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -25,72 +152,59 @@ const BoardList = () => {
         setShowMbtiDropdown(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 클라이언트 필터: MBTI 세부, 검색 (목록이 전체가 아닐 때는 API에서 이미 분류됨)
   const filteredItems = useMemo(() => {
-    const sorted = [...posts].sort((a, b) => {
-      if (a.isNotice && !b.isNotice) return -1;
-      if (!a.isNotice && b.isNotice) return 1;
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
-
-    let result = sorted;
-    if (activeTab === '자유') result = result.filter((p) => p.category === '자유');
-    if (activeTab === 'MBTI') result = result.filter((p) => p.category === 'MBTI');
-    if (activeTab === '공지') result = result.filter((p) => p.isNotice);
-    if (activeTab === '인기글') {
-      const nonNotice = result.filter((p) => !p.isNotice);
-      const topIds = nonNotice
-        .sort((a, b) => b.likes - a.likes || b.views - a.views)
-        .slice(0, 5)
-        .map((p) => p.id);
-      result = result.filter((p) => topIds.includes(p.id));
-    }
-
+    let result = [...posts];
     if (activeTab === 'MBTI' && mbtiFilter && mbtiFilter !== 'MBTI') {
       result = result.filter((p) => p.mbti === mbtiFilter);
     }
-
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       result = result.filter((p) => {
         const title = String(p.title ?? '').toLowerCase();
         const content = String(p.content ?? '').toLowerCase();
         const author = String(p.author ?? '').toLowerCase();
-
         if (searchField === 'title') return title.includes(q);
         if (searchField === 'content') return content.includes(q);
         if (searchField === 'author') return author.includes(q);
         return title.includes(q) || content.includes(q);
       });
     }
-
+    if (activeTab === '인기글') return popularPosts;
     return result;
-  }, [activeTab, mbtiFilter, searchField, searchQuery]);
+  }, [activeTab, mbtiFilter, searchField, searchQuery, posts, popularPosts]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
-  const safePage = Math.min(page, totalPages);
+  // 탭별 게시판 제목 (인기글 제외, DB 연동 목록용)
+  const boardTitleByTab = {
+    전체: '전체 게시판',
+    자유: '자유 게시판',
+    MBTI: 'MBTI 게시판',
+    공지: '공지 게시판',
+    인기글: '인기글',
+  };
+  const currentBoardTitle = boardTitleByTab[activeTab] ?? '전체 게시판';
+
+  const totalPagesForPaging =
+    activeTab === '인기글' ? Math.max(1, Math.ceil(popularPosts.length / pageSize)) : totalPages;
+  const safePage = Math.min(page, totalPagesForPaging);
   const pagedItems = useMemo(() => {
+    if (activeTab === '인기글') {
+      const start = (safePage - 1) * pageSize;
+      return popularPosts.slice(start, start + pageSize);
+    }
     const start = (safePage - 1) * pageSize;
     return filteredItems.slice(start, start + pageSize);
-  }, [filteredItems, safePage]);
-
-  // 인기글 필터링
-  const popularPosts = useMemo(() => {
-    const nonNotice = posts.filter((p) => !p.isNotice);
-    return nonNotice.sort((a, b) => b.likes - a.likes || b.views - a.views).slice(0, 10);
-  }, []);
+  }, [activeTab, filteredItems, popularPosts, safePage]);
 
   return (
     <div className="w-full">
       {/* MOBILE */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-[#f3f7ff] pb-24">
-        <header className="bg-[#1f4ecf] h-14 flex items-center justify-center text-white font-bold">
-          고민순삭
-        </header>
+        <header className="bg-[#1f4ecf] h-14 flex items-center justify-center text-white font-bold">고민순삭</header>
 
         <div className="px-4 pt-4">
           {/* 탭 버튼 */}
@@ -105,7 +219,9 @@ const BoardList = () => {
                 setSearchQuery('');
               }}
               className={`px-3 py-1 rounded-md border text-xs ${
-                activeTab === '전체' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-600'
+                activeTab === '전체'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-600 border-blue-600'
               }`}
             >
               전체
@@ -120,7 +236,9 @@ const BoardList = () => {
                 setSearchQuery('');
               }}
               className={`px-3 py-1 rounded-md border text-xs ${
-                activeTab === '자유' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-600'
+                activeTab === '자유'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-600 border-blue-600'
               }`}
             >
               자유
@@ -171,19 +289,21 @@ const BoardList = () => {
                 setSearchQuery('');
               }}
               className={`px-3 py-1 rounded-md border text-xs ${
-                activeTab === '공지' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-600'
+                activeTab === '공지'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-600 border-blue-600'
               }`}
             >
               공지
             </button>
           </div>
 
-          {/* Mobile 헤더 */}
+          {/* Mobile 헤더 - 탭에 따라 제목 변경 (DB 연동 목록) */}
           <div className="flex flex-col items-start gap-1 mb-3">
-            <h2 className="text-[6px] font-semibold">BEST 인기글 (실시간)</h2>
+            <h2 className="text-sm font-semibold text-gray-800">{currentBoardTitle}</h2>
             <Link
               to="/board/write"
-              className="px-2 py-0.5 rounded-md border border-blue-600 text-blue-600 text-[6px] self-end"
+              className="px-2 py-0.5 rounded-md border border-blue-600 text-blue-600 text-xs self-end"
             >
               글 작성
             </Link>
@@ -191,7 +311,9 @@ const BoardList = () => {
 
           {/* Mobile List */}
           <div className="border border-blue-300 rounded-md overflow-hidden bg-white">
-            {pagedItems.length === 0 ? (
+            {loading ? (
+              <div className="px-3 py-10 text-center text-sm text-gray-500">로딩 중...</div>
+            ) : pagedItems.length === 0 ? (
               <div className="px-3 py-10 text-center text-sm text-gray-500">해당 조건의 게시글이 없습니다.</div>
             ) : (
               pagedItems.map((item) => (
@@ -243,7 +365,7 @@ const BoardList = () => {
             >
               〈
             </button>
-            {Array.from({ length: Math.min(totalPages, 10) }, (_, index) => {
+            {Array.from({ length: Math.min(totalPagesForPaging, 10) }, (_, index) => {
               const pageNum = index + 1;
               return (
                 <button
@@ -260,9 +382,9 @@ const BoardList = () => {
             })}
             <button
               type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() => setPage((prev) => Math.min(totalPagesForPaging, prev + 1))}
               className="px-2 py-1 hover:bg-gray-100 rounded transition-colors"
-              disabled={safePage === totalPages}
+              disabled={safePage === totalPagesForPaging}
             >
               〉
             </button>
@@ -309,9 +431,9 @@ const BoardList = () => {
         <div className="max-w-[1520px] mx-auto px-8 py-8">
           {/* PC 인기글 & 공지사항 섹션 */}
           <div className="flex mb-8 gap-5">
-            {/* 커뮤니티 인기글 카드 */}
+            {/* 커뮤니티 인기글 카드 - 공지사항과 동일 높이(418px), 안쪽 글자 크기는 아래 클래스만 바꿔서 조절 */}
             <div className="flex-[2] h-[418px] bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col shadow-sm">
-              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 flex-shrink-0">
                 <h2 className="text-[16px] font-medium text-gray-800">커뮤니티 인기글</h2>
                 <div className="flex gap-2">
                   {['realtime', 'week', 'month', 'recommend', 'reply'].map((tab) => (
@@ -331,50 +453,60 @@ const BoardList = () => {
                   ))}
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden bg-white p-3">
-                <div className="grid grid-cols-2 gap-3 h-full">
-                  {/* 왼쪽 열 (1-5) */}
-                  <div className="pr-2">
-                    {popularPosts.slice(0, 5).map((post, idx) => (
-                      <Link
-                        key={post.id}
-                        to={`/board/view/${post.id}`}
-                        className="flex items-center justify-between px-3 py-[7px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="text-[7px] font-semibold text-gray-800 flex-shrink-0">0{idx + 1}</span>
-                          <h3 className="text-[11px] font-normal text-gray-800 truncate flex-1">
+              <div className="flex-1 min-h-0 flex flex-col bg-white p-4">
+                {popularLoading ? (
+                  <div className="flex items-center justify-center flex-1 text-sm text-gray-500">로딩 중...</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-0 min-w-[580px] h-full flex-1 min-h-0">
+                    {/* 왼쪽 열 (1-5) - 카드 안에서 5행 균등 간격, 제목은 한 줄 말줄임 */}
+                    <div className="flex flex-col justify-between min-w-[260px] pr-4 h-full">
+                      {popularPosts.slice(0, 5).map((post, idx) => (
+                        <Link
+                          key={post.id}
+                          to={`/board/view/${post.id}`}
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 transition-colors flex-shrink-0 min-h-0 overflow-hidden"
+                        >
+                          <span className="flex-shrink-0 w-6 text-right text-[11px] font-semibold text-gray-600 tabular-nums leading-tight">
+                            {String(idx + 1).padStart(2, '0')}
+                          </span>
+                          <h3
+                            className="text-[5px] font-normal text-gray-800 min-w-0 flex-1 truncate leading-tight"
+                            title={post.title}
+                          >
                             {post.title} [{post.comments}]
                           </h3>
-                        </div>
-                        <span className="text-[6px] font-normal text-gray-500 flex-shrink-0 ml-3">
-                          {toShortDate(post.createdAt)}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
+                          <span className="flex-shrink-0 text-[10px] font-normal text-gray-500 whitespace-nowrap leading-tight">
+                            {toShortDate(post.createdAt)}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
 
-                  {/* 오른쪽 열 (6-10) */}
-                  <div className="pr-2 border-l border-gray-200 pl-2">
-                    {popularPosts.slice(5, 10).map((post, idx) => (
-                      <Link
-                        key={post.id}
-                        to={`/board/view/${post.id}`}
-                        className="flex items-center justify-between px-3 py-[7px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="text-[7px] font-semibold text-gray-800 flex-shrink-0">0{idx + 6}</span>
-                          <h3 className="text-[11px] font-normal text-gray-800 truncate flex-1">
+                    {/* 오른쪽 열 (6-10) - 왼쪽과 동일 레이아웃·글자 크기 */}
+                    <div className="flex flex-col justify-between min-w-[260px] border-l border-gray-200 pl-6 h-full">
+                      {popularPosts.slice(5, 10).map((post, idx) => (
+                        <Link
+                          key={post.id}
+                          to={`/board/view/${post.id}`}
+                          className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 transition-colors flex-shrink-0 min-h-0 overflow-hidden"
+                        >
+                          <span className="flex-shrink-0 w-6 text-right text-[11px] font-semibold text-gray-600 tabular-nums leading-tight">
+                            {String(idx + 6).padStart(2, '0')}
+                          </span>
+                          <h3
+                            className="text-[11px] font-normal text-gray-800 min-w-0 flex-1 truncate leading-tight"
+                            title={post.title}
+                          >
                             {post.title} [{post.comments}]
                           </h3>
-                        </div>
-                        <span className="text-[6px] font-normal text-gray-500 flex-shrink-0 ml-3">
-                          {toShortDate(post.createdAt)}
-                        </span>
-                      </Link>
-                    ))}
+                          <span className="flex-shrink-0 text-[10px] font-normal text-gray-500 whitespace-nowrap leading-tight">
+                            {toShortDate(post.createdAt)}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -397,15 +529,15 @@ const BoardList = () => {
                     <Link
                       key={post.id}
                       to={`/board/view/${post.id}`}
-                      className="flex items-center justify-between px-4 py-[7px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      className="flex items-center gap-2 px-4 py-[7px] hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
                     >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-[8px] font-semibold text-gray-800 flex-shrink-0">0{idx + 1}</span>
-                        <h3 className="text-xs font-normal text-gray-800 truncate flex-1">
-                          {post.title} [{post.comments}]
-                        </h3>
-                      </div>
-                      <span className="text-[7px] font-normal text-gray-500 flex-shrink-0 ml-3">
+                      <span className="flex-shrink-0 w-7 text-right text-[12px] font-semibold text-gray-600 tabular-nums">
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
+                      <h3 className="text-[9px] font-normal text-gray-800 truncate min-w-0 flex-1">
+                        {post.title} [{post.comments}]
+                      </h3>
+                      <span className="flex-shrink-0 text-[11px] font-normal text-gray-500">
                         {toShortDate(post.createdAt)}
                       </span>
                     </Link>
@@ -414,9 +546,9 @@ const BoardList = () => {
             </div>
           </div>
 
-          {/* PC 헤더 */}
+          {/* PC 헤더 - 탭에 따라 제목 변경 (DB 연동 목록) */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-[16px] font-medium text-gray-800">BEST인기글(실시간)</h2>
+            <h2 className="text-[16px] font-medium text-gray-800">{currentBoardTitle}</h2>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
@@ -544,7 +676,13 @@ const BoardList = () => {
                 </tr>
               </thead>
               <tbody>
-                {pagedItems.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-20 text-center text-[14px] text-gray-500">
+                      로딩 중...
+                    </td>
+                  </tr>
+                ) : pagedItems.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="px-6 py-20 text-center text-[14px] text-gray-500">
                       해당 조건의 게시글이 없습니다.
@@ -552,13 +690,7 @@ const BoardList = () => {
                   </tr>
                 ) : (
                   (() => {
-                    // 이전 페이지까지의 일반 게시물 개수를 계산
-                    const previousPagesNonNoticeCount = filteredItems
-                      .slice(0, (safePage - 1) * pageSize)
-                      .filter((p) => !p.isNotice).length;
-
-                    let postNumber = previousPagesNonNoticeCount + 1;
-
+                    let postNumber = (safePage - 1) * pageSize + 1;
                     return pagedItems.map((item) => {
                       const currentNumber = item.isNotice ? null : postNumber++;
                       return (
@@ -650,7 +782,7 @@ const BoardList = () => {
             >
               〈
             </button>
-            {Array.from({ length: Math.min(totalPages, 10) }, (_, index) => {
+            {Array.from({ length: Math.min(totalPagesForPaging, 10) }, (_, index) => {
               const pageNum = index + 1;
               return (
                 <button
@@ -667,9 +799,9 @@ const BoardList = () => {
             })}
             <button
               type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() => setPage((prev) => Math.min(totalPagesForPaging, prev + 1))}
               className="px-3 py-2 hover:bg-gray-100 rounded transition-colors"
-              disabled={safePage === totalPages}
+              disabled={safePage === totalPagesForPaging}
             >
               〉
             </button>

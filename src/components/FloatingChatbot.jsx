@@ -28,13 +28,7 @@ function truncateTitle(title, maxLen = 24) {
 }
 
 /** 설정 화면: 챗봇 내용 초기화, 알림 토글, AI 상담 스타일, 취소/저장 */
-function SettingsPanel({
-  draft,
-  onDraftChange,
-  onClearHistory,
-  onCancel,
-  onSave,
-}) {
+function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave }) {
   const [saveMessage, setSaveMessage] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -60,20 +54,12 @@ function SettingsPanel({
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 12a9 9 0 119 9 9 9 0 01-9-9z" />
                 <path d="M12 8v4l2 2" />
               </svg>
             </span>
-            <span className="text-sm font-medium text-gray-800">
-              챗봇 내용 초기화
-            </span>
+            <span className="text-sm font-medium text-gray-800">챗봇 내용 초기화</span>
           </div>
           <button
             type="button"
@@ -87,13 +73,7 @@ function SettingsPanel({
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13 21a1 1 0 01-2 0" />
               </svg>
@@ -111,9 +91,7 @@ function SettingsPanel({
               }))
             }
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 transition-colors ${
-              draft.notificationsEnabled
-                ? 'border-main-02 bg-main-02'
-                : 'border-gray-300 bg-gray-200'
+              draft.notificationsEnabled ? 'border-main-02 bg-main-02' : 'border-gray-300 bg-gray-200'
             }`}
           >
             <span
@@ -127,26 +105,16 @@ function SettingsPanel({
         <div className="border-b border-gray-100 pb-3">
           <div className="mb-2 flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
               </svg>
             </span>
-            <span className="text-sm font-medium text-gray-800">
-              AI 상담 스타일
-            </span>
+            <span className="text-sm font-medium text-gray-800">AI 상담 스타일</span>
           </div>
           <div className="flex gap-2 pl-11">
             <button
               type="button"
-              onClick={() =>
-                onDraftChange((prev) => ({ ...prev, aiStyle: 'realistic' }))
-              }
+              onClick={() => onDraftChange((prev) => ({ ...prev, aiStyle: 'realistic' }))}
               className={`rounded-lg border px-3 py-2 text-sm ${
                 draft.aiStyle === 'realistic'
                   ? 'border-main-02 bg-main-02 text-white'
@@ -157,9 +125,7 @@ function SettingsPanel({
             </button>
             <button
               type="button"
-              onClick={() =>
-                onDraftChange((prev) => ({ ...prev, aiStyle: 'empathetic' }))
-              }
+              onClick={() => onDraftChange((prev) => ({ ...prev, aiStyle: 'empathetic' }))}
               className={`rounded-lg border px-3 py-2 text-sm ${
                 draft.aiStyle === 'empathetic'
                   ? 'border-main-02 bg-main-02 text-white'
@@ -176,9 +142,7 @@ function SettingsPanel({
           </p>
         </div>
       </div>
-      {saveMessage && (
-        <p className="mt-2 text-center text-sm text-main-02">저장되었습니다.</p>
-      )}
+      {saveMessage && <p className="mt-2 text-center text-sm text-main-02">저장되었습니다.</p>}
       <div className="mt-6 flex gap-2">
         <button
           type="button"
@@ -199,12 +163,8 @@ function SettingsPanel({
       {confirmOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
           <div className="w-[320px] rounded-2xl bg-white p-5 shadow-xl">
-            <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              챗봇 내용 초기화
-            </h3>
-            <p className="mb-4 text-xs text-gray-600">
-              현재 챗봇 대화 내용이 모두 삭제됩니다. 계속 진행하시겠습니까?
-            </p>
+            <h3 className="mb-2 text-sm font-semibold text-gray-900">챗봇 내용 초기화</h3>
+            <p className="mb-4 text-xs text-gray-600">현재 챗봇 대화 내용이 모두 삭제됩니다. 계속 진행하시겠습니까?</p>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -273,9 +233,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
           // 현재 시각 이후의 상담만 "진행 예정"에 표시
           return dt.getTime() > now.getTime();
         });
-        const inProgress = rows.filter(
-          (r) => String(r.cnsl_stat || '').toUpperCase() === 'C',
-        );
+        const inProgress = rows.filter((r) => String(r.cnsl_stat || '').toUpperCase() === 'C');
         setList({ scheduled, inProgress });
       })
       .catch(() => {
@@ -353,10 +311,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
         onClick={() => goToConsult(r.cnsl_id, r.cnsl_tp)}
         className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left shadow-sm hover:bg-gray-50"
       >
-        <span
-          className="block truncate text-sm font-medium text-gray-800"
-          title={r.cnsl_title || `상담 #${r.cnsl_id}`}
-        >
+        <span className="block truncate text-sm font-medium text-gray-800" title={r.cnsl_title || `상담 #${r.cnsl_id}`}>
           {truncateTitle(r.cnsl_title || `상담 #${r.cnsl_id}`)}
         </span>
         <span className="mt-0.5 block sm text-gray-500">
@@ -402,28 +357,14 @@ function NotificationsPanel({ userEmail, onNavigate }) {
             onClick={() => setPanelOpen((o) => !o)}
             className="flex w-full items-center justify-between text-left"
           >
-            <h4 className="text-sm font-semibold text-main-02">
-              나의 상담 (0건)
-            </h4>
+            <h4 className="text-sm font-semibold text-main-02">나의 상담 (0건)</h4>
             <span className="text-gray-500" aria-hidden>
               {panelOpen ? (
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 15l-6-6-6 6" />
                 </svg>
               ) : (
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 18l6-6-6-6" />
                 </svg>
               )}
@@ -482,28 +423,14 @@ function NotificationsPanel({ userEmail, onNavigate }) {
           onClick={() => setPanelOpen((o) => !o)}
           className="flex w-full items-center justify-between text-left"
         >
-          <h4 className="text-sm font-semibold text-main-02">
-            나의 상담 ({totalCount}건)
-          </h4>
+          <h4 className="text-sm font-semibold text-main-02">나의 상담 ({totalCount}건)</h4>
           <span className="text-gray-500" aria-hidden>
             {panelOpen ? (
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 15l-6-6-6 6" />
               </svg>
             ) : (
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 18l6-6-6-6" />
               </svg>
             )}
@@ -517,9 +444,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
               type="button"
               onClick={() => setFilter('all')}
               className={`flex-1 rounded-[5px] border py-1.5 text-xs font-medium ${
-                filter === 'all'
-                  ? 'border-main-02 bg-main-02 text-white'
-                  : 'border-gray-300 bg-white text-gray-700'
+                filter === 'all' ? 'border-main-02 bg-main-02 text-white' : 'border-gray-300 bg-white text-gray-700'
               }`}
             >
               전체
@@ -729,8 +654,7 @@ const FloatingChatbot = () => {
       .in('cnsl_stat', ['A', 'C']);
 
     const query =
-      typeof notificationsLastSeenId === 'number' &&
-      Number.isFinite(notificationsLastSeenId)
+      typeof notificationsLastSeenId === 'number' && Number.isFinite(notificationsLastSeenId)
         ? baseQuery.gt('cnsl_id', notificationsLastSeenId)
         : baseQuery;
 
@@ -826,11 +750,7 @@ const FloatingChatbot = () => {
           : lastUser.text
         : '';
 
-    const answerSummary = lastBot
-      ? lastBot.text.length > 80
-        ? `${lastBot.text.slice(0, 77)}...`
-        : lastBot.text
-      : '';
+    const answerSummary = lastBot ? (lastBot.text.length > 80 ? `${lastBot.text.slice(0, 77)}...` : lastBot.text) : '';
 
     // category 판별
     const joinedText = msgs.map((m) => m.text).join(' ');
@@ -858,21 +778,14 @@ const FloatingChatbot = () => {
     if (joinedText.includes('정확한 답변을 드리기 어렵')) {
       unresolved_needs = '일부 질문에 대해 정확한 답변을 제공하지 못했습니다.';
     } else if (lastUser && lastUser.text.includes('?')) {
-      unresolved_needs =
-        lastUser.text.length > 80
-          ? `${lastUser.text.slice(0, 77)}...`
-          : lastUser.text;
+      unresolved_needs = lastUser.text.length > 80 ? `${lastUser.text.slice(0, 77)}...` : lastUser.text;
     } else {
       unresolved_needs = '명확하게 드러난 미해결 요구사항은 없습니다.';
     }
 
     // 만족도 신호
     let satisfaction_signal = '중립';
-    if (
-      lastUserText.includes('감사') ||
-      lastUserText.includes('고맙') ||
-      lastUserText.includes('도움')
-    ) {
+    if (lastUserText.includes('감사') || lastUserText.includes('고맙') || lastUserText.includes('도움')) {
       satisfaction_signal = '긍정';
     } else if (
       lastUserText.includes('별로') ||
@@ -888,19 +801,13 @@ const FloatingChatbot = () => {
     if (lower.includes('ai 상담')) usedFeatures.push('AI 상담');
     if (lower.includes('상담사 찾기')) usedFeatures.push('상담사 찾기');
     if (lower.includes('회원가입')) usedFeatures.push('회원가입');
-    if (lower.includes('포인트') || lower.includes('마이페이지'))
-      usedFeatures.push('포인트/마이페이지');
-    if (
-      lower.includes('이력서') ||
-      lower.includes('자소서') ||
-      lower.includes('자기소개서')
-    )
+    if (lower.includes('포인트') || lower.includes('마이페이지')) usedFeatures.push('포인트/마이페이지');
+    if (lower.includes('이력서') || lower.includes('자소서') || lower.includes('자기소개서'))
       usedFeatures.push('이력서/자소서 가이드');
 
     let action_items = '';
     if (category === '상담사 조회') {
-      action_items =
-        '상담사 검색/추천 UX와 안내 문구가 사용자의 기대에 맞는지 점검이 필요합니다.';
+      action_items = '상담사 검색/추천 UX와 안내 문구가 사용자의 기대에 맞는지 점검이 필요합니다.';
     } else if (category === '이용 방법') {
       action_items =
         '회원가입, 포인트, AI 상담 등 주요 메뉴 이용 가이드를 FAQ/가이드 페이지에 보완하는 것을 검토하세요.';
@@ -956,10 +863,7 @@ const FloatingChatbot = () => {
       });
     }
 
-    if (
-      lower.includes('포인트 잔액') ||
-      (lower.includes('포인트') && lower.includes('잔액'))
-    ) {
+    if (lower.includes('포인트 잔액') || (lower.includes('포인트') && lower.includes('잔액'))) {
       actions.push({
         label: '포인트 잔액 확인하기 >',
         path: '/mypage',
@@ -973,10 +877,7 @@ const FloatingChatbot = () => {
       });
     }
 
-    if (
-      lower.includes('포인트 사용내역') ||
-      lower.includes('포인트 사용 내역')
-    ) {
+    if (lower.includes('포인트 사용내역') || lower.includes('포인트 사용 내역')) {
       actions.push({
         label: '포인트 사용내역 보기 >',
         path: '/mypage/point-usage',
@@ -986,11 +887,7 @@ const FloatingChatbot = () => {
     return actions;
   };
 
-  const saveConversationToSupabase = async (
-    conversation,
-    summary,
-    endSession = false,
-  ) => {
+  const saveConversationToSupabase = async (conversation, summary, endSession = false) => {
     if (!user?.isLogin || !user.email) return;
     try {
       const storageMessages = toStorageMessages(conversation);
@@ -1018,11 +915,7 @@ const FloatingChatbot = () => {
       if (typeof summary === 'string') {
         payload.summary = summary;
       }
-      const { data, error } = await supabase
-        .from('bot_msg')
-        .insert(payload)
-        .select('bot_id')
-        .single();
+      const { data, error } = await supabase.from('bot_msg').insert(payload).select('bot_id').single();
 
       if (error) {
         // eslint-disable-next-line no-console
@@ -1048,11 +941,7 @@ const FloatingChatbot = () => {
         const storageMessages = toStorageMessages(conversation);
         const summaryObject = buildSummaryText(storageMessages);
         // 세션 종료로 간주하고 최종 row를 새로 저장 (요약 포함) 후 currentBotId 초기화
-        saveConversationToSupabase(
-          conversation,
-          JSON.stringify(summaryObject),
-          true,
-        );
+        saveConversationToSupabase(conversation, JSON.stringify(summaryObject), true);
       },
       5 * 60 * 1000,
     );
@@ -1060,8 +949,7 @@ const FloatingChatbot = () => {
 
   const sendMessageToBackend = async (messageText, nextMessages, pendingId) => {
     try {
-      const endpoint =
-        import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || '/api/testchatpy/chat';
+      const endpoint = import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || '/api/testchatpy/chat';
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1084,10 +972,7 @@ const FloatingChatbot = () => {
         } catch {
           // ignore
         }
-        const detail =
-          (errorBody && (errorBody.error || errorBody.message)) ||
-          response.statusText ||
-          'Unknown error';
+        const detail = (errorBody && (errorBody.error || errorBody.message)) || response.statusText || 'Unknown error';
         throw new Error(`챗봇 서버 응답 오류 (${response.status} ${detail})`);
       } else {
         data = await response.json();
@@ -1097,9 +982,7 @@ const FloatingChatbot = () => {
         minute: '2-digit',
       });
 
-      const answer =
-        data.answer ||
-        '죄송합니다. 지금은 정확한 답변을 드리기 어렵습니다. 잠시 후 다시 시도해 주세요.';
+      const answer = data.answer || '죄송합니다. 지금은 정확한 답변을 드리기 어렵습니다. 잠시 후 다시 시도해 주세요.';
 
       const quickActions = buildQuickActionsFromAnswer(answer);
 
@@ -1134,8 +1017,7 @@ const FloatingChatbot = () => {
         minute: '2-digit',
       });
 
-      const detail =
-        error instanceof Error && error.message ? ` (${error.message})` : '';
+      const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
 
       setMessages((prev) => {
         const base = Array.isArray(prev) ? prev : [];
@@ -1195,8 +1077,7 @@ const FloatingChatbot = () => {
     if (messages.length === 0) {
       return (
         <div className="flex h-full items-center justify-center text-xs text-gray-400">
-          아직 대화가 없습니다. 하단 입력창에 고민순삭 홈페이지 관련 질문을
-          입력해 보세요.
+          아직 대화가 없습니다. 하단 입력창에 고민순삭 홈페이지 관련 질문을 입력해 보세요.
         </div>
       );
     }
@@ -1204,10 +1085,7 @@ const FloatingChatbot = () => {
     return (
       <div className="space-y-3">
         {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             {message.sender === 'bot' && (
               <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-main-02 text-[11px] font-semibold text-white">
                 AI
@@ -1228,9 +1106,7 @@ const FloatingChatbot = () => {
                     <button
                       key={action.label}
                       type="button"
-                      onClick={() =>
-                        handleQuickAction(action.path, action.label)
-                      }
+                      onClick={() => handleQuickAction(action.path, action.label)}
                       className="block w-full rounded-lg bg-main-01 px-3 py-2 text-left text-[11px] font-medium text-main-02 hover:bg-main-02/10"
                     >
                       {action.label}
@@ -1239,11 +1115,7 @@ const FloatingChatbot = () => {
                 </div>
               )}
 
-              {message.timestamp && (
-                <div className="mt-1 text-[10px] text-gray-400">
-                  {message.timestamp}
-                </div>
-              )}
+              {message.timestamp && <div className="mt-1 text-[10px] text-gray-400">{message.timestamp}</div>}
             </div>
           </div>
         ))}
@@ -1267,9 +1139,7 @@ const FloatingChatbot = () => {
                     AI
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-semibold">
-                      고민순삭 어시스턴트 순삭이
-                    </span>
+                    <span className="text-sm font-semibold">고민순삭 어시스턴트 순삭이</span>
                     <span className="sm text-white/80">{headerSubtitle}</span>
                   </div>
                 </div>
@@ -1303,25 +1173,16 @@ const FloatingChatbot = () => {
                     </div>
                     {/* 입력 영역 + 고지 문구 (채팅 뷰에서만) */}
                     <div className="border-t border-gray-200 bg-white px-3 py-3 sm:flex-none sm:px-4 sm:py-1">
-                      <form
-                        onSubmit={handleSubmit}
-                        className="mb-2 flex h-[50px] items-center gap-2"
-                      >
+                      <form onSubmit={handleSubmit} className="mb-2 flex h-[50px] items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             if (messages.length > 0) {
                               const conversation = [...messages];
-                              const storageMessages =
-                                toStorageMessages(conversation);
-                              const summaryObject =
-                                buildSummaryText(storageMessages);
+                              const storageMessages = toStorageMessages(conversation);
+                              const summaryObject = buildSummaryText(storageMessages);
                               // 홈 버튼 클릭 시도 세션 종료로 간주해 요약 저장
-                              saveConversationToSupabase(
-                                conversation,
-                                JSON.stringify(summaryObject),
-                                true,
-                              );
+                              saveConversationToSupabase(conversation, JSON.stringify(summaryObject), true);
                               if (summaryTimeoutRef.current) {
                                 clearTimeout(summaryTimeoutRef.current);
                               }
@@ -1362,9 +1223,7 @@ const FloatingChatbot = () => {
                           type="submit"
                           disabled={isSending || !inputValue.trim()}
                           className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-colors ${
-                            isSending || !inputValue.trim()
-                              ? 'bg-gray-300'
-                              : 'bg-main-02 hover:bg-main-02/90'
+                            isSending || !inputValue.trim() ? 'bg-gray-300' : 'bg-main-02 hover:bg-main-02/90'
                           }`}
                         >
                           <svg
@@ -1381,17 +1240,12 @@ const FloatingChatbot = () => {
                           </svg>
                         </button>
                       </form>
-                      <p className="xs leading-snug text-gray-500">
-                        {DISCLAIMER_TEXT}
-                      </p>
+                      <p className="xs leading-snug text-gray-500">{DISCLAIMER_TEXT}</p>
                     </div>
                   </>
                 )}
                 {chatView === 'notifications' && (
-                  <NotificationsPanel
-                    userEmail={user?.email}
-                    onNavigate={handleNavigateLink}
-                  />
+                  <NotificationsPanel userEmail={user?.email} onNavigate={handleNavigateLink} />
                 )}
                 {chatView === 'settings' && (
                   <SettingsPanel
@@ -1404,9 +1258,7 @@ const FloatingChatbot = () => {
                     }}
                     onCancel={() => setChatView('chat')}
                     onSave={() => {
-                      setNotificationsEnabled(
-                        settingsDraft.notificationsEnabled,
-                      );
+                      setNotificationsEnabled(settingsDraft.notificationsEnabled);
                       setAiStyle(settingsDraft.aiStyle);
                     }}
                   />
@@ -1419,9 +1271,7 @@ const FloatingChatbot = () => {
                   type="button"
                   onClick={() => setChatView('chat')}
                   className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
-                    chatView === 'chat'
-                      ? 'text-main-02 font-medium'
-                      : 'text-gray-500 hover:text-gray-700'
+                    chatView === 'chat' ? 'text-main-02 font-medium' : 'text-gray-500 hover:text-gray-700'
                   }`}
                   aria-label="홈"
                 >
@@ -1446,9 +1296,7 @@ const FloatingChatbot = () => {
                     markNotificationsAsRead();
                   }}
                   className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
-                    chatView === 'notifications'
-                      ? 'text-main-02 font-medium'
-                      : 'text-gray-500 hover:text-gray-700'
+                    chatView === 'notifications' ? 'text-main-02 font-medium' : 'text-gray-500 hover:text-gray-700'
                   }`}
                   aria-label="알림"
                 >
@@ -1461,9 +1309,7 @@ const FloatingChatbot = () => {
                   <svg
                     className="h-5 w-5 shrink-0 sm:h-6 sm:w-6"
                     viewBox="0 0 24 24"
-                    fill={
-                      chatView === 'notifications' ? 'currentColor' : 'none'
-                    }
+                    fill={chatView === 'notifications' ? 'currentColor' : 'none'}
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
@@ -1478,9 +1324,7 @@ const FloatingChatbot = () => {
                   type="button"
                   onClick={() => setChatView('settings')}
                   className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
-                    chatView === 'settings'
-                      ? 'text-main-02 font-medium'
-                      : 'text-gray-500 hover:text-gray-700'
+                    chatView === 'settings' ? 'text-main-02 font-medium' : 'text-gray-500 hover:text-gray-700'
                   }`}
                   aria-label="설정"
                 >

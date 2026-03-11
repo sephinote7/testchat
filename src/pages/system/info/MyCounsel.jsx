@@ -11,6 +11,7 @@ import {
   fetchMyRevenueSummary,
 } from '../../../api/counselApi';
 import { useAuthStore } from '../../../store/auth.store';
+import { cnslApi } from '../../../api/backendApi';
 
 // TODO: DB 연동 가이드
 // 이 페이지는 상담사의 수익성 분석 대시보드입니다
@@ -121,7 +122,7 @@ const MyCounsel = () => {
 
   oneWeekAgo.setDate(today.getDate() - 6);
 
-  // TODO: DB 연동 시 useEffect로 데이터 로드
+  // 내 상담 내역 · 상담 예약 관리 API 연동 (백엔드 member_id = 이메일 사용)
   useEffect(() => {
     // 날짜 계산
     if (periodFilter === '전체' || !periodFilter) {
@@ -135,28 +136,28 @@ const MyCounsel = () => {
       // 3개월
       startDate.setMonth(endDate.getMonth() - 3);
     }
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        // const [activity, revenue, timeline, history, reservationsList] = await Promise.all([
-        //   fetch('/api/counselors/me/activity-stats?period=' + periodFilter).then(r => r.json()),
-        //   fetch('/api/counselors/me/revenue?period=' + periodFilter).then(r => r.json()),
-        //   fetch('/api/counselors/me/weekly-timeline?period=' + periodFilter).then(r => r.json()),
-        //   fetch('/api/counselors/me/counsels?limit=5&sort=recent&period=' + periodFilter).then(r => r.json()),
-        //   fetch('/api/counselors/me/reservations?limit=5&status=pending,confirmed&period=' + periodFilter).then(r => r.json())
-        // ]);
-        // setActivityStats(activity);
-        // setRevenueData(revenue);
-        // setWeeklyTimeline(timeline);
-        // setCounselHistory(history.counsels);
-        // setReservations(reservationsList.reservations);
-      } catch (error) {
-        console.error('데이터 로드 실패:', error);
-        // TODO: 에러 처리 (토스트 메시지 등)
-      } finally {
-        setLoading(false);
-      }
-    };
+    // const loadData = async () => {
+    //   try {
+    //     setLoading(true);
+    //     // const [activity, revenue, timeline, history, reservationsList] = await Promise.all([
+    //     //   fetch('/api/counselors/me/activity-stats?period=' + periodFilter).then(r => r.json()),
+    //     //   fetch('/api/counselors/me/revenue?period=' + periodFilter).then(r => r.json()),
+    //     //   fetch('/api/counselors/me/weekly-timeline?period=' + periodFilter).then(r => r.json()),
+    //     //   fetch('/api/counselors/me/counsels?limit=5&sort=recent&period=' + periodFilter).then(r => r.json()),
+    //     //   fetch('/api/counselors/me/reservations?limit=5&status=pending,confirmed&period=' + periodFilter).then(r => r.json())
+    //     // ]);
+    //     // setActivityStats(activity);
+    //     // setRevenueData(revenue);
+    //     // setWeeklyTimeline(timeline);
+    //     // setCounselHistory(history.counsels);
+    //     // setReservations(reservationsList.reservations);
+    //   } catch (error) {
+    //     console.error('데이터 로드 실패:', error);
+    //     // TODO: 에러 처리 (토스트 메시지 등)
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
 
     // 모든 상담 리스트
     const getAllList = async () => {
@@ -166,7 +167,6 @@ const MyCounsel = () => {
         cnslerId: email,
       });
 
-      console.log(data);
       setCounselHistory(data);
     };
 
@@ -199,6 +199,7 @@ const MyCounsel = () => {
         endDate: formatDate(endDate),
       });
 
+      console.log(data);
       setActivityStatsCate(data);
     };
 
@@ -245,6 +246,73 @@ const MyCounsel = () => {
     // loadData(); // TODO: DB 연동 시 주석 해제
   }, [periodFilter, email]);
 
+  // useEffect(() => {
+  //   const cnslerId = email;
+  //   if (!cnslerId) {
+  //     setCounselHistory([]);
+  //     setReservations([]);
+  //     return;
+  //   }
+  //   let cancelled = false;
+  //   setLoading(true);
+  //   Promise.all([
+  //     cnslApi.getListByCounselor(cnslerId, { page: 0, size: 5 }, cnslerId),
+  //     cnslApi.getRsvListByCounselor(cnslerId, { page: 0, size: 5 }, cnslerId),
+  //   ])
+  //     .then(([listRes, rsvRes]) => {
+  //       if (cancelled) return;
+  //       const listContent = listRes.content || [];
+  //       setCounselHistory(
+  //         listContent.map((row) => ({
+  //           id: row.cnslId,
+  //           title: row.cnslTitle
+  //             ? `상담제목 : ${row.cnslTitle}`
+  //             : '상담제목 없음',
+  //           clientName: row.nickname ?? '-',
+  //           date: row.dtTime ?? '-',
+  //           status: row.statusText ?? '상담',
+  //           type: 'chat',
+  //         })),
+  //       );
+  //       const rsvContent = rsvRes.content || [];
+  //       setReservations(
+  //         rsvContent.map((row) => ({
+  //           id: row.cnslId,
+  //           title: row.cnslTitle
+  //             ? `상담제목 : ${row.cnslTitle}`
+  //             : '상담제목 없음',
+  //           clientName: row.nickname ?? '-',
+  //           date: row.dtTime ?? '-',
+  //           status: '상담 예약',
+  //           type: 'chat',
+  //         })),
+  //       );
+  //     })
+  //     .catch((err) => {
+  //       if (!cancelled) {
+  //         setCounselHistory([]);
+  //         setReservations([]);
+  //         console.error('상담/예약 목록 로드 실패:', err);
+  //       }
+  //     })
+  //     .finally(() => {
+  //       if (!cancelled) setLoading(false);
+  //     });
+  //   return () => {
+  //     cancelled = true;
+  //   };
+  // }, [email]);
+
+  // codeName별로 cnslCount 합산 함수
+  const getTotalCountByCodeName = (data, codeName) => {
+    if (!Array.isArray(data)) return 0;
+
+    // 해당 codeName인 항목만 필터 후, cnslCount 합산
+    return data
+      .filter((item) => item.codeName?.trim() === codeName)
+      .reduce((sum, item) => sum + (item.cnslCount || 0), 0);
+  };
+
   // 기간 내 상담 건수 데이터
   const counselCountData = activityStats
     ? [
@@ -255,7 +323,7 @@ const MyCounsel = () => {
         },
         {
           label: '화상',
-          count: activityStatsCate[4]?.cnslCount || 0,
+          count: getTotalCountByCodeName(activityStatsCate, '화상') || 0,
           color: 'bg-blue-500',
         },
         {
@@ -265,7 +333,7 @@ const MyCounsel = () => {
         },
         {
           label: '전화',
-          count: activityStatsCate[1]?.cnslCount || 0,
+          count: getTotalCountByCodeName(activityStatsCate, '전화') || 0,
           color: 'bg-red-500',
         },
         {
@@ -275,7 +343,7 @@ const MyCounsel = () => {
         },
         {
           label: '채팅',
-          count: activityStatsCate[3]?.cnslCount || 0,
+          count: getTotalCountByCodeName(activityStatsCate, '채팅') || 0,
           color: 'bg-cyan-400',
         },
         {
@@ -285,7 +353,12 @@ const MyCounsel = () => {
         },
         {
           label: '게시판',
-          count: activityStatsCate[0]?.cnslCount || 0,
+          count: getTotalCountByCodeName(activityStatsCate, '게시판') || 0,
+          color: 'bg-yellow-400',
+        },
+        {
+          label: '방문',
+          count: getTotalCountByCodeName(activityStatsCate, '방문') || 0,
           color: 'bg-yellow-400',
         },
       ]
@@ -431,15 +504,14 @@ const MyCounsel = () => {
 
   return (
     <div className="w-full">
-      {/* PC VERSION */}
-      <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
-        <div className="max-w-[1520px] mx-auto px-8 py-16">
+      <div className="w-full min-h-screen bg-[#f3f7ff] px-4 sm:px-6 lg:px-8 py-8 lg:py-16">
+        <div className="max-w-[1520px] mx-auto">
           {/* HEADER */}
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-[30px] font-semibold text-gray-800">상담 내역</h1>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4 sm:gap-0">
+            <h1 className="text-[24px] sm:text-[30px] font-semibold text-gray-800">상담 내역</h1>
             <button
               onClick={() => navigate('/system/mypage')}
-              className="px-8 py-3 rounded-xl bg-[#2563eb] text-white text-base font-normal hover:bg-[#1d4ed8] transition-colors"
+              className="cursor-pointer px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl bg-[#2563eb] text-white text-base font-normal hover:bg-[#1d4ed8] transition-colors"
             >
               뒤로 가기
             </button>
@@ -447,19 +519,19 @@ const MyCounsel = () => {
 
           {/* 활동 내역 요약 */}
           <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[24px] font-semibold text-gray-800">활동 내역 요약</h2>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3 sm:gap-0">
+              <h2 className="text-[20px] sm:text-[24px] font-semibold text-gray-800">활동 내역 요약</h2>
 
               {/* 기간 필터 버튼 */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap gap-2 sm:gap-3">
                 {['전체', '일주일', '1개월', '3개월'].map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setPeriodFilter(filter)}
-                    className={`px-6 py-2.5 rounded-xl text-base font-medium transition-colors ${
+                    className={`cursor-pointer px-4 sm:px-6 py-2.5 rounded-xl text-base font-medium transition-colors ${
                       periodFilter === filter
                         ? 'bg-[#2563eb] text-white shadow-lg border-[#2563eb]'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-[#2563eb]'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:border-[#2563eb]'
                     }`}
                   >
                     {filter}
@@ -468,13 +540,16 @@ const MyCounsel = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
               {/* 기간 내 상담 건수 */}
-              <div className="bg-white rounded-2xl shadow-sm p-8">
-                <h3 className="text-[20px] font-bold text-gray-800 mb-6">기간 내 상담 건수</h3>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8">
+                <h3 className="text-[18px] sm:text-[20px] font-bold text-gray-800 mb-6">기간 내 상담 건수</h3>
+                <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3">
                   {counselCountData.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-2 ${item.label === '방문' ? 'col-start-2 justify-end' : null}`}
+                    >
                       <span className="text-sm text-gray-700 font-medium min-w-[45px]">{item.label} :</span>
                       <span
                         className={`text-base font-bold ${
@@ -490,7 +565,7 @@ const MyCounsel = () => {
                         {item.count}
                       </span>
                       <div className="flex-1">
-                        <div className="h-5 bg-gray-200 rounded overflow-hidden">
+                        <div className="h-4 sm:h-5 bg-gray-200 rounded overflow-hidden">
                           <div
                             className={`h-full transition-all duration-500 ${item.color}`}
                             style={{
@@ -505,12 +580,12 @@ const MyCounsel = () => {
               </div>
 
               {/* 기간 내 활동 건수 */}
-              <div className="bg-white rounded-2xl shadow-sm p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-[20px] font-bold text-gray-800">기간 내 활동 건수</h3>
+              <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-2 sm:gap-0">
+                  <h3 className="text-[18px] sm:text-[20px] font-bold text-gray-800">기간 내 활동 건수</h3>
                   <button
                     onClick={() => navigate('/system/info/risk-cases')}
-                    className="text-red-500 text-sm font-medium hover:text-red-600 transition-colors"
+                    className="text-red-500 text-sm font-medium hover:text-red-600 transition-colors mt-2 sm:mt-0"
                   >
                     위험군 조치 내역 &gt;
                   </button>
@@ -530,18 +605,18 @@ const MyCounsel = () => {
             </div>
 
             {/* 내 수익 */}
-            <div className="bg-white rounded-2xl shadow-sm p-8 mb-8">
-              <h3 className="text-[18px] font-medium text-gray-800 mb-6">내 수익</h3>
-              <div className="flex items-start gap-20">
+            <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8">
+              <h3 className="text-[16px] sm:text-[18px] font-medium text-gray-800 mb-6">내 수익</h3>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 sm:gap-20">
                 {/* 포인트 아이콘 */}
                 <div className="flex-shrink-0">
-                  <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-4xl">💰</span>
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-3xl sm:text-4xl">💰</span>
                   </div>
                 </div>
 
                 {/* 수익 정보 */}
-                <div className="flex-1 grid grid-cols-5 gap-6 mt-5">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-5 gap-4 sm:gap-6 mt-4 sm:mt-5">
                   <div>
                     <p className="text-sm text-gray-600 mb-2">선택 기간 총 매출액</p>
                     <p className="text-xl font-bold text-blue-600">{revenue[0]?.cnslPriceSum}원</p>
@@ -567,14 +642,14 @@ const MyCounsel = () => {
             </div>
 
             {/* 주간 그래프 */}
-            <div className="bg-white rounded-2xl shadow-sm p-8">
+            <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-[18px] font-medium text-gray-800">
+                <h3 className="text-[16px] sm:text-[18px] font-medium text-gray-800">
                   {formatDate(oneWeekAgo)} ~ {formatDate(endDate)}
                 </h3>
               </div>
-              <div className="relative h-64">
-                <div className="flex items-end justify-around h-full pb-8">
+              <div className="relative sm:h-64 h-75">
+                <div className="flex items-end justify-around h-full pb-8 gap-2 sm:gap-4">
                   {weeklyData.map((data, index) => (
                     <div key={index} className="flex flex-col items-center gap-2 flex-1">
                       <div className="relative w-full flex items-end justify-center gap-2" style={{ height: '200px' }}>
@@ -602,7 +677,7 @@ const MyCounsel = () => {
                   ))}
                 </div>
               </div>
-              <div className="flex items-center justify-center gap-6 mt-4">
+              <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-cyan-400 rounded"></div>
                   <span className="text-sm text-gray-600">예약 건수</span>
@@ -613,115 +688,107 @@ const MyCounsel = () => {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* 내 상담 내역 */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[24px] font-semibold text-gray-800">내 상담 내역</h2>
-              <button
-                onClick={handleViewAllHistory}
-                className="px-6 py-2 rounded-xl bg-[#2563eb] text-white text-base font-medium hover:bg-[#1d4ed8] transition-colors"
-              >
-                전체 보기
-              </button>
-            </div>
-            <div className="space-y-4">
-              {counselHistoryData.map((item, idx) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleViewDetail(item.id)}
-                  className={`bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between cursor-pointer hover:shadow-lg transition-all ${
-                    idx === 0 ? 'bg-cyan-50' : idx === 1 ? 'bg-blue-50' : idx === 2 ? 'bg-orange-50' : ''
-                  }`}
+            {/* 내 상담 내역 */}
+            <div className="mb-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3 sm:gap-0">
+                <h2 className="text-[20px] sm:text-[24px] font-semibold text-gray-800">내 상담 내역</h2>
+                <button
+                  onClick={handleViewAllHistory}
+                  className="px-4 sm:px-6 py-2 rounded-xl bg-[#2563eb] text-white text-base font-medium hover:bg-[#1d4ed8] transition-colors cursor-pointer"
                 >
-                  <div className="flex-1">
-                    <h3 className="text-base font-medium text-gray-800 mb-2">{item.title}</h3>
-                    <div className="flex flex-col gap-2.5 text-sm text-gray-600">
-                      <span>상담자 : {item.clientName}</span>
-                      <div className="flex justify-between">
-                        <span>
-                          상태 :{' '}
-                          <span
-                            className={
-                              item.status === '상담 예정'
-                                ? 'text-[#2563eb]'
-                                : item.status === '상담 진행 중'
-                                  ? 'text-[#ff8d28]'
-                                  : 'text-chat'
-                            }
-                          >
-                            {item.status}
-                          </span>
-                        </span>
-                        <span className="text-[#ff8d28] mr-12.5">
-                          {item.respYn === '답변 필요' ? '답변 필요' : null}
-                        </span>
+                  전체 보기
+                </button>
+              </div>
+              <div className="space-y-4">
+                {loading ? (
+                  <div className="py-8 text-center text-gray-500">내 상담 내역을 불러오는 중...</div>
+                ) : counselHistoryData.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-6 sm:p-8 text-center text-gray-500 border border-gray-200">
+                    상담 내역이 없습니다.
+                  </div>
+                ) : (
+                  counselHistoryData.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleViewDetail(item.id)}
+                      className={`bg-white rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between cursor-pointer hover:shadow-lg transition-all ${
+                        idx === 0 ? 'bg-cyan-50' : idx === 1 ? 'bg-blue-50' : idx === 2 ? 'bg-orange-50' : ''
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <h3 className="text-base font-medium text-gray-800 mb-2">{item.title}</h3>
+                        <div className="flex flex-col gap-2.5 text-sm text-gray-600">
+                          <span>상담자 : {item.clientName}</span>
+                          <div className="flex flex-col sm:flex-row justify-between">
+                            <span>
+                              상태 :{' '}
+                              <span
+                                className={
+                                  item.status === '상담 예정'
+                                    ? 'text-[#2563eb]'
+                                    : item.status === '상담 진행 중'
+                                      ? 'text-[#ff8d28]'
+                                      : 'text-chat'
+                                }
+                              >
+                                {item.status}
+                              </span>
+                            </span>
+                            <span className="text-[#ff8d28] mt-1 sm:mt-0">
+                              {item.respYn === '답변 필요' ? '답변 필요' : null}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            {item.status === '상담 완료' ? '완료 일시' : '예약 일시'} : {item.date}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-500">
-                        {item.status === '상담 완료' ? '완료 일시' : '예약 일시'} : {item.date}
-                      </p>
                     </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewDetail(item.id);
-                    }}
-                    className={`px-8 py-3 rounded-xl text-white text-base font-medium transition-colors ${
-                      item.status === '상담 예정'
-                        ? 'bg-[#2563eb] hover:bg-blue-600'
-                        : item.status === '상담 진행 중'
-                          ? 'bg-[#ff8d28] hover:bg-orange-500'
-                          : 'bg-chat hover:bg-cyan-500'
-                    }`}
-                  >
-                    {item.status}
-                  </button>
-                </div>
-              ))}
+                  ))
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* 상담 예약 관리 */}
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[24px] font-semibold text-gray-800">상담 예약 관리</h2>
-              <button
-                onClick={handleViewAllReservations}
-                className="px-6 py-2 rounded-xl bg-[#2563eb] text-white text-base font-medium hover:bg-[#1d4ed8] transition-colors"
-              >
-                전체 보기
-              </button>
-            </div>
-            <div className="space-y-4">
-              {reservationsData.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleViewDetail(item.id)}
-                  className="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between cursor-pointer hover:shadow-lg transition-all"
+            {/* 상담 예약 관리 */}
+            <div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3 sm:gap-0">
+                <h2 className="text-[20px] sm:text-[24px] font-semibold text-gray-800">상담 예약 관리</h2>
+                <button
+                  onClick={handleViewAllReservations}
+                  className="px-4 sm:px-6 py-2 rounded-xl bg-[#2563eb] text-white text-base font-medium hover:bg-[#1d4ed8] transition-colors cursor-pointer"
                 >
-                  <div className="flex-1">
-                    <h3 className="text-base font-medium text-gray-800 mb-2">{item.title}</h3>
-                    <div className="flex flex-col gap-2.5 text-sm text-gray-600">
-                      <span>상담자 : {item.clientName}</span>
-                      <span>
-                        상태 : <span className="text-[#2563eb]">{item.status}</span>
-                      </span>
-                      <p className="text-sm text-gray-500">예약 일시 : {item.date}</p>
-                    </div>
+                  전체 보기
+                </button>
+              </div>
+              <div className="space-y-4">
+                {loading ? (
+                  <div className="py-8 text-center text-gray-500">상담 예약 목록을 불러오는 중...</div>
+                ) : reservationsData.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-6 sm:p-8 text-center text-gray-500 border border-gray-200">
+                    수락 대기 중인 상담 예약이 없습니다.
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewDetail(item.id);
-                    }}
-                    className="px-8 py-3 rounded-xl bg-[#2563eb] text-white text-base font-medium hover:bg-blue-600 transition-colors"
-                  >
-                    {item.status}
-                  </button>
-                </div>
-              ))}
+                ) : (
+                  reservationsData.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleViewDetail(item.id)}
+                      className="bg-white rounded-2xl shadow-sm p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between cursor-pointer hover:shadow-lg transition-all"
+                    >
+                      <div className="flex-1">
+                        <h3 className="text-base font-medium text-gray-800 mb-2">{item.title}</h3>
+                        <div className="flex flex-col gap-2.5 text-sm text-gray-600">
+                          <span>상담자 : {item.clientName}</span>
+                          <span>
+                            상태 : <span className="text-[#2563eb]">{item.status}</span>
+                          </span>
+                          <p className="text-sm text-gray-500">예약 일시 : {item.date}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>

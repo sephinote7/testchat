@@ -1,13 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { counselorReviews } from './counselorProfileData';
+import { reviewsApi } from '../../../api/backendApi';
+import useAuth from '../../../hooks/useAuth';
 
 const ReviewDetail = () => {
   const navigate = useNavigate();
   const { reviewId } = useParams();
+  const { user } = useAuth();
+  const [review, setReview] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // 해당 리뷰 찾기
-  const review = counselorReviews.find((r) => r.id === parseInt(reviewId));
+  useEffect(() => {
+    if (!reviewId) return;
+    let cancelled = false;
+    setLoading(true);
+    reviewsApi.getById(reviewId)
+      .then((r) => {
+        if (cancelled) return;
+        setReview({
+          id: r.reviewId,
+          author: r.memberId?.nickname ?? r.memberId?.memberId ?? '—',
+          date: r.created_at ? new Date(r.created_at).toLocaleString('ko-KR') : '—',
+          rating: r.evalPt ?? 0,
+          views: 0,
+          content: r.content ?? r.title ?? '—',
+          title: r.title,
+          isAuthor: user?.id && r.memberId?.memberId === user.id,
+        });
+      })
+      .catch(() => { if (!cancelled) setReview(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [reviewId, user?.id]);
 
   // 별점 렌더링
   const renderStars = (rating) => {
@@ -21,11 +45,22 @@ const ReviewDetail = () => {
 
   const handleDelete = () => {
     if (window.confirm('리뷰를 삭제하시겠습니까?')) {
-      // 삭제 로직 (백엔드 연동 시 구현)
-      alert('리뷰가 삭제되었습니다.');
-      navigate(-1);
+      reviewsApi.delete(reviewId, user?.id)
+        .then(() => {
+          alert('리뷰가 삭제되었습니다.');
+          navigate(-1);
+        })
+        .catch((e) => alert(e?.message || '삭제 실패'));
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p>로딩 중...</p>
+      </div>
+    );
+  }
 
   if (!review) {
     return (

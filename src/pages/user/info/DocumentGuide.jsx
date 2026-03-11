@@ -109,7 +109,7 @@ const ResumeContent = () => {
               <span className="text-[#2f80ed] font-bold flex-shrink-0">•</span>
               <span>제출 전 반드시 맞춤법, 띄어쓰기 등을 점검하고 오탈자가 없는지 확인합니다.</span>
             </li>
-      </ul>
+          </ul>
         </div>
       </div>
 
@@ -710,7 +710,7 @@ const CoverLetterContent = () => {
       {/* ⑧ 좋게 보는 지원자 vs. 불리 보는 지원자 */}
       <div className="mb-6 lg:mb-10">
         <h3 className="text-[16px] lg:text-[30px] font-bold lg:font-semibold text-[#111827] mb-3 lg:mb-6 pb-2 border-b-2 border-[#2f80ed]">
-          ⑧ 좋게 보는 지원자 vs. 불리 보는 지원자
+          ⑧ 좋게 보는 지원자 vs. 좋지 않게 보는 지원자
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
@@ -747,10 +747,10 @@ const CoverLetterContent = () => {
             </ul>
           </div>
 
-          {/* 불리 보는 지원자 */}
+          {/* 좋지 않게 보는 지원자 */}
           <div className="bg-red-50 lg:bg-white lg:border-2 lg:border-red-300 rounded-xl p-4 lg:p-6">
             <h4 className="text-[14px] lg:text-[20px] font-bold lg:font-semibold text-red-700 mb-3 lg:mb-4">
-              ❌ 불리 보는 지원자
+              ❌ 좋지 않게 보는 지원자
             </h4>
             <ul className="space-y-2 text-[12px] lg:text-base text-gray-600 leading-relaxed">
               <li className="flex items-start gap-2">
@@ -777,7 +777,7 @@ const CoverLetterContent = () => {
                 <span className="text-red-600 flex-shrink-0">▸</span>
                 <span>오탈자와 문법 오류가 많음</span>
               </li>
-      </ul>
+            </ul>
           </div>
         </div>
       </div>

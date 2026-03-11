@@ -1,5 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { bbsApi, memberApi } from '../../../api/backendApi';
+import useAuth from '../../../hooks/useAuth';
+import { useAuthStore } from '../../../store/auth.store';
+import { supabase } from '../../../lib/supabase';
 
 const MBTI_OPTIONS = [
   'INTJ',
@@ -24,8 +28,11 @@ const FONT_OPTIONS = ['Regular', 'Medium', 'SemiBold', 'BM HANNA Pro'];
 const HEADING_OPTIONS = ['본문', '제목1', '제목2', '제목3', '제목4'];
 const SIZE_OPTIONS = ['10px', '12px', '14px', '16px', '18px', '22px', '28px'];
 
-const BoardForm = ({ mode = 'write' }) => {
+const BoardForm = ({ mode = 'write', postId = null }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const storeEmail = useAuthStore((s) => s.email);
+  const storeNickname = useAuthStore((s) => s.nickname);
   const [boardType, setBoardType] = useState('전체');
   const [mbtiType, setMbtiType] = useState('');
   const [isCompleteOpen, setIsCompleteOpen] = useState(false);
@@ -36,6 +43,23 @@ const BoardForm = ({ mode = 'write' }) => {
   const [heading, setHeading] = useState('본문');
   const [fontSize, setFontSize] = useState('10px');
   const [attachments, setAttachments] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+
+  useEffect(() => {
+    if (mode !== 'edit' || !postId) return;
+    let cancelled = false;
+    bbsApi.getById(postId)
+      .then((b) => {
+        if (cancelled) return;
+        setTitle(b.title ?? '');
+        setContent(b.content ?? '');
+        setBoardType(b.bbs_div === 'NOTI' ? '공지' : b.bbs_div === 'FREE' ? '자유' : b.bbs_div === 'MBTI' ? 'MBTI' : '전체');
+        setMbtiType(b.mbti ?? '');
+      })
+      .catch(() => { if (!cancelled) setLoadError('글을 불러올 수 없습니다.'); });
+    return () => { cancelled = true; };
+  }, [mode, postId]);
 
   const pageTitle = mode === 'edit' ? '글 수정' : '글 작성';
   const completeTitle = mode === 'edit' ? '수정이 완료되었습니다' : '게시글이 작성되었습니다';
@@ -277,10 +301,37 @@ const BoardForm = ({ mode = 'write' }) => {
               </button>
               <button
                 type="button"
-                className="px-4 py-2 rounded-md bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm font-normal transition-colors"
-                onClick={() => setIsCompleteOpen(true)}
-              >
-                완료
+                disabled={submitting}
+                className="px-4 py-2 rounded-md bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm font-normal transition-colors disabled:opacity-50"
+                onClick={async () => {
+                    const bbsDiv = boardType === '공지' ? 'NOTI' : boardType === '자유' ? 'FREE' : boardType === 'MBTI' ? 'MBTI' : 'FREE';
+                    const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
+                    setSubmitting(true);
+                    try {
+                      // Supabase 세션 또는 Spring 로그인(store) 사용자 사용 — Spring은 member_id=email
+                      const { data: { user: supaUser } } = await supabase.auth.getUser();
+                      const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
+                      if (!userIdForApi || userIdForApi === 'anonymous') {
+                        alert('로그인 후 글을 작성할 수 있습니다.');
+                        setSubmitting(false);
+                        return;
+                      }
+                      const nickname = supaUser?.user_metadata?.nickname ?? storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
+                      await memberApi.sync({ memberId: userIdForApi, nickname }).catch(() => {});
+                      if (mode === 'edit' && postId) {
+                        await bbsApi.update(postId, body, userIdForApi);
+                      } else {
+                        await bbsApi.create(body, userIdForApi);
+                      }
+                      setIsCompleteOpen(true);
+                    } catch (e) {
+                      alert(e?.message || '저장에 실패했습니다.');
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                {submitting ? '저장 중...' : '완료'}
               </button>
             </div>
           </div>
@@ -469,10 +520,36 @@ const BoardForm = ({ mode = 'write' }) => {
                 </button>
                 <button
                   type="button"
-                  className="px-8 py-3 rounded-lg bg-[#2f80ed] hover:bg-[#2670d4] text-white text-base font-normal transition-colors"
-                  onClick={() => setIsCompleteOpen(true)}
+                  disabled={submitting}
+                  className="px-8 py-3 rounded-lg bg-[#2f80ed] hover:bg-[#2670d4] text-white text-base font-normal transition-colors disabled:opacity-50"
+                  onClick={async () => {
+                    const bbsDiv = boardType === '공지' ? 'NOTI' : boardType === '자유' ? 'FREE' : boardType === 'MBTI' ? 'MBTI' : 'FREE';
+                    const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
+                    setSubmitting(true);
+                    try {
+                      const { data: { user: supaUser } } = await supabase.auth.getUser();
+                      const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
+                      if (!userIdForApi || userIdForApi === 'anonymous') {
+                        alert('로그인 후 글을 작성할 수 있습니다.');
+                        setSubmitting(false);
+                        return;
+                      }
+                      const nickname = supaUser?.user_metadata?.nickname ?? storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
+                      await memberApi.sync({ memberId: userIdForApi, nickname }).catch(() => {});
+                      if (mode === 'edit' && postId) {
+                        await bbsApi.update(postId, body, userIdForApi);
+                      } else {
+                        await bbsApi.create(body, userIdForApi);
+                      }
+                      setIsCompleteOpen(true);
+                    } catch (e) {
+                      alert(e?.message || '저장에 실패했습니다.');
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
                 >
-                  완료
+                  {submitting ? '저장 중...' : '완료'}
                 </button>
               </div>
             </div>

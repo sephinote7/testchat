@@ -18,6 +18,7 @@ const SignUp = () => {
     passwordConfirm: '',
     mbti: '',
     introduction: '',
+    gender: '',
   });
 
   const handleChange = (e) => {
@@ -64,18 +65,19 @@ const SignUp = () => {
       email: formData.email,
       password: formData.password,
       nickname: formData.nickname,
-      birth: formData.birthdate.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3'),
-      mbti: formData.mbti,
-      text: formData.introduction,
+      birth: formData.birthdate.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3') || null,
+      mbti: formData.mbti || null,
+      text: null,
       social: false,
-      gender: null,
-      persona: null,
-      profile: null,
+      gender: formData.gender || null,
+      persona: formData.introduction || null,
     });
 
     if (result) {
       setIsSuccessOpen(true);
-      navigate('/');
+      setTimeout(() => {
+        navigate('/member/signin');
+      }, 1500);
     } else {
       setError('회원가입에 실패했습니다.');
     }
@@ -115,7 +117,7 @@ const SignUp = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-3 lg:gap-4">
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                이메일 *
+                이메일 <span className="text-red-600">*</span>
               </label>
               <input
                 type="email"
@@ -134,7 +136,7 @@ const SignUp = () => {
 
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                닉네임 *
+                닉네임 <span className="text-red-600">*</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -165,7 +167,7 @@ const SignUp = () => {
 
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                비밀번호 *
+                비밀번호 <span className="text-red-600">*</span>
               </label>
               <input
                 type="password"
@@ -184,7 +186,7 @@ const SignUp = () => {
 
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                비밀번호 확인 *
+                비밀번호 확인 <span className="text-red-600">*</span>
               </label>
               <input
                 type="password"
@@ -203,7 +205,7 @@ const SignUp = () => {
 
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                생년월일 *
+                생년월일
               </label>
               <input
                 type="text"
@@ -219,8 +221,27 @@ const SignUp = () => {
             </div>
 
             <div>
+              <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">성별</label>
+              <div className="flex gap-2">
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="flex-1 h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
+                  disabled={loading}
+                >
+                  <option value="" disabled>
+                    성별 선택
+                  </option>
+                  <option value="M">남성</option>
+                  <option value="F">여성</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                MBTI 리스트 *
+                MBTI 리스트
               </label>
               <div className="flex gap-2">
                 <select
@@ -258,7 +279,9 @@ const SignUp = () => {
                   (단축창)
                 </button>
               </div>
-              <p className="mt-1 text-xs lg:text-xs text-gray-600">필수 입력입니다.</p>
+              <p className="mt-1 text-xs lg:text-xs text-gray-600">
+                상담 서비스를 이용하려면 해당 정보 입력이 필요합니다.
+              </p>
             </div>
 
             <div>

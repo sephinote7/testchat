@@ -48,15 +48,19 @@ export const patchReservation = async ({
   cnsl_date,
   cnsl_start_time,
 }) => {
-  const { data: cnslId } = await axios.patch(`${BASE_URL}/api/reserve/${cnsl_id}`, null, {
-    params: {
-      cnsler_id,
-      cnsl_title,
-      cnsl_content,
-      cnsl_date,
-      cnsl_start_time,
+  const { data: cnslId } = await axios.patch(
+    `${BASE_URL}/api/reserve/${cnsl_id}`,
+    null,
+    {
+      params: {
+        cnsler_id,
+        cnsl_title,
+        cnsl_content,
+        cnsl_date,
+        cnsl_start_time,
+      },
     },
-  });
+  );
 
   return cnslId;
 };
@@ -79,12 +83,9 @@ export const getCnslPriceWithTypeName = async (email) => {
 };
 
 // 상담사 리스트 불러오기
-export const getCounselorList = async ({ page, size }) => {
+export const getCounselorList = async (params) => {
   const { data } = await authApi.get('/api/counselorList', {
-    params: {
-      page,
-      size,
-    },
+    params: params,
   });
 
   return data;
@@ -93,5 +94,14 @@ export const getCounselorList = async ({ page, size }) => {
 // 상담사 뷰
 export const getCounselor = async (memberId) => {
   const { data } = await authApi.get(`/api/counselor/${memberId}`);
+  return data;
+};
+
+// 특정 상담사 리뷰 목록
+export const getReviews = async ({ params, memberId }) => {
+  const { data } = await authApi.get(`/api/reviews/counselor/${memberId}`, {
+    params: params,
+  });
+
   return data;
 };

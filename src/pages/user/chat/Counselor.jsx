@@ -2,6 +2,7 @@ import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 import CounselorList from './CounselorList';
 import CounselorView from './CounselorView';
+import CounselorChat from './CounselorChat';
 
 const Counselor = () => {
   return (

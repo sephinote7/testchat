@@ -1,26 +1,117 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { getCommentsForPost, posts } from './boardData';
 import useAuth from '../../../hooks/useAuth';
+import { useAuthStore } from '../../../store/auth.store';
+import { bbsApi } from '../../../api/backendApi';
+
+const formatCommentDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  return d.toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+};
 
 const BoardView = () => {
   const { b_id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const storeEmail = useAuthStore((s) => s.email);
+  const storeAccessToken = useAuthStore((s) => s.accessToken);
   const postId = useMemo(() => Number(b_id), [b_id]);
-  const post = useMemo(() => posts.find((p) => String(p.id) === String(b_id)), [b_id]);
-  const [sort, setSort] = useState('latest'); // latest | popular
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState('latest');
   const [commentInput, setCommentInput] = useState('');
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [dislikeCount, setDislikeCount] = useState(0);
+  const [likeSubmitting, setLikeSubmitting] = useState(false);
 
-  // 모달 상태
   const [showDeletePostModal, setShowDeletePostModal] = useState(false);
   const [showDeleteCommentModal, setShowDeleteCommentModal] = useState(false);
   const [selectedCommentId, setSelectedCommentId] = useState(null);
 
-  const [comments, setComments] = useState(() => getCommentsForPost(postId));
+  const [comments, setComments] = useState([]);
 
-  // 본인 작성 글인지 확인 (테스트를 위해 postId가 짝수면 본인 글로 간주)
-  const isMyPost = postId % 2 === 0;
+  const fetchComments = useCallback(() => {
+    if (!postId) return;
+    bbsApi.getComments(postId)
+      .then((list) => {
+        const mapped = (list || []).map((c) => ({
+          id: c.cmt_id,
+          postId,
+          author: c.memberId?.nickname ?? c.memberId?.memberId ?? '—',
+          content: c.content,
+          createdAt: c.created_at ?? c.createdAt,
+          likes: 0,
+          replies: 0,
+          memberId: c.memberId?.memberId ?? c.member_id,
+        }));
+        setComments(mapped);
+      })
+      .catch(() => setComments([]));
+  }, [postId]);
+
+  const fetchLikeCounts = useCallback(() => {
+    if (!postId) return;
+    bbsApi.getLikeCounts(postId)
+      .then((res) => {
+        setLikeCount(res.likeCount ?? 0);
+        setDislikeCount(res.dislikeCount ?? 0);
+      })
+      .catch(() => {});
+  }, [postId]);
+
+  // 상세/댓글/좋아요 병렬 요청으로 로딩 시간 단축
+  useEffect(() => {
+    if (!b_id || !postId) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      bbsApi.getById(b_id),
+      bbsApi.getComments(postId),
+      bbsApi.getLikeCounts(postId),
+    ])
+      .then(([b, commentList, likeRes]) => {
+        if (cancelled) return;
+        const author = b.memberId?.nickname ?? b.memberId?.email ?? (typeof b.memberId === 'string' ? b.memberId : '알 수 없음');
+        const category = b.bbs_div === 'NOTI' ? '공지' : b.bbs_div === 'FREE' ? '자유' : b.bbs_div || '자유';
+        setPost({
+          id: b.bbsId,
+          category,
+          isNotice: b.bbs_div === 'NOTI',
+          title: b.title,
+          author,
+          createdAt: b.created_at,
+          views: b.views ?? 0,
+          likes: likeRes?.likeCount ?? 0,
+          comments: Array.isArray(commentList) ? commentList.length : 0,
+          mbti: b.mbti,
+          content: b.content,
+        });
+        const mapped = (commentList || []).map((c) => ({
+          id: c.cmt_id,
+          postId,
+          author: c.memberId?.nickname ?? c.memberId?.memberId ?? '—',
+          content: c.content,
+          createdAt: c.created_at ?? c.createdAt,
+          likes: 0,
+          replies: 0,
+          memberId: c.memberId?.memberId ?? c.member_id,
+        }));
+        setComments(mapped);
+        setLikeCount(likeRes?.likeCount ?? 0);
+        setDislikeCount(likeRes?.dislikeCount ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setPost(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [b_id, postId]);
+
+  const isMyPost = false;
 
   const sortedComments = useMemo(() => {
     const list = [...comments];
@@ -30,42 +121,66 @@ const BoardView = () => {
     return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [comments, sort]);
 
+  // Supabase 세션 또는 Spring 로그인(store) — Spring 로그인 시 user는 비어 있음
+  const userIdForApi = user?.email ?? user?.id ?? storeEmail ?? null;
+  const isLoggedIn = user?.isLogin === true || !!storeAccessToken;
+
   const handleSubmitComment = () => {
     const text = commentInput.trim();
     if (!text) return;
-
-    const now = new Date();
-    const createdAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
-      now.getDate()
-    ).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    setComments((prev) => [
-      {
-        id: `new-${Date.now()}`,
-        postId,
-        author: '나',
-        content: text,
-        createdAt,
-        likes: 0,
-        replies: 0,
-      },
-      ...prev,
-    ]);
-    setCommentInput('');
+    if (!isLoggedIn || !userIdForApi) {
+      alert('로그인 후 댓글을 작성할 수 있습니다.');
+      return;
+    }
+    setCommentSubmitting(true);
+    bbsApi.addComment(postId, { content: text }, userIdForApi)
+      .then(() => {
+        setCommentInput('');
+        fetchComments();
+      })
+      .catch((e) => alert(e?.message || '댓글 작성 실패. 로그인 후 이용해 주세요.'))
+      .finally(() => setCommentSubmitting(false));
   };
 
   const handleDeletePost = () => {
+    if (!isLoggedIn) {
+      alert('로그인 후 삭제할 수 있습니다.');
+      return;
+    }
     setShowDeletePostModal(false);
-    alert('게시글이 삭제되었습니다.');
-    navigate('/board');
+    bbsApi.delete(postId, userIdForApi).then(() => {
+      alert('게시글이 삭제되었습니다.');
+      navigate('/board');
+    }).catch((e) => alert(e?.message || '삭제 실패'));
   };
 
   const handleDeleteComment = () => {
-    if (selectedCommentId) {
-      setComments((prev) => prev.filter((c) => c.id !== selectedCommentId));
-      setShowDeleteCommentModal(false);
-      setSelectedCommentId(null);
+    if (!selectedCommentId) return;
+    bbsApi.deleteComment(selectedCommentId, userIdForApi)
+      .then(() => {
+        setComments((prev) => prev.filter((c) => c.id !== selectedCommentId));
+        setShowDeleteCommentModal(false);
+        setSelectedCommentId(null);
+      })
+      .catch((e) => alert(e?.message || '삭제 실패'));
+  };
+
+  const handleLike = (isLike) => {
+    if (likeSubmitting) return;
+    if (!isLoggedIn) {
+      alert('로그인 후 좋아요를 누를 수 있습니다.');
+      return;
     }
+    setLikeSubmitting(true);
+    bbsApi.toggleLike(postId, { is_like: isLike }, userIdForApi)
+      .then((res) => {
+        if (res.likeCounts) {
+          setLikeCount(res.likeCounts.likeCount ?? 0);
+          setDislikeCount(res.likeCounts.dislikeCount ?? 0);
+        } else fetchLikeCounts();
+      })
+      .catch((e) => alert(e?.message || '로그인 후 이용해 주세요.'))
+      .finally(() => setLikeSubmitting(false));
   };
 
   return (
@@ -87,13 +202,19 @@ const BoardView = () => {
             </Link>
           </div>
 
+          {loading ? (
+            <div className="py-10 text-center text-sm text-gray-500">로딩 중...</div>
+          ) : !post ? (
+            <div className="py-10 text-center text-sm text-gray-500">게시글을 찾을 수 없습니다.</div>
+          ) : (
+          <>
           {/* 게시글 제목 & 정보 */}
-          <h2 className="text-lg font-bold mb-2">{post?.title ?? '게시글'}</h2>
+          <h2 className="text-lg font-bold mb-2">{post.title}</h2>
           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 pb-3 border-b border-blue-300">
             <span className="font-normal">{post?.author ?? '작성자'}</span>
             <span className="font-normal">{post?.createdAt ? post.createdAt.replace('T', ' ').slice(0, 16) : '—'}</span>
             <span className="font-normal">조회 {post?.views ?? 0}</span>
-            <span className="font-normal">좋아요 {post?.likes ?? 0}</span>
+            <span className="font-normal">좋아요 {likeCount}</span>
             <span className="font-normal">댓글 {comments.length}</span>
           </div>
 
@@ -121,21 +242,33 @@ const BoardView = () => {
 상세 화면 테스트를 위해 만들어진 페이지이며, 추후 실제 API 연동 시 게시글 본문/댓글을 서버에서 받아오도록 변경하면 됩니다.`}
           </div>
 
-          {/* 좋아요/싫어요 */}
+          {/* 좋아요/싫어요 - 로그인 시에만 활성화 */}
           <div className="flex items-center justify-center gap-5 py-4 border-y border-blue-300">
-            <button type="button" className="flex flex-col items-center gap-1 text-blue-600 text-xs">
+            <button
+              type="button"
+              onClick={() => handleLike(true)}
+              disabled={likeSubmitting || !isLoggedIn}
+              className="flex flex-col items-center gap-1 text-blue-600 text-xs disabled:opacity-60"
+              title={!isLoggedIn ? '로그인 후 좋아요를 누를 수 있습니다.' : ''}
+            >
               <span className="w-10 h-10 rounded-full border-2 border-blue-400 flex items-center justify-center text-xl">
                 👍
               </span>
               <span className="font-normal">좋아요</span>
-              <span className="text-blue-600 font-normal">15</span>
+              <span className="text-blue-600 font-normal">{likeCount}</span>
             </button>
-            <button type="button" className="flex flex-col items-center gap-1 text-gray-500 text-xs">
+            <button
+              type="button"
+              onClick={() => handleLike(false)}
+              disabled={likeSubmitting || !isLoggedIn}
+              className="flex flex-col items-center gap-1 text-gray-500 text-xs disabled:opacity-60"
+              title={!isLoggedIn ? '로그인 후 싫어요를 누를 수 있습니다.' : ''}
+            >
               <span className="w-10 h-10 rounded-full border-2 border-gray-400 flex items-center justify-center text-xl">
                 👎
               </span>
               <span className="font-normal">싫어요</span>
-              <span className="text-gray-500 font-normal">2</span>
+              <span className="text-gray-500 font-normal">{dislikeCount}</span>
             </button>
           </div>
 
@@ -159,17 +292,19 @@ const BoardView = () => {
             <textarea
               rows={3}
               className="w-full resize-none text-sm font-normal outline-none"
-              placeholder="댓글을 입력해주세요"
+              placeholder={isLoggedIn ? '댓글을 입력해주세요' : '로그인 후 댓글을 달 수 있습니다.'}
               value={commentInput}
               onChange={(e) => setCommentInput(e.target.value)}
+              readOnly={!isLoggedIn}
             />
             <div className="flex justify-end mt-2">
               <button
                 type="button"
                 onClick={handleSubmitComment}
-                className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white text-xs font-normal transition-colors"
+                disabled={commentSubmitting || !isLoggedIn}
+                className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white text-xs font-normal transition-colors disabled:opacity-60"
               >
-                등록
+                {commentSubmitting ? '등록 중...' : '등록'}
               </button>
             </div>
           </div>
@@ -201,7 +336,7 @@ const BoardView = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold">{comment.author}</p>
-                      {comment.author === '나' && (
+                      {userIdForApi && String(comment.memberId) === String(userIdForApi) && (
                         <button
                           onClick={() => {
                             setSelectedCommentId(comment.id);
@@ -214,7 +349,7 @@ const BoardView = () => {
                       )}
                     </div>
                     <p className="text-xs text-gray-700 mt-1 font-normal">{comment.content}</p>
-                    <p className="text-[11px] text-gray-400 mt-2 font-normal">{comment.createdAt}</p>
+                    <p className="text-[11px] text-gray-400 mt-2 font-normal">{formatCommentDate(comment.createdAt)}</p>
                   </div>
                   <div className="text-[11px] text-gray-500 flex items-center gap-2 font-normal">
                     <span>👍 {comment.likes}</span>
@@ -240,12 +375,20 @@ const BoardView = () => {
               〉
             </button>
           </div>
+          </>
+          )}
         </div>
       </div>
 
       {/* PC */}
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-8">
+          {loading ? (
+            <div className="py-20 text-center text-gray-500">로딩 중...</div>
+          ) : !post ? (
+            <div className="py-20 text-center text-gray-500">게시글을 찾을 수 없습니다.</div>
+          ) : (
+          <>
           {/* PC 뒤로가기 */}
           <div className="flex items-center justify-between mb-6">
             <Link to="/board" className="flex items-center gap-2 text-base font-normal text-gray-700 hover:text-[#2f80ed]">
@@ -277,7 +420,7 @@ const BoardView = () => {
               <span className="font-normal">{post?.author ?? '작성자'}</span>
               <span className="font-normal">{post?.createdAt ? post.createdAt.replace('T', ' ').slice(0, 16) : '—'}</span>
               <span className="font-normal">조회 {post?.views ?? 0}</span>
-              <span className="font-normal">좋아요 {post?.likes ?? 0}</span>
+              <span className="font-normal">좋아요 {likeCount}</span>
               <span className="font-normal">댓글 {comments.length}</span>
             </div>
 
@@ -305,21 +448,33 @@ const BoardView = () => {
 상세 화면 테스트를 위해 만들어진 페이지이며, 추후 실제 API 연동 시 게시글 본문/댓글을 서버에서 받아오도록 변경하면 됩니다.`}
             </div>
 
-            {/* 좋아요/싫어요 */}
+            {/* 좋아요/싫어요 - 로그인 시에만 활성화 */}
             <div className="flex items-center justify-center gap-8 py-6 border-y border-gray-200">
-              <button type="button" className="flex flex-col items-center gap-2 text-blue-600 text-sm">
+              <button
+                type="button"
+                onClick={() => handleLike(true)}
+                disabled={likeSubmitting || !isLoggedIn}
+                className="flex flex-col items-center gap-2 text-blue-600 text-sm disabled:opacity-60"
+                title={!isLoggedIn ? '로그인 후 좋아요를 누를 수 있습니다.' : ''}
+              >
                 <span className="w-14 h-14 rounded-full border-2 border-blue-400 flex items-center justify-center text-2xl">
                   👍
                 </span>
                 <span className="font-normal">좋아요</span>
-                <span className="text-blue-600 font-normal">15</span>
+                <span className="text-blue-600 font-normal">{likeCount}</span>
               </button>
-              <button type="button" className="flex flex-col items-center gap-2 text-gray-500 text-sm">
+              <button
+                type="button"
+                onClick={() => handleLike(false)}
+                disabled={likeSubmitting || !isLoggedIn}
+                className="flex flex-col items-center gap-2 text-gray-500 text-sm disabled:opacity-60"
+                title={!isLoggedIn ? '로그인 후 싫어요를 누를 수 있습니다.' : ''}
+              >
                 <span className="w-14 h-14 rounded-full border-2 border-gray-400 flex items-center justify-center text-2xl">
                   👎
                 </span>
                 <span className="font-normal">싫어요</span>
-                <span className="text-gray-500 font-normal">2</span>
+                <span className="text-gray-500 font-normal">{dislikeCount}</span>
               </button>
             </div>
 
@@ -343,17 +498,19 @@ const BoardView = () => {
               <textarea
                 rows={3}
                 className="w-full resize-none text-base font-normal outline-none bg-transparent"
-                placeholder="댓글을 입력해주세요"
+                placeholder={isLoggedIn ? '댓글을 입력해주세요' : '로그인 후 댓글을 달 수 있습니다.'}
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
+                readOnly={!isLoggedIn}
               />
               <div className="flex justify-end mt-2">
                 <button
                   type="button"
                   onClick={handleSubmitComment}
-                  className="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-normal transition-colors"
+                  disabled={commentSubmitting || !isLoggedIn}
+                  className="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-normal transition-colors disabled:opacity-60"
                 >
-                  등록
+                  {commentSubmitting ? '등록 중...' : '등록'}
                 </button>
               </div>
             </div>
@@ -385,7 +542,7 @@ const BoardView = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <p className="text-base font-semibold">{comment.author}</p>
-                        {comment.author === '나' && (
+                        {userIdForApi && String(comment.memberId) === String(userIdForApi) && (
                           <button
                             onClick={() => {
                               setSelectedCommentId(comment.id);
@@ -398,7 +555,7 @@ const BoardView = () => {
                         )}
                       </div>
                       <p className="text-sm text-gray-700 mt-2 font-normal">{comment.content}</p>
-                      <p className="text-xs text-gray-400 mt-3 font-normal">{comment.createdAt}</p>
+                      <p className="text-xs text-gray-400 mt-3 font-normal">{formatCommentDate(comment.createdAt)}</p>
                     </div>
                     <div className="text-sm text-gray-500 flex items-center gap-2 font-normal">
                       <span>👍 {comment.likes}</span>
@@ -425,6 +582,8 @@ const BoardView = () => {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 

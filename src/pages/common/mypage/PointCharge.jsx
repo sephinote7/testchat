@@ -8,11 +8,12 @@ import {
   createPayment,
   getMyPoint,
 } from '../../../api/walletApi';
+import { authApi } from '../../../axios/Auth';
 
 const PointCharge = () => {
   const { nickname, email } = useAuthStore();
   const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm';
-  const customerKey = nickname;
+  const customerKey = email;
 
   // TODO: DB 연동 시 실제 사용자 포인트 조회
   const [userPoints, setUserPoints] = useState(0);
@@ -149,24 +150,29 @@ const PointCharge = () => {
     if (!paymentKey || !orderId || !amount) return;
 
     const confirmPayment = async () => {
-      const response = await fetch('http://localhost:8080/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentKey, orderId, amount }),
-      });
+      try {
+        const response = await authApi.post('http://localhost:8080/confirm', {
+          paymentKey,
+          orderId,
+          amount,
+        });
 
-      if (!response.ok) {
+        if (response.status !== 200) {
+          alert('결제 승인 실패');
+          return;
+        }
+
+        const updatedPoint = await getMyPoint(email);
+        setUserPoints(updatedPoint);
+
+        setShowCompleteModal(true);
+
+        // URL 정리 (모달 중복 방지)
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (error) {
         alert('결제 승인 실패');
-        return;
+        console.error(error);
       }
-
-      const updatedPoint = await getMyPoint(email);
-      setUserPoints(updatedPoint);
-
-      setShowCompleteModal(true);
-
-      // URL 정리 (모달 중복 방지)
-      window.history.replaceState({}, '', window.location.pathname);
     };
 
     confirmPayment();
@@ -223,7 +229,7 @@ const PointCharge = () => {
                 <button
                   key={option.points}
                   onClick={() => handleSelectAmount(option)}
-                  className={`w-full bg-white rounded-2xl lg:rounded-3xl p-5 lg:p-8 shadow-md lg:shadow-lg flex items-center justify-between transition-all lg:hover:scale-102 ${
+                  className={`cursor-pointer w-full bg-white rounded-2xl lg:rounded-3xl p-5 lg:p-8 shadow-md lg:shadow-lg flex items-center justify-between transition-all lg:hover:scale-102 ${
                     selectedAmount?.points === option.points
                       ? 'border-4 border-[#2563eb] lg:shadow-xl'
                       : 'border-2 border-gray-200'
@@ -242,7 +248,7 @@ const PointCharge = () => {
             {/* 충전하기 버튼 */}
             <button
               onClick={handleChargeClick}
-              className="w-full mt-8 lg:mt-10 bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white font-bold py-4 lg:py-6 rounded-2xl lg:rounded-3xl shadow-lg lg:shadow-xl text-lg lg:text-2xl lg:hover:shadow-2xl transition-all"
+              className="cursor-pointer w-full mt-8 lg:mt-10 bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white font-bold py-4 lg:py-6 rounded-2xl lg:rounded-3xl shadow-lg lg:shadow-xl text-lg lg:text-2xl lg:hover:shadow-2xl transition-all"
             >
               {selectedAmount
                 ? `[${selectedAmount.points.toLocaleString()}P]포인트 충전하기`

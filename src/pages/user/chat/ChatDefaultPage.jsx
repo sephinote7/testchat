@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAiConsultStore } from '../../../store/useAiConsultStore';
+import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 import { supabase } from '../../../lib/supabase';
 
 // TODO: DB 연동 가이드
@@ -27,9 +27,10 @@ const ChatDefaultPage = () => {
   const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
   const clearActiveCnslId = useAiConsultStore((s) => s.clearActiveCnslId);
   const [resetting, setResetting] = useState(false);
-  const skipRedirectRef = useRef(
-    Boolean(location.state?.fromBack || location.state?.fromNav),
-  );
+  const skipRedirectRef = useRef(Boolean(location.state?.fromBack || location.state?.fromNav));
+
+  const aicnslimg = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/aichat.png";
+  const cnslimg = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_cnsl.png";
 
   // 뒤로 가기 또는 Nav바 상담 클릭으로 온 경우 리다이렉트 하지 않음
   useEffect(() => {
@@ -37,12 +38,7 @@ const ChatDefaultPage = () => {
       skipRedirectRef.current = true;
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [
-    location.state?.fromBack,
-    location.state?.fromNav,
-    location.pathname,
-    navigate,
-  ]);
+  }, [location.state?.fromBack, location.state?.fromNav, location.pathname, navigate]);
 
   useEffect(() => {
     if (activeCnslId && !skipRedirectRef.current) {
@@ -51,12 +47,7 @@ const ChatDefaultPage = () => {
   }, [activeCnslId, navigate]);
 
   const handleResetTestData = async () => {
-    if (
-      !window.confirm(
-        '진행 중인 AI 상담(cnsl_stat=C) 데이터를 종료 처리합니다. 계속할까요?',
-      )
-    )
-      return;
+    if (!window.confirm('진행 중인 AI 상담(cnsl_stat=C) 데이터를 종료 처리합니다. 계속할까요?')) return;
     setResetting(true);
     try {
       const { error } = await supabase
@@ -85,9 +76,7 @@ const ChatDefaultPage = () => {
         </header>
 
         <main className="px-[18px] pt-5 flex flex-col gap-4">
-          <h2 className="text-[18px] font-bold text-[#1f2937]">
-            누구와 상담을 하고 싶으세요?
-          </h2>
+          <h2 className="text-[18px] font-bold text-[#1f2937]">누구와 상담을 하고 싶으세요?</h2>
 
           <div className="grid grid-cols-2 gap-3">
             <Link
@@ -137,9 +126,7 @@ const ChatDefaultPage = () => {
 
           {/* CONTENT */}
           <div className="mx-auto">
-            <h2 className="text-[36px] font-semibold text-gray-800 mb-12 text-center">
-              누구와 상담을 하고 싶으세요?
-            </h2>
+            <h2 className="text-[36px] font-semibold text-gray-800 mb-12 text-center">누구와 상담을 하고 싶으세요?</h2>
 
             <div className="grid grid-cols-2 gap-12 max-w-[1200px] mx-auto">
               {/* AI 상담하기 */}
@@ -148,13 +135,11 @@ const ChatDefaultPage = () => {
                 className="rounded-3xl bg-gradient-to-br from-[#2ed3c6] to-[#26b8ad] text-white p-16 min-h-[400px] flex flex-col items-center justify-center gap-8 shadow-[0_20px_40px_rgba(0,0,0,0.12)] hover:shadow-[0_24px_48px_rgba(0,0,0,0.16)] transition-all hover:scale-105"
               >
                 <div className="w-32 h-32 rounded-full border-4 border-white/70 flex items-center justify-center font-bold text-4xl bg-white/10 shadow-lg">
-                  AI
+                  <img src={aicnslimg} alt="AI 상담" />
                 </div>
                 <div className="text-center">
                   <p className="text-[32px] font-bold mb-3">AI와 상담하기</p>
-                  <p className="text-[20px] opacity-90">
-                    빠르게 상담 시작하세요
-                  </p>
+                  <p className="text-[20px] opacity-90">빠르게 상담 시작하세요</p>
                 </div>
               </Link>
 
@@ -164,15 +149,11 @@ const ChatDefaultPage = () => {
                 className="rounded-3xl bg-gradient-to-br from-[#2f80ed] to-[#2563eb] text-white p-16 min-h-[400px] flex flex-col items-center justify-center gap-8 shadow-[0_20px_40px_rgba(0,0,0,0.12)] hover:shadow-[0_24px_48px_rgba(0,0,0,0.16)] transition-all hover:scale-105"
               >
                 <div className="w-32 h-32 rounded-full border-4 border-white/70 flex items-center justify-center font-bold text-2xl bg-white/10 shadow-lg">
-                  상담
+                  <img src={cnslimg} alt="상담사 상담" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[32px] font-bold mb-3">
-                    상담사와 상담하기
-                  </p>
-                  <p className="text-[20px] opacity-90">
-                    전문 상담사를 찾아보세요
-                  </p>
+                  <p className="text-[32px] font-bold mb-3">상담사와 상담하기</p>
+                  <p className="text-[20px] opacity-90">전문 상담사를 찾아보세요</p>
                 </div>
               </Link>
             </div>
@@ -184,9 +165,7 @@ const ChatDefaultPage = () => {
               disabled={resetting}
               className="text-sm text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
             >
-              {resetting
-                ? '처리 중...'
-                : '[테스트] 진행 중 상담(cnsl_stat=C) 초기화'}
+              {resetting ? '처리 중...' : '[테스트] 진행 중 상담(cnsl_stat=C) 초기화'}
             </button>
           </div>
         </div>

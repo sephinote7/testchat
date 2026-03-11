@@ -151,7 +151,6 @@ const Statistics = () => {
   // chartData가 API에서 받아온 데이터로 대체되어도 동일하게 작동함
   const radius = 40; // SVG 원의 반지름
   const circumference = 2 * Math.PI * radius; // 원의 둘레 (약 251.33)
-
   let cumulativePercentage = 0;
   const pieSegments = chartData.map((item) => {
     // 각 세그먼트의 길이 계산
@@ -180,7 +179,6 @@ const Statistics = () => {
   //     { label: '취업', avgMinutes: 50, color: '#FFA07A' },
   //   ]
   // }
-
   // 카테고리별 평균 상담 시간 데이터 (더미)
   const avgTimeData = [
     { label: '커리어', percentage: 40, color: '#FF6B6B' },
@@ -189,9 +187,9 @@ const Statistics = () => {
   // ========== 더미 데이터 끝 ==========
 
   return (
-    <div className="flex min-h-screen bg-[#f3f7ff]">
-      {/* LEFT SIDEBAR */}
-      <aside className="w-[280px] bg-[#2d3e50] text-white flex-shrink-0">
+    <>
+      {/* LEFT SIDEBAR - 뷰포트 전체 높이 고정 */}
+      <aside className="fixed top-0 left-0 bottom-0 z-10 w-[280px] bg-[#2d3e50] text-white flex flex-col">
         {/* LOGO */}
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <div className="w-10 h-10 bg-[#2ed3c6] rounded-full flex items-center justify-center">
@@ -272,7 +270,8 @@ const Statistics = () => {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col">
+      <div className="min-h-screen flex flex-col pl-[280px] bg-[#f3f7ff]">
+      <main className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         {/* TOP BAR */}
         <header className="bg-white px-10 py-5 flex items-center justify-end gap-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -324,7 +323,6 @@ const Statistics = () => {
                         />
                       ))}
                     </svg>
-
                     {/* 마우스 호버 시 중앙에 표시되는 툴팁 */}
                     {/* DB 연동 후에도 동일하게 작동 - pieSegments 데이터만 교체됨 */}
                     {hoveredSegment !== null && (
@@ -440,7 +438,8 @@ const Statistics = () => {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 };
 

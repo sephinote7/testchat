@@ -63,7 +63,7 @@ export const getMonthlyPopularPosts_py = async () => {
   }
 };
 
-// [추천순]
+// [추천순 (파이썬)]
 export const getRecommendedPosts = async (email) => {
   try {
     const { data } = await mlAuthApi.post(`/recommend`, {

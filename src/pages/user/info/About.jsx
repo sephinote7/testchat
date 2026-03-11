@@ -1,6 +1,10 @@
 import React from 'react';
 
 const About = () => {
+  const aboutimg1 = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/info1.png";
+  const aboutimg2 = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/info2.png";
+  const aboutimg3 = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/info3.png";
+
   return (
     <div className="bg-white lg:bg-transparent rounded-[14px] lg:rounded-none p-5 lg:p-0 shadow-[0_10px_20px_rgba(31,41,55,0.08)] lg:shadow-none">
       {/* Mobile 제목 */}
@@ -25,7 +29,7 @@ const About = () => {
       <div className="hidden lg:grid lg:grid-cols-3 lg:gap-6 lg:mb-16">
         <div className="bg-white border-2 border-[#2f80ed] rounded-2xl p-8 text-center">
           <div className="w-20 h-20 mx-auto mb-6 bg-[#f3f7ff] rounded-full flex items-center justify-center">
-            <span className="text-4xl">❓</span>
+            <img src={aboutimg1} alt="혼자 고민하면 '막막함'" className='w-14'/>
           </div>
           <h4 className="text-[24px] font-medium text-gray-800 mb-4">혼자 고민하면 '막막함'</h4>
           <p className="text-base font-normal text-gray-600 leading-relaxed">
@@ -38,7 +42,7 @@ const About = () => {
 
         <div className="bg-white border-2 border-[#2f80ed] rounded-2xl p-8 text-center">
           <div className="w-20 h-20 mx-auto mb-6 bg-[#f3f7ff] rounded-full flex items-center justify-center">
-            <span className="text-4xl">💬</span>
+            <img src={aboutimg2} alt="혼자가 아닌 위한 준비를 위해" className='w-14'/>
           </div>
           <h4 className="text-[24px] font-medium text-gray-800 mb-4">혼자가 아닌 위한 준비를 위해</h4>
           <p className="text-base font-normal text-gray-600 leading-relaxed">
@@ -51,7 +55,7 @@ const About = () => {
 
         <div className="bg-white border-2 border-[#2f80ed] rounded-2xl p-8 text-center">
           <div className="w-20 h-20 mx-auto mb-6 bg-[#f3f7ff] rounded-full flex items-center justify-center">
-            <span className="text-4xl">🌱</span>
+            <img src={aboutimg3} alt="고민순삭이 함께하는 이유" className='w-14'/>
           </div>
           <h4 className="text-[24px] font-medium text-gray-800 mb-4">고민순삭이 함께하는 이유</h4>
           <p className="text-base font-normal text-gray-600 leading-relaxed">

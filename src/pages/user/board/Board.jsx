@@ -1,7 +1,8 @@
 import React from 'react';
+import { Route, Routes } from 'react-router-dom';
+import ProtectedRoute from '../../../components/ProtectedRoute';
 import BoardList from './BoardList';
 import BoardWrite from './BoardWrite';
-import { Route, Routes } from 'react-router-dom';
 import BoardView from './BoardView';
 import BoardEdit from './BoardEdit';
 
@@ -9,9 +10,23 @@ const Board = () => {
   return (
     <Routes>
       <Route index element={<BoardList />} />
-      <Route path="write" element={<BoardWrite />} />
-      <Route path="view/:b_id" element={<BoardView />} /> {/* http://localhost:5173/board/view/2 */}
-      <Route path="edit/:b_id" element={<BoardEdit />} /> {/* http://localhost:5173/board/edit/2 */}
+      <Route
+        path="write"
+        element={
+          <ProtectedRoute allowRoles={['USER']}>
+            <BoardWrite />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="view/:b_id" element={<BoardView />} />
+      <Route
+        path="edit/:b_id"
+        element={
+          <ProtectedRoute allowRoles={['USER']}>
+            <BoardEdit />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 };
