@@ -1,6 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '../../../lib/supabase';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
+
+// 브라우저는 Spring API만 호출하고, Spring이 DB/Supabase 연동을 담당합니다.
+const BACKEND_BASE = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '');
+const WS_ENDPOINT = `${BACKEND_BASE}/ws`;
+
+async function apiFetch(path, init = {}) {
+  if (!BACKEND_BASE) throw new Error('VITE_BACKEND_URL이 설정되지 않았습니다.');
+  return fetch(`${BACKEND_BASE}${path}`, {
+    credentials: 'include', // HttpOnly 쿠키 기반
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+    },
+  });
+}
+
+async function apiJson(path, init = {}) {
+  const res = await apiFetch(path, init);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = data?.message || data?.error || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
 
 function normalizeRole(rawRole) {
   if (!rawRole) return rawRole;
@@ -56,6 +82,8 @@ const CounselorChat = () => {
   const chatScrollRefPc = useRef(null);
   const fetchChatMessagesRef = useRef(null);
   const lastLocalAddAtRef = useRef(0);
+  const wsClientRef = useRef(null);
+  const wsConnectedRef = useRef(false);
 
   useEffect(() => {
     const init = async () => {
@@ -69,16 +97,18 @@ const CounselorChat = () => {
       setErrorMsg('');
 
       try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-        if (authError || !user) {
+        let user = null;
+        try {
+          user = await apiJson('/api/auth/me');
+        } catch {
+          user = null;
+        }
+        if (!user?.email) {
           setErrorMsg('로그인 정보가 없습니다. 다시 로그인해 주세요.');
           setLoading(false);
           return;
         }
-        const currentEmail = user.email;
+        const currentEmail = String(user.email);
 
         const cnslIdNum = parseInt(cnsl_id, 10);
         if (isNaN(cnslIdNum) || cnslIdNum <= 0) {
@@ -87,56 +117,47 @@ const CounselorChat = () => {
           return;
         }
 
-        const { data: cnslRow, error: cnslErr } = await supabase
-          .from('cnsl_reg')
-          .select('member_id, cnsler_id, cnsl_stat, cnsl_tp, cnsl_title, cnsl_content')
-          .eq('cnsl_id', cnslIdNum)
-          .maybeSingle();
-
-        if (cnslErr || !cnslRow) {
+        const cnslRow = await apiJson(`/api/cnsl/${cnslIdNum}`);
+        if (!cnslRow) {
           setErrorMsg('해당 상담방 정보를 찾을 수 없습니다.');
           setLoading(false);
           return;
         }
 
-        const cnslTp = String(cnslRow.cnsl_tp || '').trim();
+        const cnslTp = String(cnslRow.cnslTp ?? cnslRow.cnsl_tp ?? '').trim();
         if (cnslTp !== '4') {
           setErrorMsg('해당 상담 유형(cnsl_tp=4)이 아닙니다.');
           setLoading(false);
           return;
         }
 
-        if (cnslRow.cnsl_stat === 'D') {
+        const initialStat = String(cnslRow.cnslStat ?? cnslRow.cnsl_stat ?? '').toUpperCase();
+        if (initialStat === 'D') {
           setErrorMsg('완료된 상담은 재진입할 수 없습니다.');
           setLoading(false);
           return;
         }
 
         const stat =
-          String(cnslRow.cnsl_stat || 'A')
+          String(cnslRow.cnslStat ?? cnslRow.cnsl_stat ?? 'A')
             .trim()
             .toUpperCase() || 'A';
         if (stat === 'A') {
-          const { data: inProgressRows } = await supabase
-            .from('cnsl_reg')
-            .select('cnsl_id, member_id, cnsler_id')
-            .eq('cnsl_tp', '4')
-            .eq('cnsl_stat', 'C');
-          const inProgressItem = inProgressRows?.find(
-            (r) =>
-              (String(r.member_id || '') === currentEmail || String(r.cnsler_id || '') === currentEmail) &&
-              Number(r.cnsl_id) !== cnslIdNum,
-          );
-          if (inProgressItem?.cnsl_id) {
-            setLoading(false);
-            navigate(`/chat/cnslchat/${inProgressItem.cnsl_id}`, { replace: true });
-            return;
+          try {
+            const active = await apiJson('/api/cnsl/active?type=4');
+            if (active?.cnslId && Number(active.cnslId) !== cnslIdNum) {
+              setLoading(false);
+              navigate(`/chat/cnslchat/${active.cnslId}`, { replace: true });
+              return;
+            }
+          } catch {
+            /* ignore */
           }
         }
 
         setCnslStat(stat);
-        const member_id = cnslRow.member_id || '';
-        const cnsler_id = cnslRow.cnsler_id || '';
+        const member_id = cnslRow.memberId ?? cnslRow.member_id ?? '';
+        const cnsler_id = cnslRow.cnslerId ?? cnslRow.cnsler_id ?? '';
 
         const isMemberSide = member_id === currentEmail;
         const isCnslerSide = cnsler_id === currentEmail;
@@ -149,28 +170,17 @@ const CounselorChat = () => {
 
         const partnerEmail = isMemberSide ? cnsler_id : member_id;
 
-        const { data: memberRows, error: memberError } = await supabase
-          .from('member')
-          .select('id, email, role, nickname, mbti, persona, profile')
-          .in('email', [currentEmail, partnerEmail]);
-
-        if (memberError || !memberRows || memberRows.length < 2) {
-          setErrorMsg('상담 참여자 정보를 불러오는 데 실패했습니다.');
-          setLoading(false);
-          return;
+        let participants = null;
+        try {
+          participants = await apiJson(`/api/cnsl/${cnslIdNum}/participants`);
+        } catch {
+          participants = null;
         }
 
-        const myRow = memberRows.find((m) => (m.email ?? m.member_id) === currentEmail);
-        const partnerRow = memberRows.find((m) => (m.email ?? m.member_id) === partnerEmail);
-
-        if (!myRow || !partnerRow) {
-          setErrorMsg('상담 참여자 정보를 찾을 수 없습니다.');
-          setLoading(false);
-          return;
-        }
-
-        const meMapped = mapMemberRow(myRow);
-        const otherMapped = mapMemberRow(partnerRow);
+        const meMapped = mapMemberRow(participants?.me || { email: currentEmail, role: user?.role || user?.roleName });
+        const otherMapped = mapMemberRow(
+          participants?.other || { email: partnerEmail, role: isMemberSide ? 'SYSTEM' : 'USER' },
+        );
 
         if (isMemberSide) {
           setMe({ ...meMapped, role: 'USER' });
@@ -181,9 +191,9 @@ const CounselorChat = () => {
         }
 
         setCnslInfo({
-          title: cnslRow.cnsl_title || '',
-          content: cnslRow.cnsl_content || '',
-          requesterNick: memberRows.find((m) => (m.email ?? m.member_id) === member_id)?.nickname || member_id,
+          title: cnslRow.cnslTitle ?? cnslRow.cnsl_title ?? '',
+          content: cnslRow.cnslContent ?? cnslRow.cnsl_content ?? '',
+          requesterNick: participants?.requesterNick || member_id,
         });
       } catch (error) {
         console.error('CounselorChat 초기화 오류', error);
@@ -211,69 +221,10 @@ const CounselorChat = () => {
       };
     });
 
-  const fetchFromSupabase = async () => {
-    const cnslIdNum = parseInt(cnsl_id, 10);
-    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return [];
-    const { data: rows, error } = await supabase
-      .from('chat_msg')
-      .select('chat_id, msg_data, summary, member_id, cnsler_id')
-      .eq('cnsl_id', cnslIdNum)
-      .order('created_at', { ascending: false });
-
-    if (error) return [];
-    if (!rows?.length) return [];
-    const row = rows[0];
-    const content = row?.msg_data?.content;
-    if (!Array.isArray(content)) return [];
-
-    const memberId = row.member_id || '';
-    const cnslerId = row.cnsler_id || '';
-    if (row.summary) {
-      try {
-        const s = typeof row.summary === 'string' ? JSON.parse(row.summary) : row.summary;
-        setSummary(s.summary || s.summary_line || null);
-      } catch {
-        setSummary(row.summary);
-      }
-    }
-
-    return content.map((item, idx) => {
-      const speaker = (item.speaker || 'user').toLowerCase();
-      const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
-      return {
-        chatId: `${row.chat_id}-${idx}`,
-        role,
-        content: item.text ?? '',
-        memberId,
-        cnslerId,
-        createdAt: item.timestamp,
-        created_at: item.timestamp,
-      };
-    });
-  };
-
   const fetchChatMessages = async () => {
-    if (!cnsl_id || !me?.email) return;
-    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base.endsWith('/api') ? base : base ? `${base}/api` : '';
-
     try {
-      let list = [];
-      list = await fetchFromSupabase();
-      if (list.length === 0 && apiBase) {
-        try {
-          const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/chat`, {
-            headers: { Accept: 'application/json', 'X-User-Email': me.email },
-            mode: 'cors',
-          });
-          if (res.ok) {
-            const data = await res.json();
-            list = Array.isArray(data) ? data : [];
-          }
-        } catch {
-          /* ignore */
-        }
-      }
+      if (!cnsl_id) return;
+      const list = await apiJson(`/api/cnsl/${cnsl_id}/chat`);
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
         if (mapped.length > 0) return mapped;
@@ -282,123 +233,42 @@ const CounselorChat = () => {
       });
     } catch (err) {
       console.warn('채팅 조회 실패:', err);
-      const list = await fetchFromSupabase();
-      setChatMessages(mapApiMessagesToUI(list));
     }
   };
   fetchChatMessagesRef.current = fetchChatMessages;
 
   const updateCnslStatApi = async (stat) => {
     const cnslIdNum = parseInt(cnsl_id, 10);
-    if (isNaN(cnslIdNum) || !me?.email) return false;
-
-    // Supabase 우선 (CORS/API 장애 시에도 상담 시작·종료 정상 작동)
-    // stat: A=대기, C=진행중, E=종료중(양쪽 동기화), D=완료
-    const { error } = await supabase.from('cnsl_reg').update({ cnsl_stat: stat }).eq('cnsl_id', cnslIdNum);
-    if (!error) {
+    if (isNaN(cnslIdNum)) return false;
+    try {
+      await apiJson(`/api/cnsl/${cnslIdNum}/stat`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cnslStat: stat }),
+      });
       setCnslStat(stat);
       return true;
+    } catch (e) {
+      console.warn('cnsl_stat 업데이트 실패:', e);
+      return false;
     }
-    const base = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
-    if (apiBase) {
-      try {
-        const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/stat`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email },
-          body: JSON.stringify({ cnslStat: stat }),
-          mode: 'cors',
-        });
-        if (res.ok) {
-          setCnslStat(stat);
-          return true;
-        }
-      } catch (e) {
-        console.warn('cnsl_stat API fallback 실패:', e);
-      }
-    }
-    console.warn('cnsl_stat 업데이트 실패');
-    return false;
   };
 
   const saveSummaryAndMsgData = async () => {
-    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base.endsWith('/api') ? base : base ? `${base}/api` : '';
     const basePayload = chatMessages.map((msg) => ({
       type: 'chat',
       speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
       text: msg.text,
       timestamp: String(msg.timestamp || Date.now()),
     }));
-
-    let summaryText = '';
-    let summaryLine = '';
-    if (basePayload.length > 0 && apiBase) {
-      try {
-        const formData = new FormData();
-        formData.append('msg_data', JSON.stringify(basePayload));
-        const res = await fetch(`${apiBase}/summarize`, {
-          method: 'POST',
-          body: formData,
-          mode: 'cors',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          summaryText = (data.summary || '').slice(0, 300);
-          summaryLine = data.summary_line || '';
-        }
-      } catch (err) {
-        console.warn('summarize API 실패, fallback 사용:', err);
-      }
-    }
-    if (!summaryText || !summaryLine) {
-      const texts = basePayload.filter((x) => x.text && typeof x.text === 'string').map((x) => x.text);
-      const full = texts.join(' ').trim();
-      if (full.length > 300) {
-        const cut = full.slice(0, 297);
-        const lastSpace = cut.lastIndexOf(' ');
-        summaryText = (lastSpace > 200 ? cut.slice(0, lastSpace) : cut) + '...';
-      } else {
-        summaryText = full || `상담 (${new Date().toLocaleString('ko-KR')})`;
-      }
-      summaryText = summaryText.slice(0, 300);
-      const userFirst = basePayload.find((x) => (x.speaker || '').toLowerCase() === 'user')?.text?.trim();
-      const core = userFirst || texts[0] || full;
-      summaryLine = core && core.length > 80 ? core.slice(0, 77) + '...' : core || summaryText.slice(0, 80);
-    }
-    if (!summaryText) {
-      summaryText = `상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = summaryLine || summaryText;
-    }
-    if (!summaryLine) summaryLine = summaryText;
-
-    if (apiBase) {
-      try {
-        const r = await fetch(`${apiBase}/cnsl/${cnsl_id}/chat/summary-full`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email ?? '' },
-          body: JSON.stringify({ summary: summaryText, summary_line: summaryLine, msg_data: basePayload }),
-          mode: 'cors',
-        });
-        if (r.ok) return;
-      } catch (err) {
-        console.warn('summary-full API 실패:', err);
-      }
-    }
-
-    const cnslIdNum = parseInt(cnsl_id, 10);
-    if (isNaN(cnslIdNum) || !me || !other) return;
-    const member_id = me.role === 'USER' ? me.email : other.email;
-    const cnsler_id = me.role === 'USER' ? other.email : me.email;
-    const msg_data = { content: basePayload };
-    const summaryPayload = JSON.stringify({ summary: summaryText, summary_line: summaryLine });
-    const { data: existing } = await supabase.from('chat_msg').select('chat_id').eq('cnsl_id', cnslIdNum).maybeSingle();
-    if (existing) {
-      await supabase.from('chat_msg').update({ msg_data, summary: summaryPayload }).eq('cnsl_id', cnslIdNum);
-    } else {
-      await supabase
-        .from('chat_msg')
-        .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: 'user', msg_data, summary: summaryPayload });
+    try {
+      await apiJson(`/api/cnsl/${cnsl_id}/chat/summary-full`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msg_data: basePayload }),
+      });
+    } catch (err) {
+      console.warn('summary-full 저장 실패:', err);
     }
   };
 
@@ -440,6 +310,76 @@ const CounselorChat = () => {
     fetchChatMessages();
   }, [cnsl_id, me?.email]);
 
+  // WebSocket(STOMP): 실시간 채팅/상태 수신 (HTTP 전송 + WS 수신)
+  useEffect(() => {
+    if (!cnsl_id || !me?.email) return undefined;
+    if (!BACKEND_BASE) return undefined;
+
+    const cnslIdNum = parseInt(cnsl_id, 10);
+    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return undefined;
+
+    // 초기 1회 동기화
+    fetchChatMessagesRef.current?.();
+
+    const client = new Client({
+      reconnectDelay: 3000,
+      webSocketFactory: () =>
+        new SockJS(WS_ENDPOINT, null, {
+          transports: ['websocket', 'xhr-streaming', 'xhr-polling'],
+          transportOptions: {
+            xhr: { withCredentials: true },
+          },
+        }),
+      onConnect: () => {
+        wsConnectedRef.current = true;
+
+        client.subscribe(`/topic/cnsl/${cnslIdNum}/chat`, (frame) => {
+          try {
+            const msg = JSON.parse(frame.body || '{}');
+            const mapped = mapApiMessagesToUI([msg])[0];
+            if (!mapped) return;
+            setChatMessages((prev) => {
+              const exists = prev.some((x) => String(x.id) === String(mapped.id));
+              if (exists) return prev;
+              return [...prev, mapped];
+            });
+          } catch {
+            // ignore
+          }
+        });
+
+        client.subscribe(`/topic/cnsl/${cnslIdNum}/stat`, (frame) => {
+          try {
+            const data = JSON.parse(frame.body || '{}');
+            const next = String(data?.cnslStat ?? '').trim().toUpperCase();
+            if (next) setCnslStat(next);
+          } catch {
+            // ignore
+          }
+        });
+      },
+      onStompError: () => {
+        wsConnectedRef.current = false;
+      },
+      onWebSocketClose: () => {
+        wsConnectedRef.current = false;
+      },
+    });
+
+    wsClientRef.current = client;
+    client.activate();
+
+    return () => {
+      wsConnectedRef.current = false;
+      try {
+        client.deactivate();
+      } catch {
+        /* ignore */
+      }
+      wsClientRef.current = null;
+    };
+  }, [cnsl_id, me?.email]);
+
   useEffect(() => {
     const scroll = (el) => el && (el.scrollTop = el.scrollHeight);
     scroll(chatScrollRefMobile.current);
@@ -451,73 +391,7 @@ const CounselorChat = () => {
     if (cnslStat === 'D') setShowEndModal(true);
   }, [cnslStat]);
 
-  useEffect(() => {
-    if (!cnsl_id || !me?.email) return;
-    const cnslIdNum = parseInt(cnsl_id, 10);
-    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
-
-    const channel = supabase
-      .channel(`counselor_chat:${cnsl_id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` },
-        () => fetchChatMessagesRef.current?.(),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_msg', filter: `cnsl_id=eq.${cnslIdNum}` },
-        () => fetchChatMessagesRef.current?.(),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'cnsl_reg', filter: `cnsl_id=eq.${cnslIdNum}` },
-        (payload) => {
-          const newStat = payload?.new?.cnsl_stat;
-          if (newStat) setCnslStat(String(newStat).trim().toUpperCase());
-        },
-      )
-      .subscribe();
-
-    const pollChat = setInterval(() => fetchChatMessagesRef.current?.(), 2000);
-    const pollStat = setInterval(async () => {
-      const { data } = await supabase.from('cnsl_reg').select('cnsl_stat').eq('cnsl_id', cnslIdNum).maybeSingle();
-      if (data?.cnsl_stat) setCnslStat(String(data.cnsl_stat).trim().toUpperCase());
-    }, 1000);
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollChat);
-      clearInterval(pollStat);
-    };
-  }, [cnsl_id, me?.email]);
-
-  const insertChatToSupabase = async (trimmed) => {
-    const cnslIdNum = parseInt(cnsl_id, 10);
-    if (isNaN(cnslIdNum) || cnslIdNum <= 0 || !me || !other) return null;
-    const member_id = me.role === 'USER' ? me.email : other.email;
-    const cnsler_id = me.role === 'USER' ? other.email : me.email;
-    const speaker = me.role === 'SYSTEM' ? 'cnsler' : 'user';
-    const entry = { speaker, text: trimmed, type: 'chat', timestamp: Date.now() };
-
-    const { data: existing } = await supabase
-      .from('chat_msg')
-      .select('chat_id, msg_data')
-      .eq('cnsl_id', cnslIdNum)
-      .maybeSingle();
-
-    const content = Array.isArray(existing?.msg_data?.content) ? [...existing.msg_data.content, entry] : [entry];
-    const msg_data = { content };
-
-    if (existing) {
-      const { error } = await supabase.from('chat_msg').update({ msg_data }).eq('cnsl_id', cnslIdNum);
-      return error ? null : { chatId: existing.chat_id };
-    }
-    const { data: inserted, error } = await supabase
-      .from('chat_msg')
-      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data })
-      .select('chat_id')
-      .single();
-    return error ? null : { chatId: inserted?.chat_id };
-  };
+  // 폴링 제거: WebSocket이 실시간 동기화 담당
 
   const handleChatSubmit = async (e) => {
     e.preventDefault();
@@ -532,29 +406,15 @@ const CounselorChat = () => {
     lastLocalAddAtRef.current = now;
     setChatInput('');
 
-    // Supabase 우선 사용 (CORS 등 API 장애 시에도 채팅 정상 작동)
-    try {
-      const ok = await insertChatToSupabase(trimmed);
-      if (ok) return;
-    } catch (err) {
-      console.warn('Supabase 채팅 저장 실패:', err);
-    }
-
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const base = apiBase.endsWith('/api') ? apiBase : apiBase ? `${apiBase}/api` : '';
     const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
-    if (base) {
-      try {
-        const res = await fetch(`${base}/cnsl/${cnsl_id}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email ?? '' },
-          body: JSON.stringify({ role: roleForApi, content: trimmed }),
-          mode: 'cors',
-        });
-        if (res.ok) return;
-      } catch (err) {
-        console.warn('채팅 API fallback 실패:', err);
-      }
+    try {
+      await apiJson(`/api/cnsl/${cnsl_id}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: roleForApi, content: trimmed }),
+      });
+    } catch (err) {
+      console.warn('채팅 API 실패:', err);
     }
   };
 
