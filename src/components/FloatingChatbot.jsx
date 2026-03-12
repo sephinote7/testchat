@@ -904,9 +904,27 @@ const FloatingChatbot = () => {
           console.warn('bot_msg 업데이트 실패:', error);
         }
         return;
+        return;
       }
 
-      // 2) 새 세션 생성 또는 세션 종료 시 최종 저장
+      // 2) 세션 종료(endSession=true) + currentBotId가 있으면 같은 row에 summary까지 업데이트
+      if (currentBotId && endSession) {
+        const { error } = await supabase
+          .from('bot_msg')
+          .update({
+            msg_data: storageMessages,
+            summary: typeof summary === 'string' ? summary : null,
+          })
+          .eq('bot_id', currentBotId);
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.warn('bot_msg 종료 저장 실패:', error);
+        }
+        clearCurrentBotId();
+        return;
+      }
+
+      // 3) 진행 중 row가 없는 첫 저장 또는 요약만 있는 경우: 새 row 생성
       const payload = {
         member_id: user.email,
         msg_data: storageMessages,
