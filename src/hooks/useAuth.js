@@ -103,15 +103,27 @@ export default function useAuth() {
             });
           }
         } else {
-          setUser({
-            isLogin: false,
-            role: 'USER',
-            email: null,
-            id: null,
-            nickname: null,
-            provider: null,
-            kakao_additional_done: false,
-          });
+          // Supabase 세션은 없지만, Spring(auth.store) 기준으로는 로그인일 수 있음
+          const storeLogin = useAuthStore.getState()?.isLogin;
+          const storeEmail = useAuthStore.getState()?.email;
+          if (storeLogin && storeEmail) {
+            setUser((prev) => ({
+              ...prev,
+              isLogin: true,
+              role: prev.role || 'USER',
+              email: storeEmail,
+            }));
+          } else {
+            setUser({
+              isLogin: false,
+              role: 'USER',
+              email: null,
+              id: null,
+              nickname: null,
+              provider: null,
+              kakao_additional_done: false,
+            });
+          }
         }
       } finally {
         setLoading(false);

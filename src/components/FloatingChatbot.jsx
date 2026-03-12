@@ -954,6 +954,8 @@ const FloatingChatbot = () => {
 
       const response = await fetch(endpoint, {
         method: 'POST',
+        // Spring JWT 필터에서 accessToken/refreshToken 쿠키를 읽을 수 있도록 쿠키 전송
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
