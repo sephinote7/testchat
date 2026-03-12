@@ -128,11 +128,21 @@ const AIChat = () => {
           return;
         }
         if (!data) return;
+        const parseTimeToDate = (t) => {
+          if (!t) return null;
+          const s = String(t).trim();
+          // time without tz: "HH:MM:SS" (optionally with fractional seconds)
+          const m = s.match(/^(\d{2}):(\d{2}):(\d{2})/);
+          if (!m) return null;
+          const d = new Date();
+          d.setHours(Number(m[1]), Number(m[2]), Number(m[3]), 0);
+          return d;
+        };
         setCnslInfo({
           id: data.cnsl_id,
           stat: data.cnsl_stat || 'C',
-          startAt: data.cnsl_start_time ? new Date(data.cnsl_start_time) : null,
-          endAt: data.cnsl_end_time ? new Date(data.cnsl_end_time) : null,
+          startAt: parseTimeToDate(data.cnsl_start_time),
+          endAt: parseTimeToDate(data.cnsl_end_time),
         });
         if ((data.cnsl_stat || 'C') === 'C') {
           setActiveCnslId(data.cnsl_id);
@@ -397,8 +407,9 @@ const AIChat = () => {
 
       const now = new Date();
       const cnslDt = now.toISOString().slice(0, 10); // YYYY-MM-DD
-      const cnslStartTime = now.toISOString(); // 타임존 포함 ISO 문자열
-      const cnslEndTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 시작 기준 1시간 후
+      // cnsl_start_time/cnsl_end_time 컬럼은 time without time zone(HH:MM:SS) 타입
+      const cnslStartTime = now.toISOString().slice(11, 19);
+      const cnslEndTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString().slice(11, 19);
 
       const { data, error } = await supabase
         .from('cnsl_reg')
