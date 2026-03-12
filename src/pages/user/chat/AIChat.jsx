@@ -1,33 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Navigate } from 'react-router-dom';
+import { supabase } from '../../../lib/supabase';
 import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 
-// AI 상담: 브라우저는 Spring API만 호출하고,
-// Spring이 내부에서 testchatpy(OpenAI/요약)를 호출하도록 구성합니다.
+// AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
+// GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)
 
-const BACKEND_BASE = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '');
-
-async function apiFetch(path, init = {}) {
-  if (!BACKEND_BASE) throw new Error('VITE_BACKEND_URL이 설정되지 않았습니다.');
-  const res = await fetch(`${BACKEND_BASE}${path}`, {
-    credentials: 'include', // HttpOnly refresh/access 쿠키 기반 운영
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-    },
-  });
-  return res;
-}
-
-async function apiJson(path, init = {}) {
-  const res = await apiFetch(path, init);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const msg = data?.message || data?.error || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data;
-}
+const AI_CHAT_API_BASE = null;
 
 function msgDataContentToMessages(content) {
   if (!Array.isArray(content)) return [];
@@ -64,7 +43,7 @@ const AIChat = () => {
   const { setActiveCnslId, clearActiveCnslId } = useAiConsultStore();
   const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
 
-  const useAiApi = Boolean(cnslId && BACKEND_BASE);
+  const useAiApi = Boolean(cnslId && AI_CHAT_API_BASE);
   const shouldRedirectToActive = !cnslId && activeCnslId;
 
   // cnslId 없을 때 DB에서 진행 중(C) AI 상담 조회 → store 보강 (메인/새 탭/리프레시 대비)
@@ -72,8 +51,18 @@ const AIChat = () => {
     if (cnslId || !userEmail) return;
     (async () => {
       try {
-        const data = await apiJson(`/api/cnsl/active?type=3`);
-        if (data?.cnslId) setActiveCnslId(data.cnslId);
+        const { data } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_id')
+          .eq('member_id', userEmail)
+          .eq('cnsl_tp', '3')
+          .eq('cnsl_stat', 'C')
+          .order('cnsl_id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.cnsl_id) {
+          setActiveCnslId(data.cnsl_id);
+        }
       } catch {
         /* ignore */
       }
@@ -82,16 +71,14 @@ const AIChat = () => {
 
   useEffect(() => {
     (async () => {
-      try {
-        const me = await apiJson('/api/auth/me');
-        if (me?.email) setUserEmail(String(me.email));
-      } catch {
-        // 미로그인 상태면 무시
-      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user?.email) setUserEmail(user.email);
     })();
   }, []);
 
-  // 회원 프로필(mbti/persona) 조회 (Spring API)
+  // member 테이블에서 mbti, persona 조회 (상담 참고용) — Supabase public.member 기준 email 컬럼
   useEffect(() => {
     if (!userEmail) {
       setProfileCheckDone(true);
@@ -99,7 +86,16 @@ const AIChat = () => {
     }
     (async () => {
       try {
-        const data = await apiJson('/api/member/profile');
+        const { data, error } = await supabase
+          .from('member')
+          .select('mbti, persona')
+          .eq('email', userEmail)
+          .maybeSingle();
+        if (error) {
+          setShowProfileRequiredModal(true);
+          setProfileCheckDone(true);
+          return;
+        }
         if (data) {
           const mbtiVal = data.mbti != null ? String(data.mbti).trim() : '';
           const personaVal = data.persona != null ? String(data.persona).trim() : '';
@@ -121,33 +117,43 @@ const AIChat = () => {
     })();
   }, [userEmail]);
 
-  // 상담 정보 조회 (상담 상태/시작·종료 시간) — Spring API
+  // cnsl_reg 정보 조회 (상담 상태/시작·종료 시간)
   useEffect(() => {
     if (!cnslId) return;
     (async () => {
       try {
-        const data = await apiJson(`/api/cnsl/${cnslId}`);
+        const { data, error } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_id, cnsl_start_time, cnsl_end_time, cnsl_stat')
+          .eq('cnsl_id', cnslId)
+          .maybeSingle();
+        if (error) {
+          console.warn('cnsl_reg 조회 실패:', error);
+          return;
+        }
         if (!data) return;
         setCnslInfo({
-          id: data.cnslId ?? cnslId,
-          stat: data.cnslStat || 'C',
-          startAt: data.cnslStartTime ? new Date(data.cnslStartTime) : null,
-          endAt: data.cnslEndTime ? new Date(data.cnslEndTime) : null,
+          id: data.cnsl_id,
+          stat: data.cnsl_stat || 'C',
+          startAt: data.cnsl_start_time ? new Date(data.cnsl_start_time) : null,
+          endAt: data.cnsl_end_time ? new Date(data.cnsl_end_time) : null,
         });
-        if ((data.cnslStat || 'C') === 'C') {
-          setActiveCnslId(data.cnslId ?? cnslId);
+        if ((data.cnsl_stat || 'C') === 'C') {
+          setActiveCnslId(data.cnsl_id);
         }
       } catch (e) {
-        console.warn('상담 정보 조회 오류:', e);
+        console.warn('cnsl_reg 조회 오류:', e);
       }
     })();
   }, [cnslId]);
 
   useEffect(() => {
-    if (!cnslId || !BACKEND_BASE) return;
+    if (!cnslId || !AI_CHAT_API_BASE || !userEmail) return;
     (async () => {
       try {
-        const res = await apiFetch(`/api/ai/chat/${cnslId}`);
+        const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
+          headers: { 'X-User-Email': userEmail },
+        });
         if (!res.ok) {
           setLoadingChat(false);
           return;
@@ -175,7 +181,7 @@ const AIChat = () => {
         setLoadingChat(false);
       }
     })();
-  }, [cnslId]);
+  }, [cnslId, userEmail]);
 
   const handleSend = async (event) => {
     event.preventDefault();
@@ -187,7 +193,7 @@ const AIChat = () => {
       return;
     }
 
-    if (useAiApi) {
+    if (useAiApi && userEmail) {
       setInput('');
       const tempUser = {
         id: `temp-${Date.now()}`,
@@ -197,10 +203,11 @@ const AIChat = () => {
       setMessages((prev) => [...prev, tempUser]);
       setAiThinking(true);
       try {
-        const res = await apiFetch(`/api/ai/chat/${cnslId}`, {
+        const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-User-Email': userEmail,
           },
           body: JSON.stringify({
             content: trimmed,
@@ -288,10 +295,11 @@ const AIChat = () => {
       let summaryForCnsl = null;
 
       // 1) msg_data로 AI 요약 생성 후 ai_msg.summary 저장 (반드시 먼저 호출)
-      if (BACKEND_BASE) {
+      if (AI_CHAT_API_BASE && userEmail) {
         try {
-          const res = await apiFetch(`/api/ai/chat/${cnslId}/summary`, {
+          const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}/summary`, {
             method: 'POST',
+            headers: { 'X-User-Email': userEmail },
           });
           const data = await res.json().catch(() => null);
           if (res.ok && data) {
@@ -308,15 +316,11 @@ const AIChat = () => {
       }
 
       // 2) cnsl_reg: cnsl_stat=D, cnsl_content=요약(한 줄)으로 업데이트
-      try {
-        await apiJson(`/api/cnsl/${cnslId}/end`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cnslContent: summaryForCnsl || undefined,
-          }),
-        });
-      } catch (error) {
+      const updatePayload = { cnsl_stat: 'D' };
+      if (summaryForCnsl) updatePayload.cnsl_content = summaryForCnsl;
+
+      const { error } = await supabase.from('cnsl_reg').update(updatePayload).eq('cnsl_id', cnslId);
+      if (error) {
         console.error('상담 종료 실패:', error);
         clearTimeout(removeTimeout);
         removeToast();
@@ -387,29 +391,49 @@ const AIChat = () => {
       return;
     }
 
-    // 새 AI 즉시 상담 생성 — Spring API
+    // 새 AI 즉시 상담: cnsl_reg에 한 건 생성 (cnsl_tp=3, 상담사 없이 진행)
     try {
-      const me = await apiJson('/api/auth/me');
-      const email = (me?.email || '').trim();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const email = (user?.email || '').trim();
       if (!email) {
         alert('로그인 후 이용 가능합니다.');
         return;
       }
-      const created = await apiJson('/api/cnsl/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'AI 즉시 상담' }),
-      });
 
-      if (!created?.cnslId) {
-        console.error('AI 상담 생성 실패:', created);
+      const now = new Date();
+      const cnslDt = now.toISOString().slice(0, 10); // YYYY-MM-DD
+      const cnslStartTime = now.toISOString(); // 타임존 포함 ISO 문자열
+      const cnslEndTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 시작 기준 1시간 후
+
+      const { data, error } = await supabase
+        .from('cnsl_reg')
+        .insert({
+          member_id: email,
+          cnsler_id: null,
+          cnsl_tp: '3', // AI 즉시 상담
+          cnsl_cate: '1', // AI 상담 카테고리 고정
+          cnsl_dt: cnslDt,
+          cnsl_start_time: cnslStartTime,
+          cnsl_end_time: cnslEndTime,
+          cnsl_title: 'AI 즉시 상담',
+          cnsl_content: null, // 종료 시 요약으로 채움
+          cnsl_stat: 'C', // 진행 중
+          cnsl_todo_yn: 'Y',
+        })
+        .select('cnsl_id')
+        .single();
+
+      if (error || !data?.cnsl_id) {
+        console.error('cnsl_reg 생성 실패:', error);
         alert('상담 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
 
       // 생성된 상담 ID로 라우팅 → /chat/withai/:cnslId 에서 testchatpy와 연동
       setShowStartModal(false);
-      navigate(`/chat/withai/${created.cnslId}`, { replace: true });
+      navigate(`/chat/withai/${data.cnsl_id}`, { replace: true });
     } catch (e) {
       console.error('AI 즉시 상담 생성 중 오류:', e);
       alert('상담 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');

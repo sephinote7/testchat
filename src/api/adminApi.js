@@ -5,15 +5,12 @@ import { authApi } from '../axios/Auth';
 // [기간 내 상담 건수 및 수익 : 카테고리별]
 export const getCategoryRevenueStatistics = async ({ startDate, endDate }) => {
   try {
-    const { data } = await authApi.get(
-      `/api/cnslReg_categoryRevenueStatistics`,
-      {
-        params: {
-          startDate,
-          endDate,
-        },
+    const { data } = await authApi.get(`/api/cnslReg_categoryRevenueStatistics`, {
+      params: {
+        startDate,
+        endDate,
       },
-    );
+    });
 
     return data;
   } catch (error) {

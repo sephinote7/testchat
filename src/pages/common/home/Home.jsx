@@ -468,7 +468,7 @@ const Home = () => {
               </h3>
               <div className="grid grid-cols-2 gap-5">
                 <div className="relative bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] overflow-hidden p-6 h-full min-h-[320px] flex items-center justify-center">
-                  <img src="http://localhost:8000/weekly-wordcloud" className="" />
+                  {/* 운영 환경에서는 localhost 이미지 호출을 사용하지 않습니다. */}
                 </div>
                 <div className="bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] p-5">
                   <div className="flex items-center justify-between mb-4">

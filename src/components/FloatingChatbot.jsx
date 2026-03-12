@@ -1,31 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 import { useChatbotStore } from '../stores/useChatbotStore';
-
-// 브라우저는 Spring API만 호출하고, Spring이 DB/Supabase 연동을 담당합니다.
-const BACKEND_BASE = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '');
-
-async function apiFetch(path, init = {}) {
-  if (!BACKEND_BASE) throw new Error('VITE_BACKEND_URL이 설정되지 않았습니다.');
-  return fetch(`${BACKEND_BASE}${path}`, {
-    credentials: 'include', // HttpOnly 쿠키 기반
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-    },
-  });
-}
-
-async function apiJson(path, init = {}) {
-  const res = await apiFetch(path, init);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const msg = data?.message || data?.error || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data;
-}
 
 const DISCLAIMER_TEXT =
   "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다.";
@@ -914,19 +891,40 @@ const FloatingChatbot = () => {
     if (!user?.isLogin || !user.email) return;
     try {
       const storageMessages = toStorageMessages(conversation);
-      // 저장은 Spring API로 일원화 (DB는 Spring이 관리)
-      const data = await apiJson('/api/chatbot/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          botId: currentBotId || undefined,
-          endSession: Boolean(endSession),
-          summary: typeof summary === 'string' ? summary : undefined,
-          msg_data: storageMessages,
-        }),
-      });
-      if (!endSession && data?.botId) setCurrentBotId(data.botId);
-      if (endSession) clearCurrentBotId();
+      // 1) 진행 중 row가 있으면 msg_data(+ summary)만 업데이트
+      if (currentBotId && !endSession) {
+        const { error } = await supabase
+          .from('bot_msg')
+          .update({
+            msg_data: storageMessages,
+          })
+          .eq('bot_id', currentBotId);
+        if (error) {
+          // eslint-disable-next-line no-console
+          console.warn('bot_msg 업데이트 실패:', error);
+        }
+        return;
+      }
+
+      // 2) 새 세션 생성 또는 세션 종료 시 최종 저장
+      const payload = {
+        member_id: user.email,
+        msg_data: storageMessages,
+        created_at: new Date().toISOString(),
+      };
+      if (typeof summary === 'string') {
+        payload.summary = summary;
+      }
+      const { data, error } = await supabase.from('bot_msg').insert(payload).select('bot_id').single();
+
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.warn('bot_msg 저장 실패:', error);
+      } else if (!endSession && data?.bot_id) {
+        setCurrentBotId(data.bot_id);
+      } else if (endSession) {
+        clearCurrentBotId();
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('bot_msg 저장 실패:', e);
@@ -951,11 +949,13 @@ const FloatingChatbot = () => {
 
   const sendMessageToBackend = async (messageText, nextMessages, pendingId) => {
     try {
-      // Spring이 내부에서 testchatpy 호출하도록 프록시 엔드포인트 사용
-      const endpointPath = import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || '/api/testchatpy/chat';
-      const data = await apiJson(endpointPath, {
+      const endpoint = import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || '/api/testchatpy/chat';
+
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           message: messageText,
           history: buildChatHistoryForBackend(nextMessages),
@@ -963,6 +963,20 @@ const FloatingChatbot = () => {
           source: 'gominsunsak-web',
         }),
       });
+
+      let data;
+      if (!response.ok) {
+        let errorBody = null;
+        try {
+          errorBody = await response.json();
+        } catch {
+          // ignore
+        }
+        const detail = (errorBody && (errorBody.error || errorBody.message)) || response.statusText || 'Unknown error';
+        throw new Error(`챗봇 서버 응답 오류 (${response.status} ${detail})`);
+      } else {
+        data = await response.json();
+      }
       const now = new Date().toLocaleTimeString('ko-KR', {
         hour: '2-digit',
         minute: '2-digit',
