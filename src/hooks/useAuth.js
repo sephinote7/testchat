@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { authApi, normalizeRoleName } from '../axios/Auth';
 import { useAuthStore } from '../store/auth.store';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export default function useAuth() {
   // 초기 상태: 로그아웃 상태

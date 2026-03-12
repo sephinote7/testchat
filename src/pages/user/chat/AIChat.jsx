@@ -92,11 +92,7 @@ const AIChat = () => {
           // public.member PK는 member_id(varchar)=이메일, email 컬럼 없음
           .eq('member_id', userEmail)
           .maybeSingle();
-        if (error) {
-          setShowProfileRequiredModal(true);
-          setProfileCheckDone(true);
-          return;
-        }
+        if (error) return;
         if (data) {
           const mbtiVal = data.mbti != null ? String(data.mbti).trim() : '';
           const personaVal = data.persona != null ? String(data.persona).trim() : '';
@@ -104,15 +100,14 @@ const AIChat = () => {
             mbti: mbtiVal || null,
             persona: personaVal || null,
           });
-          if (!mbtiVal || !personaVal) {
-            setShowProfileRequiredModal(true);
-          }
         } else {
-          setShowProfileRequiredModal(true);
+          // 프로필 정보가 없어도 AI 상담은 진행 가능
         }
       } catch {
-        setShowProfileRequiredModal(true);
+        // ignore
       } finally {
+        // mbti/persona는 optional. 안내 모달은 띄우지 않음.
+        setShowProfileRequiredModal(false);
         setProfileCheckDone(true);
       }
     })();
@@ -462,39 +457,14 @@ const AIChat = () => {
 
   const loading = useAiApi && loadingChat;
 
-  // 프로필 확인 후에만 리다이렉트 (mbti/persona 없을 때 안내 모달을 먼저 보여주기 위함)
-  if (shouldRedirectToActive && profileCheckDone && !showProfileRequiredModal) {
+  // 프로필 유무와 상관없이 진행 중 상담은 바로 리다이렉트
+  if (shouldRedirectToActive && profileCheckDone) {
     return <Navigate to={`/chat/withai/${activeCnslId}`} replace />;
   }
 
   return (
     <>
-      {/* MBTI/페르소나 입력 필요 안내 모달 */}
-      {showProfileRequiredModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <p className="text-center text-gray-800 font-medium leading-relaxed">
-              상담을 위해 MBTI와 자기 소개 정보가 필요합니다. 정보를 입력해 주세요.
-            </p>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={handleProfileRequiredCancel}
-                className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                취소하기
-              </button>
-              <button
-                type="button"
-                onClick={handleProfileRequiredEdit}
-                className="flex-1 rounded-xl bg-[#2563eb] py-3 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
-              >
-                정보수정
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* mbti/persona는 선택 입력. 미입력이어도 상담 진행 */}
 
       {/* MOBILE */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
