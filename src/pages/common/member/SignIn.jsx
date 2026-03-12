@@ -37,20 +37,26 @@ const SignIn = () => {
       });
 
       console.log('로그인 테스트 == ', res);
-      if (res.data.accessToken) {
-        setAccessToken(res.data.accessToken);
-        setLoginStatus(true);
-        setRoleName(res.data.roleNames[0]);
-        setNickname(res.data.nickname);
 
-        if (res.data.email) {
+      // 응답 바디 구조에 상관없이, HTTP 200이면 로그인 성공으로 간주하고
+      // 토큰/역할 정보는 있으면 사용, 없으면 쿠키 기반으로만 동작하게 한다.
+      if (res.status === 200) {
+        if (res.data?.accessToken) {
+          setAccessToken(res.data.accessToken);
+        }
+        setLoginStatus(true);
+        if (res.data?.roleNames?.[0]) setRoleName(res.data.roleNames[0]);
+        if (res.data?.nickname) setNickname(res.data.nickname);
+
+        if (res.data?.email) {
           setStoreEmail(res.data.email);
         } else setStoreEmail(email);
 
         setShowSuccessModal(true);
         setTimeout(() => {
-          if (res.data.roleNames[0] === 'USER') navigate('/');
-          else if (res.data.roleNames[0] === 'SYSTEM') navigate('/system/mypage');
+          const role = res.data?.roleNames?.[0] || 'USER';
+          if (role === 'USER') navigate('/');
+          else if (role === 'SYSTEM') navigate('/system/mypage');
           else navigate('/alarm');
         }, 1500);
       } else {
