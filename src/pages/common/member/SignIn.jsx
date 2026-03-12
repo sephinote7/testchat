@@ -29,11 +29,10 @@ const SignIn = () => {
     }
 
     try {
-      const res = await authApi.post('/api/member/login', null, {
-        params: {
-          username: email,
-          password: password,
-        },
+      // Spring formLogin은 POST body의 application/x-www-form-urlencoded(username/password) 기대. 쿼리스트링은 사용하지 않음.
+      const body = new URLSearchParams({ username: email, password });
+      const res = await authApi.post('/api/member/login', body, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
       console.log('로그인 테스트 == ', res);
