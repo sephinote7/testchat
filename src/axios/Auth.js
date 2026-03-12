@@ -13,7 +13,10 @@ authApi.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
-  config.headers['Content-Type'] = 'application/json';
+  // 로그인 등에서 이미 Content-Type을 지정한 경우 덮어쓰지 않음 (form-urlencoded 필요)
+  if (!config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json';
+  }
 
   return config;
 });
