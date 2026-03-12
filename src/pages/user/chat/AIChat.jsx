@@ -3,11 +3,13 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 import { useAuthStore } from '../../../store/auth.store';
+import { BASE_URL } from '../../../api/config';
 
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
 // GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)
 
-const AI_CHAT_API_BASE = null;
+// Spring 백엔드(쿠키 JWT 인증) 기반. /api/ai/chat/* 를 사용한다.
+const AI_CHAT_API_BASE = (BASE_URL || '').replace(/\/$/, '');
 
 function msgDataContentToMessages(content) {
   if (!Array.isArray(content)) return [];
@@ -154,11 +156,11 @@ const AIChat = () => {
   }, [cnslId]);
 
   useEffect(() => {
-    if (!cnslId || !AI_CHAT_API_BASE || !userEmail) return;
+    if (!cnslId || !AI_CHAT_API_BASE) return;
     (async () => {
       try {
         const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
-          headers: { 'X-User-Email': userEmail },
+          credentials: 'include',
         });
         if (!res.ok) {
           setLoadingChat(false);
@@ -187,7 +189,7 @@ const AIChat = () => {
         setLoadingChat(false);
       }
     })();
-  }, [cnslId, userEmail]);
+  }, [cnslId]);
 
   const handleSend = async (event) => {
     event.preventDefault();
@@ -211,9 +213,9 @@ const AIChat = () => {
       try {
         const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Email': userEmail,
           },
           body: JSON.stringify({
             content: trimmed,
@@ -245,19 +247,8 @@ const AIChat = () => {
       return;
     }
 
-    // cnslId 없음: 로컬 인사 1개만 (실제 대화는 testchatpy 연동 시에만)
-    const nextUserMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      text: trimmed,
-    };
-    const nextAiMessage = {
-      id: `ai-${Date.now() + 1}`,
-      role: 'ai',
-      text: '상담을 이용하시려면 로그인 후 AI 상담 링크(상담 ID 포함)로 접속해 주세요.',
-    };
-    setMessages((prev) => [...prev, nextUserMessage, nextAiMessage]);
-    setInput('');
+    // cnslId 없는 상태에서는 먼저 상담을 생성/선택해야 한다.
+    alert('상담을 시작한 뒤 메시지를 보낼 수 있습니다.');
   };
 
   useEffect(() => {
@@ -301,11 +292,11 @@ const AIChat = () => {
       let summaryForCnsl = null;
 
       // 1) msg_data로 AI 요약 생성 후 ai_msg.summary 저장 (반드시 먼저 호출)
-      if (AI_CHAT_API_BASE && userEmail) {
+      if (AI_CHAT_API_BASE) {
         try {
           const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}/summary`, {
             method: 'POST',
-            headers: { 'X-User-Email': userEmail },
+            credentials: 'include',
           });
           const data = await res.json().catch(() => null);
           if (res.ok && data) {
