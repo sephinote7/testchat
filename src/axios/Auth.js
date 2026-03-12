@@ -62,7 +62,6 @@ export const refreshAccessToken = async () => {
     if (error?.response?.status === 401) {
       console.warn('refresh 401 → 로그아웃 처리');
       clearAuth();
-      window.location.href = '/member/signin';
       return null;
     }
 
