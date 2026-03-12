@@ -26,6 +26,7 @@ const employment_cnsl =
 
 const Home = () => {
   const { user, loading } = useAuth();
+  const activeCnslId = useAiConsultStore((s) => s.activeCnslId);
   const { email, accessToken, roleName } = useAuthStore();
   const [communityMode, setCommunityMode] = useState('realtime'); // realtime | week | month | recommend
   const [communityTopPosts, setCommunityTopPosts] = useState([]);

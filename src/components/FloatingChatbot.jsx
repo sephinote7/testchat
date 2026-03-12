@@ -60,7 +60,7 @@ function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave 
               </svg>
             </span>
             <span className="text-sm font-medium text-gray-800">챗봇 내용 초기화</span>
-          </div>
+            </div>
           <button
             type="button"
             onClick={handleClearClick}
@@ -68,7 +68,7 @@ function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave 
           >
             초기화
           </button>
-        </div>
+          </div>
         {/* 알림 */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div className="flex items-center gap-3">
@@ -80,7 +80,7 @@ function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave 
             </span>
             <span className="text-sm font-medium text-gray-800">알림</span>
           </div>
-          <button
+            <button
             type="button"
             role="switch"
             aria-checked={draft.notificationsEnabled}
@@ -99,7 +99,7 @@ function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave 
                 draft.notificationsEnabled ? 'translate-x-5' : 'translate-x-0.5'
               }`}
             />
-          </button>
+            </button>
         </div>
         {/* AI 상담 스타일 */}
         <div className="border-b border-gray-100 pb-3">
@@ -166,7 +166,7 @@ function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave 
             <h3 className="mb-2 text-sm font-semibold text-gray-900">챗봇 내용 초기화</h3>
             <p className="mb-4 text-xs text-gray-600">현재 챗봇 대화 내용이 모두 삭제됩니다. 계속 진행하시겠습니까?</p>
             <div className="flex gap-2">
-              <button
+        <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
                 className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -182,8 +182,8 @@ function SettingsPanel({ draft, onDraftChange, onClearHistory, onCancel, onSave 
                 className="flex-1 rounded-lg bg-red-500 py-2 text-sm font-medium text-white hover:bg-red-600"
               >
                 초기화
-              </button>
-            </div>
+        </button>
+      </div>
           </div>
         </div>
       )}
@@ -290,7 +290,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-main-01 px-4 py-6 text-sm text-gray-500">
         <span>알림 목록 불러오는 중...</span>
-      </div>
+          </div>
     );
   }
 
@@ -366,20 +366,20 @@ function NotificationsPanel({ userEmail, onNavigate }) {
               ) : (
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M9 18l6-6-6-6" />
-                </svg>
+                    </svg>
               )}
             </span>
           </button>
-        </div>
+                  </div>
         {panelOpen && (
           <>
             <div className="mb-3 flex gap-2">
-              <button
+                      <button
                 type="button"
                 className="flex-1 rounded-[5px] border border-main-02 bg-main-02 py-1.5 text-xs font-medium text-white"
-              >
+                      >
                 전체
-              </button>
+                      </button>
               <button
                 type="button"
                 className="flex-1 rounded-[5px] border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
@@ -399,13 +399,13 @@ function NotificationsPanel({ userEmail, onNavigate }) {
               >
                 더보기
               </button>
-            </div>
+                  </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               <ul className="space-y-2">
                 <li>
                   <div className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-3 text-center text-xs text-gray-500">
                     현재 등록된 상담이 없습니다.
-                  </div>
+              </div>
                 </li>
               </ul>
             </div>
@@ -428,7 +428,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
             {panelOpen ? (
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 15l-6-6-6 6" />
-              </svg>
+          </svg>
             ) : (
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 18l6-6-6-6" />
@@ -440,7 +440,7 @@ function NotificationsPanel({ userEmail, onNavigate }) {
       {panelOpen && (
         <>
           <div className="mb-3 flex gap-2">
-            <button
+        <button
               type="button"
               onClick={() => setFilter('all')}
               className={`flex-1 rounded-[5px] border py-1.5 text-xs font-medium ${
@@ -448,8 +448,8 @@ function NotificationsPanel({ userEmail, onNavigate }) {
               }`}
             >
               전체
-            </button>
-            <button
+        </button>
+        <button
               type="button"
               onClick={() => setFilter('scheduled')}
               className={`flex-1 rounded-[5px] border py-1.5 text-xs font-medium ${
@@ -477,8 +477,8 @@ function NotificationsPanel({ userEmail, onNavigate }) {
               className="flex-1 rounded-[5px] border border-gray-300 bg-white py-1.5 text-xs font-medium text-gray-700"
             >
               더보기
-            </button>
-          </div>
+        </button>
+      </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <ul className="space-y-2">{limitedList.map(renderItem)}</ul>
           </div>
@@ -949,7 +949,8 @@ const FloatingChatbot = () => {
 
   const sendMessageToBackend = async (messageText, nextMessages, pendingId) => {
     try {
-      const endpoint = import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || '/api/testchatpy/chat';
+      const endpoint =
+        import.meta.env.VITE_TESTCHATPY_CHAT_ENDPOINT || 'https://api.gmss.site/api/testchatpy/chat';
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1078,7 +1079,7 @@ const FloatingChatbot = () => {
       return (
         <div className="flex h-full items-center justify-center text-xs text-gray-400">
           아직 대화가 없습니다. 하단 입력창에 고민순삭 홈페이지 관련 질문을 입력해 보세요.
-        </div>
+      </div>
       );
     }
 
@@ -1089,7 +1090,7 @@ const FloatingChatbot = () => {
             {message.sender === 'bot' && (
               <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-main-02 text-[11px] font-semibold text-white">
                 AI
-              </div>
+          </div>
             )}
             <div
               className={`max-w-[80%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed shadow-sm sm:text-sm ${
@@ -1103,16 +1104,16 @@ const FloatingChatbot = () => {
               {message.quickActions && message.quickActions.length > 0 && (
                 <div className="mt-3 space-y-1">
                   {message.quickActions.map((action) => (
-                    <button
+          <button
                       key={action.label}
                       type="button"
                       onClick={() => handleQuickAction(action.path, action.label)}
                       className="block w-full rounded-lg bg-main-01 px-3 py-2 text-left text-[11px] font-medium text-main-02 hover:bg-main-02/10"
                     >
                       {action.label}
-                    </button>
+          </button>
                   ))}
-                </div>
+        </div>
               )}
 
               {message.timestamp && <div className="mt-1 text-[10px] text-gray-400">{message.timestamp}</div>}
@@ -1134,7 +1135,7 @@ const FloatingChatbot = () => {
             <div className="flex h-[860px] max-h-[calc(100vh-40px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[600px] sm:max-h-[600px] sm:w-[390px]">
               {/* 상단 헤더 (파란색, X 버튼) */}
               <div className="flex h-[72px] items-center justify-between bg-main-02 px-4 text-white">
-                <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs font-semibold">
                     AI
                   </div>
@@ -1142,8 +1143,8 @@ const FloatingChatbot = () => {
                     <span className="text-sm font-semibold">고민순삭 어시스턴트 순삭이</span>
                     <span className="sm text-white/80">{headerSubtitle}</span>
                   </div>
-                </div>
-                <button
+          </div>
+          <button
                   type="button"
                   onClick={closeChat}
                   aria-label="챗봇 닫기"
@@ -1161,8 +1162,8 @@ const FloatingChatbot = () => {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                </button>
-              </div>
+          </button>
+        </div>
 
               {/* 메인 콘텐츠: 채팅 / 알림 목록 / 설정 */}
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1170,11 +1171,11 @@ const FloatingChatbot = () => {
                   <>
                     <div className="flex-1 min-h-0 overflow-y-auto bg-main-01 px-3 py-3 text-[13px] text-gray-800 sm:px-4 sm:py-4 sm:text-sm">
                       {renderMessages()}
-                    </div>
+          </div>
                     {/* 입력 영역 + 고지 문구 (채팅 뷰에서만) */}
                     <div className="border-t border-gray-200 bg-white px-3 py-3 sm:flex-none sm:px-4 sm:py-1">
                       <form onSubmit={handleSubmit} className="mb-2 flex h-[50px] items-center gap-2">
-                        <button
+            <button
                           type="button"
                           onClick={() => {
                             if (messages.length > 0) {
@@ -1205,7 +1206,7 @@ const FloatingChatbot = () => {
                             <path d="M3 12L12 3l9 9" />
                             <path d="M9 21V12h6v9" />
                           </svg>
-                        </button>
+            </button>
                         <textarea
                           rows={1}
                           value={inputValue}
@@ -1219,7 +1220,7 @@ const FloatingChatbot = () => {
                           }}
                           className="min-h-[40px] max-h-24 flex-1 resize-none overflow-y-auto rounded-xl border border-gray-300 px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-main-02 focus:ring-1 focus:ring-main-02 sm:text-sm"
                         />
-                        <button
+            <button
                           type="submit"
                           disabled={isSending || !inputValue.trim()}
                           className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-colors ${
@@ -1238,10 +1239,10 @@ const FloatingChatbot = () => {
                             <path d="M22 2L11 13" />
                             <path d="M22 2L15 22L11 13L2 9L22 2Z" />
                           </svg>
-                        </button>
+          </button>
                       </form>
                       <p className="xs leading-snug text-gray-500">{DISCLAIMER_TEXT}</p>
-                    </div>
+        </div>
                   </>
                 )}
                 {chatView === 'notifications' && (
@@ -1263,11 +1264,11 @@ const FloatingChatbot = () => {
                     }}
                   />
                 )}
-              </div>
+      </div>
 
               {/* 하단 푸터 (PC 기준 60px, 글씨 잘리지 않도록) */}
               <footer className="flex h-16 shrink-0 items-center justify-between border-t border-gray-200 bg-main-01 px-2 py-2 sm:h-[60px] sm:justify-around sm:px-3">
-                <button
+        <button
                   type="button"
                   onClick={() => setChatView('chat')}
                   className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
@@ -1286,10 +1287,10 @@ const FloatingChatbot = () => {
                   >
                     <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                     <path d="M9 22V12h6v10" />
-                  </svg>
+          </svg>
                   <span className="truncate text-xs sm:text-sm">홈</span>
-                </button>
-                <button
+        </button>
+        <button
                   type="button"
                   onClick={() => {
                     setChatView('notifications');
@@ -1317,10 +1318,10 @@ const FloatingChatbot = () => {
                   >
                     <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
                     <path d="M13 21a1 1 0 01-2 0" />
-                  </svg>
+          </svg>
                   <span className="truncate text-xs sm:text-sm">알림</span>
-                </button>
-                <button
+        </button>
+        <button
                   type="button"
                   onClick={() => setChatView('settings')}
                   className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 text-xs sm:min-w-[80px] sm:gap-1 sm:py-2 sm:text-sm sm:whitespace-nowrap ${
@@ -1339,19 +1340,19 @@ const FloatingChatbot = () => {
                   >
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-1.51a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h1.51a1.65 1.65 0 001-1.51 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1V3a2 2 0 012-2 2 2 0 012 2v1.51a1.65 1.65 0 001 1 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001 1h1.51a2 2 0 012 2 2 2 0 01-2 2h-1.51a1.65 1.65 0 00-1 1.51z" />
-                  </svg>
+          </svg>
                   <span className="truncate text-xs sm:text-sm">설정</span>
-                </button>
+        </button>
               </footer>
-            </div>
-          </div>
+      </div>
+    </div>
         </div>
       )}
 
       {/* 플로팅 버튼 (모바일 / PC 공통, 알림 있을 때 우상단 숫자 배지) */}
       {!isOpen && (
         <div className="fixed bottom-20 right-3 z-40 sm:bottom-6 sm:right-6">
-          <button
+        <button
             type="button"
             onClick={openChat}
             className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-main-02 text-white shadow-xl transition-transform hover:scale-105 sm:h-16 sm:w-16"
@@ -1376,8 +1377,8 @@ const FloatingChatbot = () => {
             >
               <path d="M21 11.5C21.0034 12.8199 20.6321 14.1152 19.93 15.24C19.0831 16.6514 17.7923 17.7365 16.2541 18.3078C14.7159 18.8791 13.0259 18.9026 11.4723 18.3741L7 20L8.10457 16.0523C7.41024 14.9044 7.03955 13.5755 7.037 12.22C7.037 8.497 9.962 5.5 13.5 5.5C15.2141 5.48777 16.8582 6.1511 18.0826 7.35914C19.307 8.56717 20.012 10.2251 20 11.94L21 11.5Z" />
             </svg>
-          </button>
-        </div>
+        </button>
+      </div>
       )}
     </>
   );
