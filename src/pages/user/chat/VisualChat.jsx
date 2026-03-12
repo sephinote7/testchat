@@ -297,12 +297,8 @@ const VisualChat = () => {
           return;
         }
 
-        const myRow = memberRows.find(
-          (m) => (m.email ?? m.member_id) === currentEmail,
-        );
-        const partnerRow = memberRows.find(
-          (m) => (m.email ?? m.member_id) === partnerEmail,
-        );
+        const myRow = memberRows.find((m) => m.member_id === currentEmail);
+        const partnerRow = memberRows.find((m) => m.member_id === partnerEmail);
 
         if (!myRow || !partnerRow) {
           setErrorMsg('상담 참여자 정보를 찾을 수 없습니다.');
@@ -332,7 +328,7 @@ const VisualChat = () => {
 
         // 6) 상담 정보(cnsl_reg): 2.5에서 조회한 cnslRegRow 사용
         if (cnslRegRow) {
-          const reqNick = memberRows.find((m) => (m.email ?? m.member_id) === cnslRegRow.member_id)?.nickname;
+          const reqNick = memberRows.find((m) => m.member_id === cnslRegRow.member_id)?.nickname;
           setCnslInfo({
             title: cnslRegRow.cnsl_title || '',
             content: cnslRegRow.cnsl_content || '',
@@ -421,8 +417,8 @@ const VisualChat = () => {
           const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
             headers: {
               Accept: 'application/json',
-              'X-User-Email': me.email,
             },
+            credentials: 'include',
             mode: 'cors',
           });
           if (res.ok) {
@@ -495,8 +491,8 @@ const VisualChat = () => {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Email': me.email,
         },
+        credentials: 'include',
         body: JSON.stringify({ cnslStat: stat }),
       });
       if (!res.ok) {
@@ -1093,8 +1089,8 @@ const VisualChat = () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Email': me.email,
             },
+            credentials: 'include',
             body: JSON.stringify({
               summary: summaryText,
               summary_line: summaryLine || undefined,
@@ -1108,8 +1104,8 @@ const VisualChat = () => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'X-User-Email': me.email,
               },
+              credentials: 'include',
               body: JSON.stringify({
                 role: 'summary',
                 content: summaryText,
@@ -1124,8 +1120,8 @@ const VisualChat = () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Email': me.email,
             },
+            credentials: 'include',
             body: JSON.stringify({
               role: 'summary',
               content: summaryText,
@@ -1277,8 +1273,8 @@ const VisualChat = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Email': me.email ?? '',
           },
+          credentials: 'include',
           body: JSON.stringify({ role: roleForApi, content: trimmed }),
           mode: 'cors',
         });

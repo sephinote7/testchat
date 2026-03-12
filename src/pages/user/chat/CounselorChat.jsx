@@ -264,7 +264,8 @@ const CounselorChat = () => {
       if (list.length === 0 && apiBase) {
         try {
           const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/chat`, {
-            headers: { Accept: 'application/json', 'X-User-Email': me.email },
+            headers: { Accept: 'application/json' },
+            credentials: 'include',
             mode: 'cors',
           });
           if (res.ok) {
@@ -306,7 +307,8 @@ const CounselorChat = () => {
       try {
         const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/stat`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ cnslStat: stat }),
           mode: 'cors',
         });
@@ -377,7 +379,8 @@ const CounselorChat = () => {
       try {
         const r = await fetch(`${apiBase}/cnsl/${cnsl_id}/chat/summary-full`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email ?? '' },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ summary: summaryText, summary_line: summaryLine, msg_data: basePayload }),
           mode: 'cors',
         });
@@ -548,7 +551,8 @@ const CounselorChat = () => {
       try {
         const res = await fetch(`${base}/cnsl/${cnsl_id}/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-Email': me.email ?? '' },
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({ role: roleForApi, content: trimmed }),
           mode: 'cors',
         });
