@@ -1,6 +1,7 @@
 /**
  * 백엔드 API용 axios 인스턴스
  * - baseURL: config.BASE_URL (VITE_BACKEND_URL / VITE_API_BASE_URL, fallback localhost:8080)
+ * - 인증/식별은 JWT(HttpOnly 쿠키 또는 Authorization 헤더)로만 처리
  */
 import axios from 'axios';
 import { BASE_URL } from './config';
@@ -8,22 +9,8 @@ import { BASE_URL } from './config';
 export const BACKEND_BASE = BASE_URL;
 
 export function getHeaders(userId = null) {
-  const headers = { 'Content-Type': 'application/json' };
-  const hasValidUserId = userId != null && String(userId).trim() !== '' && String(userId) !== 'anonymous';
-  const xUserId = hasValidUserId
-    ? String(userId).trim()
-    : (localStorage.getItem('dummyUser')
-        ? (() => {
-            try {
-              const u = JSON.parse(localStorage.getItem('dummyUser'));
-              return u?.id ?? 'anonymous';
-            } catch {
-              return 'anonymous';
-            }
-          })()
-        : 'anonymous');
-  headers['X-User-Id'] = xUserId;
-  return headers;
+  // JWT 기반 인증만 사용하므로, 별도 사용자 ID 헤더는 붙이지 않는다.
+  return { 'Content-Type': 'application/json' };
 }
 
 const axiosInstance = axios.create({
