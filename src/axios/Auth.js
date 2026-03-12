@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { useAuthStore } from '../store/auth.store';
+import { BASE_URL } from '../api/config';
 
 export const authApi = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: BASE_URL || undefined,
   withCredentials: true, // refreshToken cookie
 });
 
@@ -20,15 +20,12 @@ authApi.interceptors.request.use((config) => {
 export const refreshAccessToken = async () => {
   const { setAccessToken, setLoginStatus, setEmail, clearAuth, setNickname, setRoleName } = useAuthStore.getState();
 
-  // try {
-  //   const accessToken = useAuthStore.getState().accessToken;
-  //   const res = await authApi.post('/api/auth/refresh', null, {
-  //     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  //   });
+  if (!BASE_URL || BASE_URL === 'undefined') {
+    clearAuth();
+    return null;
+  }
   try {
-    // 주의: 인터셉터가 붙은 authApi 대신 기본 axios를 사용하여
-    // 만료된 토큰이 헤더에 포함되지 않도록 합니다.
-    const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`, null, {
+    const res = await axios.post(`${BASE_URL}/api/auth/refresh`, null, {
       withCredentials: true,
     });
     const data = res.data;

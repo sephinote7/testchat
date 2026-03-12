@@ -57,7 +57,13 @@ const Home = () => {
           }
         }
         console.log('test', data);
-        setCommunityTopPosts(data);
+        setCommunityTopPosts(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data?.content)
+              ? data.content
+              : [],
+        );
       } catch (error) {
         setCommunityTopPosts([]);
         if (error.response) {
@@ -94,7 +100,7 @@ const Home = () => {
       .getList({ bbs_div: "NOTI", page: 1, limit: 4, del_yn: "N" })
       .then((res) => {
         if (cancelled) return;
-        const content = res.content || [];
+        const content = Array.isArray(res?.content) ? res.content : [];
         setNotices(
           content.map((row) => ({
             id: row.bbsId,

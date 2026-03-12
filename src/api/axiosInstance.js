@@ -1,12 +1,11 @@
 /**
  * 백엔드 API용 axios 인스턴스
- * - baseURL: .env의 VITE_BACKEND_URL (없으면 http://localhost:8080)
- * - 요청 시 X-User-Id 헤더 자동 설정
+ * - baseURL: config.BASE_URL (VITE_BACKEND_URL / VITE_API_BASE_URL, fallback localhost:8080)
  */
-
 import axios from 'axios';
+import { BASE_URL } from './config';
 
-export const BACKEND_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+export const BACKEND_BASE = BASE_URL;
 
 export function getHeaders(userId = null) {
   const headers = { 'Content-Type': 'application/json' };
@@ -30,6 +29,7 @@ export function getHeaders(userId = null) {
 const axiosInstance = axios.create({
   baseURL: BACKEND_BASE,
   timeout: 15000,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
