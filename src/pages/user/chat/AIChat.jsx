@@ -406,10 +406,14 @@ const AIChat = () => {
       }
 
       const now = new Date();
-      const cnslDt = now.toISOString().slice(0, 10); // YYYY-MM-DD
-      // cnsl_start_time/cnsl_end_time 컬럼은 time without time zone(HH:MM:SS) 타입
-      const cnslStartTime = now.toISOString().slice(11, 19);
-      const cnslEndTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString().slice(11, 19);
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const formatLocalTime = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+      const formatLocalDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+      // cnsl_dt(date), cnsl_start_time/time, cnsl_end_time/time 은 timezone 없이 저장되므로 로컬 시간 기준으로 넣는다.
+      const cnslDt = formatLocalDate(now);
+      const cnslStartTime = formatLocalTime(now);
+      const cnslEndTime = formatLocalTime(new Date(now.getTime() + 60 * 60 * 1000));
 
       const { data, error } = await supabase
         .from('cnsl_reg')
