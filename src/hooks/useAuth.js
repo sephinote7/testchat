@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { authApi, normalizeRoleName } from '../axios/Auth';
 import { useAuthStore } from '../store/auth.store';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from './../lib/supabase';
-import { memberApi } from '../api/backendApi';
 
 export default function useAuth() {
   // 초기 상태: 로그아웃 상태
@@ -27,172 +25,35 @@ export default function useAuth() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 현재 세션 확인
-    const checkSession = async () => {
+    // Supabase Auth는 사용하지 않는다. Spring JWT(auth.store) + 더미 유저만 고려.
+    const savedDummyUser = localStorage.getItem('dummyUser');
+    if (savedDummyUser) {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.user) {
-          // Supabase 세션이 있으면 우선 사용
-          const provider = session.user.app_metadata?.provider;
-          const userRole = session.user.user_metadata?.role || 'USER';
-          const kakaoAdditionalDone = !!session.user.user_metadata?.kakao_additional_done;
-          const nickname = session.user.user_metadata?.nickname || session.user.email?.split('@')[0] || 'user';
-          setUser({
-            isLogin: true,
-            role: userRole,
-            email: session.user.email,
-            id: session.user.id,
-            nickname,
-            provider: provider || null,
-            kakao_additional_done: kakaoAdditionalDone,
-          });
-          // 백엔드 member 테이블에 동기화 (게시글 작성 등에 필요)
-          const memberId = session.user.email || session.user.id;
-          memberApi.sync({ memberId, nickname }).catch(() => {});
-        } else {
-          // Supabase 세션이 없으면 더미 유저 확인 (개발/테스트용)
-          const savedDummyUser = localStorage.getItem('dummyUser');
-          if (savedDummyUser) {
-            try {
-              const parsedUser = JSON.parse(savedDummyUser);
-              setUser(parsedUser);
-            } catch (error) {
-              console.error('더미 유저 로드 오류:', error);
-              // 오류 시 로그아웃 상태 유지
-              setUser({
-                isLogin: false,
-                role: 'USER',
-                email: null,
-                id: null,
-                nickname: null,
-                provider: null,
-                kakao_additional_done: false,
-              });
-            }
-          } else {
-            // 둘 다 없으면 로그아웃 상태
-            setUser({
-              isLogin: false,
-              role: 'USER',
-              email: null,
-              id: null,
-              nickname: null,
-              provider: null,
-              kakao_additional_done: false,
-            });
-          }
-        }
-      } catch (error) {
-        console.error('세션 확인 오류:', error);
-        // 오류 발생 시 더미 유저 확인
-        const savedDummyUser = localStorage.getItem('dummyUser');
-        if (savedDummyUser) {
-          try {
-            const parsedUser = JSON.parse(savedDummyUser);
-            setUser(parsedUser);
-          } catch (err) {
-            console.error('더미 유저 로드 오류:', err);
-            setUser({
-              isLogin: false,
-              role: 'USER',
-              email: null,
-              id: null,
-              nickname: null,
-              provider: null,
-              kakao_additional_done: false,
-            });
-          }
-        } else {
-          // Supabase 세션은 없지만, Spring(auth.store) 기준으로는 로그인일 수 있음
-          const storeLogin = useAuthStore.getState()?.isLogin;
-          const storeEmail = useAuthStore.getState()?.email;
-          if (storeLogin && storeEmail) {
-            setUser((prev) => ({
-              ...prev,
-              isLogin: true,
-              role: prev.role || 'USER',
-              email: storeEmail,
-            }));
-          } else {
-            setUser({
-              isLogin: false,
-              role: 'USER',
-              email: null,
-              id: null,
-              nickname: null,
-              provider: null,
-              kakao_additional_done: false,
-            });
-          }
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkSession();
-
-    // 인증 상태 변경 리스너
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        // Supabase 로그인 시
-        const provider = session.user.app_metadata?.provider;
-        const userRole = session.user.user_metadata?.role || 'USER';
-        const kakaoAdditionalDone = !!session.user.user_metadata?.kakao_additional_done;
-        const nickname = session.user.user_metadata?.nickname || session.user.email?.split('@')[0] || 'user';
-        setUser({
-          isLogin: true,
-          role: userRole,
-          email: session.user.email,
-          id: session.user.id,
-          nickname,
-          provider: provider || null,
-          kakao_additional_done: kakaoAdditionalDone,
-        });
-        // Supabase 로그인 성공 시 더미 유저는 제거
+        const parsedUser = JSON.parse(savedDummyUser);
+        setUser(parsedUser);
+      } catch {
         localStorage.removeItem('dummyUser');
-        // 백엔드 member 테이블에 동기화 (게시글 작성 등에 필요)
-        const memberId = session.user.email || session.user.id;
-        memberApi.sync({ memberId, nickname }).catch(() => {});
-      } else {
-        // Supabase 로그아웃 시
-        const savedDummyUser = localStorage.getItem('dummyUser');
-        if (savedDummyUser) {
-          // 더미 유저가 있으면 사용 (개발/테스트용)
-          try {
-            const parsedUser = JSON.parse(savedDummyUser);
-            setUser(parsedUser);
-          } catch (error) {
-            console.error('더미 유저 로드 오류:', error);
-            setUser({
-              isLogin: false,
-              role: 'USER',
-              email: null,
-              id: null,
-              nickname: null,
-            });
-          }
-        } else {
-          // 완전 로그아웃 상태
-          setUser({
-            isLogin: false,
-            role: 'USER',
-            email: null,
-            id: null,
-            nickname: null,
-            provider: null,
-            kakao_additional_done: false,
-          });
-        }
       }
-    });
+    }
 
-    return () => {
-      subscription?.unsubscribe();
-    };
+    const store = useAuthStore.getState();
+    if (store?.loginStatus && store?.email) {
+      setUser((prev) => ({
+        ...prev,
+        isLogin: true,
+        email: store.email,
+        nickname: store.nickname ?? prev.nickname,
+        role: store.roleName ?? prev.role ?? 'USER',
+      }));
+    } else {
+      setUser((prev) => ({
+        ...prev,
+        isLogin: false,
+        email: null,
+      }));
+    }
+
+    setLoading(false);
   }, []);
 
   // 로그인 함수

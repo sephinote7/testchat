@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { useAiConsultStore } from '../../../stores/useAiConsultStore';
+import { useAuthStore } from '../../../store/auth.store';
 
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
 // GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)
@@ -26,6 +27,8 @@ const AIChat = () => {
   const [showStartModal, setShowStartModal] = useState(() => !urlCnslId);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const storeEmail = useAuthStore((s) => s.email);
+  const storeLoginStatus = useAuthStore((s) => s.loginStatus);
   const [memberProfile, setMemberProfile] = useState({
     mbti: null,
     persona: null,
@@ -70,13 +73,10 @@ const AIChat = () => {
   }, [cnslId, userEmail, setActiveCnslId]);
 
   useEffect(() => {
-    (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user?.email) setUserEmail(user.email);
-    })();
-  }, []);
+    // Supabase Auth 미사용. Spring(auth.store)의 이메일만 사용.
+    if (storeLoginStatus && storeEmail) setUserEmail(storeEmail);
+    else setUserEmail('');
+  }, [storeEmail, storeLoginStatus]);
 
   // member 테이블에서 mbti, persona 조회 (상담 참고용) — Supabase public.member 기준 email 컬럼
   useEffect(() => {
@@ -89,7 +89,8 @@ const AIChat = () => {
         const { data, error } = await supabase
           .from('member')
           .select('mbti, persona')
-          .eq('email', userEmail)
+          // public.member PK는 member_id(varchar)=이메일, email 컬럼 없음
+          .eq('member_id', userEmail)
           .maybeSingle();
         if (error) {
           setShowProfileRequiredModal(true);
@@ -393,10 +394,7 @@ const AIChat = () => {
 
     // 새 AI 즉시 상담: cnsl_reg에 한 건 생성 (cnsl_tp=3, 상담사 없이 진행)
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const email = (user?.email || '').trim();
+      const email = (storeLoginStatus ? storeEmail : '').trim();
       if (!email) {
         alert('로그인 후 이용 가능합니다.');
         return;

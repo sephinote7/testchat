@@ -308,15 +308,14 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                     const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
                     setSubmitting(true);
                     try {
-                      // Supabase 세션 또는 Spring 로그인(store) 사용자 사용 — Spring은 member_id=email
-                      const { data: { user: supaUser } } = await supabase.auth.getUser();
-                      const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
+                      // Supabase Auth 미사용. Spring 로그인(store) 사용자 사용 — member_id=email
+                      const userIdForApi = storeEmail ?? null;
                       if (!userIdForApi || userIdForApi === 'anonymous') {
                         alert('로그인 후 글을 작성할 수 있습니다.');
                         setSubmitting(false);
                         return;
                       }
-                      const nickname = supaUser?.user_metadata?.nickname ?? storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
+                      const nickname = storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
                       await memberApi.sync({ memberId: userIdForApi, nickname }).catch(() => {});
                       if (mode === 'edit' && postId) {
                         await bbsApi.update(postId, body, userIdForApi);
@@ -527,14 +526,13 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                     const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
                     setSubmitting(true);
                     try {
-                      const { data: { user: supaUser } } = await supabase.auth.getUser();
-                      const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
+                      const userIdForApi = storeEmail ?? null;
                       if (!userIdForApi || userIdForApi === 'anonymous') {
                         alert('로그인 후 글을 작성할 수 있습니다.');
                         setSubmitting(false);
                         return;
                       }
-                      const nickname = supaUser?.user_metadata?.nickname ?? storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
+                      const nickname = storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
                       await memberApi.sync({ memberId: userIdForApi, nickname }).catch(() => {});
                       if (mode === 'edit' && postId) {
                         await bbsApi.update(postId, body, userIdForApi);

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Peer from 'peerjs';
 import { supabase } from '../../../lib/supabase';
+import { useAuthStore } from '../../../store/auth.store';
 
 // PeerJS ID: member_id/cnsler_id(이메일) 기반. 서버 호환을 위해 @ . 치환
 function sanitizePeerId(email) {
@@ -121,16 +122,17 @@ function startCompositeVideoRecording(
 // Supabase member: id, email 등. 이메일은 row.email 또는 row.member_id
 function mapMemberRow(row) {
   if (!row) return null;
-  const emailVal = row.email ?? row.member_id;
+  // public.member PK는 member_id(varchar)=이메일
+  const emailVal = row.member_id ?? row.email;
 
   return {
     id: row.id ?? emailVal,
     email: emailVal, // 채팅/PeerJS 식별용
-    role: normalizeRole(row.role),
     nickname: row.nickname,
     mbti: row.mbti,
     persona: row.persona,
     profile: row.profile,
+    imgUrl: row.img_url ?? row.imgUrl,
   };
 }
 
@@ -156,6 +158,8 @@ const VisualChat = () => {
   const { id } = useParams();
   const chatId = id;
   const navigate = useNavigate();
+  const storeEmail = useAuthStore((s) => s.email);
+  const storeLoginStatus = useAuthStore((s) => s.loginStatus);
 
   const [me, setMe] = useState(null);
   const [other, setOther] = useState(null);
@@ -216,18 +220,13 @@ const VisualChat = () => {
       setErrorMsg('');
 
       try {
-        // 1) 현재 로그인한 사용자 정보 (Supabase Auth)
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (authError || !user) {
+        // Supabase Auth 미사용. Spring(auth.store)의 이메일만 사용.
+        const currentEmail = storeLoginStatus ? storeEmail : null;
+        if (!currentEmail) {
           setErrorMsg('로그인 정보가 없습니다. 다시 로그인해 주세요.');
           setLoading(false);
           return;
         }
-        const currentEmail = user.email;
 
         // 2) chat_msg에서 채팅방 정보 조회 (URL id = cnsl_id). 없으면 cnsl_reg fallback
         const cnslIdNum = parseInt(chatId, 10);
@@ -288,8 +287,8 @@ const VisualChat = () => {
         // 4) member 테이블에서 두 참여자 정보 조회 (email 또는 member_id 기준)
         const { data: memberRows, error: memberError } = await supabase
           .from('member')
-          .select('id, email, role, nickname, mbti, persona, profile')
-          .in('email', [currentEmail, partnerEmail]);
+          .select('member_id, nickname, mbti, persona, profile, img_url')
+          .in('member_id', [currentEmail, partnerEmail]);
 
         if (memberError || !memberRows || memberRows.length < 2) {
           console.error('member 조회 실패', memberError);

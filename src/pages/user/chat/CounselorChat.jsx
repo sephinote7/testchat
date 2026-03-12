@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
+import { useAuthStore } from '../../../store/auth.store';
 
 function normalizeRole(rawRole) {
   if (!rawRole) return rawRole;
@@ -17,15 +18,16 @@ function roleDisplayLabel(role) {
 
 function mapMemberRow(row) {
   if (!row) return null;
-  const emailVal = row.email ?? row.member_id;
+  // public.member PK는 member_id(varchar)=이메일
+  const emailVal = row.member_id ?? row.email;
   return {
     id: row.id ?? emailVal,
     email: emailVal,
-    role: normalizeRole(row.role),
     nickname: row.nickname,
     mbti: row.mbti,
     persona: row.persona,
     profile: row.profile,
+    imgUrl: row.img_url ?? row.imgUrl,
   };
 }
 
@@ -37,6 +39,8 @@ function mapMemberRow(row) {
 const CounselorChat = () => {
   const { id: cnsl_id } = useParams();
   const navigate = useNavigate();
+  const storeEmail = useAuthStore((s) => s.email);
+  const storeLoginStatus = useAuthStore((s) => s.loginStatus);
 
   const [me, setMe] = useState(null);
   const [other, setOther] = useState(null);
@@ -69,16 +73,12 @@ const CounselorChat = () => {
       setErrorMsg('');
 
       try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-        if (authError || !user) {
+        const currentEmail = storeLoginStatus ? storeEmail : null;
+        if (!currentEmail) {
           setErrorMsg('로그인 정보가 없습니다. 다시 로그인해 주세요.');
           setLoading(false);
           return;
         }
-        const currentEmail = user.email;
 
         const cnslIdNum = parseInt(cnsl_id, 10);
         if (isNaN(cnslIdNum) || cnslIdNum <= 0) {
@@ -149,10 +149,11 @@ const CounselorChat = () => {
 
         const partnerEmail = isMemberSide ? cnsler_id : member_id;
 
+        // public.member PK는 member_id(varchar)=이메일, email/role 컬럼 없음
         const { data: memberRows, error: memberError } = await supabase
           .from('member')
-          .select('id, email, role, nickname, mbti, persona, profile')
-          .in('email', [currentEmail, partnerEmail]);
+          .select('member_id, nickname, mbti, persona, profile, img_url')
+          .in('member_id', [currentEmail, partnerEmail]);
 
         if (memberError || !memberRows || memberRows.length < 2) {
           setErrorMsg('상담 참여자 정보를 불러오는 데 실패했습니다.');
