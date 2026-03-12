@@ -7,6 +7,18 @@ export const authApi = axios.create({
   withCredentials: true, // refreshToken cookie
 });
 
+export function normalizeRoleName(role) {
+  if (role == null) return null;
+  const map = { 0: 'USER', 1: 'SYSTEM', 2: 'ADMIN' };
+  if (typeof role === 'number') return map[role] ?? String(role);
+  const str = String(role).trim();
+  if (/^\d+$/.test(str)) return map[Number(str)] ?? str;
+  // 예: "Role_USER" → "USER"
+  const upper = str.toUpperCase();
+  if (upper.startsWith('ROLE_')) return upper.slice('ROLE_'.length);
+  return upper;
+}
+
 authApi.interceptors.request.use((config) => {
   const accessToken = useAuthStore.getState().accessToken;
 
@@ -32,17 +44,6 @@ export const refreshAccessToken = async () => {
     return null;
   }
 
-  // 아직 refreshToken 쿠키가 없으면(최초 진입 등) 갱신을 시도하지 않는다.
-  const hasRefresh = document.cookie
-    .split(';')
-    .map((c) => c.trim())
-    .some((c) => c.startsWith('refreshToken='));
-
-  if (!hasRefresh) {
-    console.warn('토큰 갱신 스킵 (refreshToken 없음)');
-    return null;
-  }
-
   try {
     const res = await axios.post(`${BASE_URL}/api/auth/refresh`, null, {
       withCredentials: true,
@@ -55,7 +56,7 @@ export const refreshAccessToken = async () => {
     setLoginStatus(true);
     setEmail(data.email);
     setNickname(data.nickname);
-    setRoleName(data.roleNames?.[0]);
+    setRoleName(normalizeRoleName(data.roleNames?.[0]));
     return data;
   } catch (error) {
     if (error?.response?.status === 401) {

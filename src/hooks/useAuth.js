@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { authApi } from '../axios/Auth';
+import { authApi, normalizeRoleName } from '../axios/Auth';
 import { useAuthStore } from '../store/auth.store';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './../lib/supabase';
@@ -22,6 +22,8 @@ export default function useAuth() {
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const setStoreEmail = useAuthStore((state) => state.setEmail);
   const setLoginStatus = useAuthStore((state) => state.setLoginStatus);
+  const setRoleName = useAuthStore((state) => state.setRoleName);
+  const setNickname = useAuthStore((state) => state.setNickname);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -206,6 +208,8 @@ export default function useAuth() {
       if (response.data?.accessToken) {
         setAccessToken(response.data.accessToken);
         setLoginStatus(true);
+        setRoleName(normalizeRoleName(response.data?.roleNames?.[0]));
+        if (response.data?.nickname) setNickname(response.data.nickname);
 
         if (response.data.email) setStoreEmail(response.data.email);
         else setStoreEmail(email);

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
 import { useAuthStore } from '../../../store/auth.store';
-import { authApi } from '../../../axios/Auth';
+import { authApi, normalizeRoleName } from '../../../axios/Auth';
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ const SignIn = () => {
           setAccessToken(res.data.accessToken);
         }
         setLoginStatus(true);
-        if (res.data?.roleNames?.[0]) setRoleName(res.data.roleNames[0]);
+        if (res.data?.roleNames?.[0] != null) setRoleName(normalizeRoleName(res.data.roleNames[0]));
         if (res.data?.nickname) setNickname(res.data.nickname);
 
         if (res.data?.email) {
@@ -53,7 +53,7 @@ const SignIn = () => {
 
         setShowSuccessModal(true);
         setTimeout(() => {
-          const role = res.data?.roleNames?.[0] || 'USER';
+          const role = normalizeRoleName(res.data?.roleNames?.[0] ?? 'USER');
           if (role === 'USER') navigate('/');
           else if (role === 'SYSTEM') navigate('/system/mypage');
           else navigate('/alarm');
