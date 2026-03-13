@@ -1046,9 +1046,10 @@ const VisualChat = () => {
     };
 
     let apiSaved = false;
-    if (apiBase && summaryText) {
+    if (apiBase && summaryText && me?.email) {
       try {
-        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full`, {
+        const memberQuery = `memberId=${encodeURIComponent(me.email)}`;
+        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full?${memberQuery}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
