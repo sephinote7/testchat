@@ -1099,6 +1099,7 @@ const VisualChat = () => {
             msg_data: msgDataList,
           }),
           mode: 'cors',
+          credentials: 'include', // accessToken 쿠키 포함해서 FastAPI 인증 통과
         });
         if (r.ok) apiSaved = true;
       } catch (err) {
