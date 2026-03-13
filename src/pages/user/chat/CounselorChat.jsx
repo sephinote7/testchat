@@ -255,27 +255,9 @@ const CounselorChat = () => {
 
   const fetchChatMessages = async () => {
     if (!cnsl_id || !me?.email) return;
-    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base.endsWith('/api') ? base : base ? `${base}/api` : '';
 
     try {
-      let list = [];
-      list = await fetchFromSupabase();
-      if (list.length === 0 && apiBase) {
-        try {
-          const res = await fetch(`${apiBase}/cnsl/${cnsl_id}/chat`, {
-            headers: { Accept: 'application/json' },
-            credentials: 'include',
-            mode: 'cors',
-          });
-          if (res.ok) {
-            const data = await res.json();
-            list = Array.isArray(data) ? data : [];
-          }
-        } catch {
-          /* ignore */
-        }
-      }
+      const list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
         if (mapped.length > 0) return mapped;
