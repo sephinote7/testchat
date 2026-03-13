@@ -326,7 +326,11 @@ const CounselorChat = () => {
 
   const saveSummaryAndMsgData = async () => {
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base.endsWith('/api') ? base : base ? `${base}/api` : '';
+    const summarizeUrl =
+      import.meta.env.VITE_SUMMARIZE_API_URL ||
+      (base ? `${base.replace(/\/api$/, '')}/api/summarize` : '') ||
+      'http://localhost:8000/api/summarize';
+
     const basePayload = chatMessages.map((msg) => ({
       type: 'chat',
       speaker: msg.role === 'SYSTEM' ? 'cnsler' : 'user',
@@ -336,73 +340,86 @@ const CounselorChat = () => {
 
     let summaryText = '';
     let summaryLine = '';
-    if (basePayload.length > 0 && apiBase) {
+    let msgDataList = basePayload;
+
+    if (basePayload.length > 0 && summarizeUrl) {
       try {
         const formData = new FormData();
         formData.append('msg_data', JSON.stringify(basePayload));
-        const res = await fetch(`${apiBase}/summarize`, {
+        const res = await fetch(summarizeUrl, {
           method: 'POST',
           body: formData,
           mode: 'cors',
+          credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
-          summaryText = (data.summary || '').slice(0, 300);
-          summaryLine = data.summary_line || '';
+          summaryText = (data.summary || '').toString();
+          summaryLine = (data.summary_line || '').toString().trim();
+          const apiMsgData = data.msg_data;
+          if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
+            msgDataList = apiMsgData.map((item) => ({
+              type: item.type || 'chat',
+              speaker: item.speaker || 'user',
+              text: item.text != null ? String(item.text) : '',
+              timestamp: item.timestamp != null ? String(item.timestamp) : String(Date.now()),
+            }));
+          }
+        } else {
+          console.warn('summarize API 응답 오류:', res.status);
         }
       } catch (err) {
-        console.warn('summarize API 실패, fallback 사용:', err);
+        console.warn('summarize API 실패:', err);
+        return;
       }
     }
-    if (!summaryText || !summaryLine) {
-      const texts = basePayload.filter((x) => x.text && typeof x.text === 'string').map((x) => x.text);
-      const full = texts.join(' ').trim();
-      if (full.length > 300) {
-        const cut = full.slice(0, 297);
-        const lastSpace = cut.lastIndexOf(' ');
-        summaryText = (lastSpace > 200 ? cut.slice(0, lastSpace) : cut) + '...';
-      } else {
-        summaryText = full || `상담 (${new Date().toLocaleString('ko-KR')})`;
-      }
-      summaryText = summaryText.slice(0, 300);
-      const userFirst = basePayload.find((x) => (x.speaker || '').toLowerCase() === 'user')?.text?.trim();
-      const core = userFirst || texts[0] || full;
-      summaryLine = core && core.length > 80 ? core.slice(0, 77) + '...' : core || summaryText.slice(0, 80);
-    }
-    if (!summaryText) {
-      summaryText = `상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = summaryLine || summaryText;
-    }
-    if (!summaryLine) summaryLine = summaryText;
 
-    if (apiBase) {
+    // 요약/메시지 리스트가 없으면 저장 시도하지 않음
+    if (!summaryText || !msgDataList.length) return;
+
+    // summarizeUrl 기준으로 FastAPI(testchatpy) base 추출 → 동일 서버의 /api/cnsl/.../chat/summary-full 호출
+    let apiSaved = false;
+    const summarizeBaseMatch = summarizeUrl.match(/^(.*)\/summarize/);
+    const summarizeBase = summarizeBaseMatch ? summarizeBaseMatch[1] : '';
+    if (summarizeBase) {
       try {
-        const r = await fetch(`${apiBase}/cnsl/${cnsl_id}/chat/summary-full`, {
+        const r = await fetch(`${summarizeBase}/cnsl/${cnsl_id}/chat/summary-full`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ summary: summaryText, summary_line: summaryLine, msg_data: basePayload }),
+          body: JSON.stringify({
+            summary: summaryText,
+            summary_line: summaryLine || undefined,
+            msg_data: msgDataList,
+          }),
           mode: 'cors',
         });
-        if (r.ok) return;
+        if (r.ok) apiSaved = true;
       } catch (err) {
         console.warn('summary-full API 실패:', err);
       }
     }
 
-    const cnslIdNum = parseInt(cnsl_id, 10);
-    if (isNaN(cnslIdNum) || !me || !other) return;
-    const member_id = me.role === 'USER' ? me.email : other.email;
-    const cnsler_id = me.role === 'USER' ? other.email : me.email;
-    const msg_data = { content: basePayload };
-    const summaryPayload = JSON.stringify({ summary: summaryText, summary_line: summaryLine });
-    const { data: existing } = await supabase.from('chat_msg').select('chat_id').eq('cnsl_id', cnslIdNum).maybeSingle();
-    if (existing) {
-      await supabase.from('chat_msg').update({ msg_data, summary: summaryPayload }).eq('cnsl_id', cnslIdNum);
-    } else {
-      await supabase
+    // summary-full API 실패 시 Supabase에 직접 저장 (VisualChat과 동일 패턴)
+    if (!apiSaved) {
+      const cnslIdNum = parseInt(cnsl_id, 10);
+      if (isNaN(cnslIdNum) || !me || !other) return;
+      const member_id = me.role === 'USER' ? me.email : other.email;
+      const cnsler_id = me.role === 'USER' ? other.email : me.email;
+      const msg_data = { content: msgDataList };
+      const summaryPayload = JSON.stringify({ summary: summaryText, summary_line: summaryLine });
+      const { data: existing } = await supabase
         .from('chat_msg')
-        .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: 'user', msg_data, summary: summaryPayload });
+        .select('chat_id')
+        .eq('cnsl_id', cnslIdNum)
+        .maybeSingle();
+      if (existing) {
+        await supabase.from('chat_msg').update({ msg_data, summary: summaryPayload }).eq('cnsl_id', cnslIdNum);
+      } else {
+        await supabase
+          .from('chat_msg')
+          .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: 'user', msg_data, summary: summaryPayload });
+      }
     }
   };
 
