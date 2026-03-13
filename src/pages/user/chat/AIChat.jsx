@@ -483,7 +483,6 @@ const AIChat = () => {
               </div>
             </header>
             <div className="flex-1 bg-[#f3f7ff] px-6 py-8 flex flex-col items-center justify-start pt-16">
-              <h2 className="text-2xl font-bold text-gray-800 mb-8">누구와 상담을 하고 싶으세요?</h2>
               <div className="w-full bg-white rounded-3xl shadow-xl p-6 mb-6">
                 <div className="flex flex-col items-center mb-6">
                   <div className="w-20 h-20 mb-4 flex items-center justify-center">
@@ -531,10 +530,10 @@ const AIChat = () => {
                 <p className="text-xs text-gray-600">AI 상담 관련 향상 서비스</p>
                 <p className="text-xs text-gray-500">고민, 커리어, 취업 까지 혼자 고민하지 마세요.</p>
                 <p className="text-xs text-gray-500">
-                  * 고민순삭의 AI상담은 병원, 정신과적 진료가 아닐뿐더러 행동합니다.
+                  ※ 고민순삭의 AI상담은 법적, 정신과적 진단의 처방을 대체하지 않습니다.
                 </p>
                 <p className="text-xs text-gray-500">
-                  AI 상담은 참고용으로 제공되며, 전문 상담사 개입이 필요하다고 생각 경우 즉시 바랍니다.
+                AI 상담은 참고용으로 제공되며, 긴급 상황시 ***109(자살 예방 상담전화)***에 문의 하시기 바랍니다.
                 </p>
                 <p className="text-xs text-gray-500 mt-4">© 2026 고민순삭 All rights reserved.</p>
               </div>
