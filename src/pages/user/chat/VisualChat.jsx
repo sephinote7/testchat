@@ -1190,7 +1190,17 @@ const VisualChat = () => {
     }
     const { error } = await supabase
       .from('chat_msg')
-      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data, summary: initialSummary || ' ' });
+      // Supabase chat_msg.content 가 NOT NULL 이기 때문에,
+      // 개별 텍스트 메시지를 content 에도 함께 저장해 준다.
+      .insert({
+        cnsl_id: cnslIdNum,
+        member_id,
+        cnsler_id,
+        role: speaker,
+        content: trimmed, // 단일 텍스트 컬럼
+        msg_data,
+        summary: initialSummary || ' ',
+      });
     return error ? null : {};
   };
 
