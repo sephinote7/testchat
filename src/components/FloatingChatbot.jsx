@@ -1376,7 +1376,7 @@ const FloatingChatbot = () => {
           <button
             type="button"
             onClick={openChat}
-            className="relative flex h-14 w-14 items-center justify-center rounded-2xl shadow-xl transition-transform hover:scale-105 sm:h-16 sm:w-16"
+            className="relative flex h-14 w-14 items-center justify-center rounded-2xl transition-transform hover:scale-105 sm:h-16 sm:w-16"
             aria-label="고민순삭 챗봇 열기"
           >
             {notificationCount > 0 && (

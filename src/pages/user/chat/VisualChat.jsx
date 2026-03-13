@@ -372,38 +372,10 @@ const VisualChat = () => {
       };
     });
 
-  const fetchFromSupabase = async () => {
-    const cnslIdNum = parseInt(chatId, 10);
-    if (isNaN(cnslIdNum) || cnslIdNum <= 0) return [];
-    const { data: rows, error } = await supabase
-      .from('chat_msg')
-      .select('chat_id, msg_data, member_id, cnsler_id')
-      .eq('cnsl_id', cnslIdNum)
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.warn('Supabase chat_msg 조회 실패:', error);
-      return [];
-    }
-    if (!rows?.length) return [];
-    const row = rows[0];
-    const content = row?.msg_data?.content;
-    if (!Array.isArray(content)) return [];
-    const memberId = row.member_id || '';
-    const cnslerId = row.cnsler_id || '';
-    return content.map((item, idx) => {
-      const speaker = (item.speaker || 'user').toLowerCase();
-      const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
-      return {
-        chatId: `${row.chat_id}-${idx}`,
-        role,
-        content: item.text ?? '',
-        memberId,
-        cnslerId,
-        createdAt: item.timestamp,
-        created_at: item.timestamp,
-      };
-    });
-  };
+  // 현재 Supabase chat_msg 테이블에는 msg_data 컬럼이 없어서
+  // 조회 시 400(42703 column does not exist) 에러가 발생하므로
+  // 우선 Supabase 기반 채팅 로드는 비활성화하고, 백엔드 API 응답만 사용한다.
+  const fetchFromSupabase = async () => [];
 
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
