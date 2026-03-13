@@ -966,6 +966,8 @@ const VisualChat = () => {
   /** 채팅 내역 + 마이크 입력(오디오) STT로 chat_msg 저장 */
   const saveSummaryInBackground = async () => {
     if (!chatId || !me?.email) return;
+    // 요약/STT 저장은 상담사(SYSTEM) 쪽에서만 수행
+    if (me.role !== 'SYSTEM') return;
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
     const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
     const summarizeUrl =
@@ -1133,7 +1135,8 @@ const VisualChat = () => {
       },
     );
 
-    if (!skipSaveAndStat) setTimeout(() => saveSummaryInBackground(), 1500);
+    // 상담사(SYSTEM) 기준으로는 상대가 먼저 종료했더라도 항상 요약/STT 저장을 시도
+    setTimeout(() => saveSummaryInBackground(), 1500);
   };
   runCallEndCleanupRef.current = runCallEndCleanup;
 
