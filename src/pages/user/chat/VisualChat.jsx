@@ -1033,32 +1033,24 @@ const VisualChat = () => {
     const saveToSupabase = async () => {
       if (!other) return;
       const cnslIdNum = parseInt(chatId, 10);
-      if (isNaN(cnslIdNum) || cnslIdNum <= 0) return;
-      const member_id = me.role === 'USER' ? me.email : other.email;
-      const cnsler_id = me.role === 'USER' ? other.email : me.email;
+      if (Number.isNaN(cnslIdNum) || cnslIdNum <= 0) return;
+
       const msg_data = { content: msgDataList };
 
+      // 통화 종료 요약은 기존 row만 업데이트하고,
+      // 새로운 row는 생성하지 않는다. (중복 row 방지)
       const { data: existing } = await supabase
         .from('chat_msg')
         .select('chat_id')
         .eq('cnsl_id', cnslIdNum)
         .maybeSingle();
 
-      if (existing) {
-        await supabase
-          .from('chat_msg')
-          .update({ msg_data, summary: summaryPayload })
-          .eq('cnsl_id', cnslIdNum);
-      } else {
-        await supabase.from('chat_msg').insert({
-          cnsl_id: cnslIdNum,
-          member_id,
-          cnsler_id,
-          role: 'user',
-          msg_data,
-          summary: summaryPayload,
-        });
-      }
+      if (!existing) return;
+
+      await supabase
+        .from('chat_msg')
+        .update({ msg_data, summary: summaryPayload })
+        .eq('cnsl_id', cnslIdNum);
     };
 
     let apiSaved = false;
@@ -1217,12 +1209,10 @@ const VisualChat = () => {
         .eq('cnsl_id', cnslIdNum);
       return error ? null : { chatId: existing.chat_id };
     }
-    const { data: inserted, error } = await supabase
+    const { error } = await supabase
       .from('chat_msg')
-      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data })
-      .select('chat_id')
-      .single();
-    return error ? null : { chatId: inserted?.chat_id };
+      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data });
+    return error ? null : {};
   };
 
   const handleChatSubmit = async (event) => {
@@ -1243,26 +1233,6 @@ const VisualChat = () => {
     setChatMessages((prev) => [...prev, newMsg]);
     lastLocalAddAtRef.current = now;
     setChatInput('');
-
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
-
-    if (apiBase) {
-      try {
-        const res = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({ role: roleForApi, content: trimmed }),
-          mode: 'cors',
-        });
-        if (res.ok) return;
-      } catch (err) {
-        console.warn('채팅 API 실패, Supabase fallback 시도:', err);
-      }
-    }
 
     try {
       await insertChatToSupabase(trimmed);
