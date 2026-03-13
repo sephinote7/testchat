@@ -663,12 +663,23 @@ const VisualChat = () => {
         setRemoteStream(null);
         call.answer(stream);
         updateCnslStatRef.current?.('C');
-        const hasAudio = stream.getAudioTracks().length > 0;
+        // STT용 오디오는 화상 스트림과 분리해서 캡처를 시도한다.
+        let recordStream = stream;
+        try {
+          const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (audioOnly && audioOnly.getAudioTracks().length > 0) {
+            recordStream = audioOnly;
+          }
+        } catch {
+          // audio-only 스트림 확보 실패 시 기존 스트림으로 녹음 시도
+        }
+
+        const hasAudio = recordStream.getAudioTracks().length > 0;
         if (hasAudio && typeof MediaRecorder !== 'undefined') {
           try {
             const mime = getSupportedAudioMime();
             const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
-            const audRec = new MediaRecorder(stream, opts);
+            const audRec = new MediaRecorder(recordStream, opts);
             recordedChunksRef.current = [];
             audRec.ondataavailable = (e) => {
               if (e.data?.size) recordedChunksRef.current.push(e.data);
@@ -899,10 +910,20 @@ const VisualChat = () => {
 
       // 오디오 녹음 (요약/STT용, 부하 최소화)
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
+        // STT용은 화상 스트림과 분리된 audio-only 스트림을 우선 사용
+        let recordStream = stream;
+        try {
+          const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (audioOnly && audioOnly.getAudioTracks().length > 0) {
+            recordStream = audioOnly;
+          }
+        } catch {
+          // audio-only 스트림 확보 실패 시 기존 스트림으로 녹음 시도
+        }
         try {
           const mime = getSupportedAudioMime();
           const opts = mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
-          const recorder = new MediaRecorder(stream, opts);
+          const recorder = new MediaRecorder(recordStream, opts);
           recordedChunksRef.current = [];
           recorder.ondataavailable = (event) => {
             if (event.data && event.data.size > 0) {
@@ -969,10 +990,9 @@ const VisualChat = () => {
     // 요약/STT 저장은 상담사(SYSTEM) 쪽에서만 수행
     if (me.role !== 'SYSTEM') return;
     const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const apiBase = base ? (base.endsWith('/api') ? base : `${base}/api`) : '';
     const summarizeUrl =
       import.meta.env.VITE_SUMMARIZE_API_URL ||
-      (apiBase ? `${apiBase}/summarize` : '') ||
+      (base ? `${base.replace(/\/api$/, '')}/api/summarize` : '') ||
       'http://localhost:8000/api/summarize';
 
     const basePayload = chatMessages.map((msg) => ({
@@ -1063,15 +1083,16 @@ const VisualChat = () => {
     };
 
     let apiSaved = false;
-    if (apiBase && summaryText && me?.email) {
+    // summarizeUrl 기준으로 FastAPI(testchatpy) base 추출 → 동일 서버의 /api/cnsl/.../chat/summary-full 호출
+    const summarizeBaseMatch = summarizeUrl.match(/^(.*)\/summarize/);
+    const summarizeBase = summarizeBaseMatch ? summarizeBaseMatch[1] : '';
+    if (summarizeBase && summaryText) {
       try {
-        const memberQuery = `memberId=${encodeURIComponent(me.email)}`;
-        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full?${memberQuery}`, {
+        const r = await fetch(`${summarizeBase}/cnsl/${chatId}/chat/summary-full`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({
             summary: summaryText,
             summary_line: summaryLine || undefined,
