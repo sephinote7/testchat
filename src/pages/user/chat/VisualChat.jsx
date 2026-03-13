@@ -311,10 +311,16 @@ const VisualChat = () => {
         // 2.5) cnsl_stat 확인: D(완료)면 재진입 차단. A,C(진행중)만 진입 허용
         const { data: cnslRegRow } = await supabase
           .from('cnsl_reg')
-          .select('cnsl_stat, cnsl_title, cnsl_content, member_id')
+          .select('cnsl_stat, cnsl_title, cnsl_content, member_id, cnsl_tp')
           .eq('cnsl_id', cnslIdNum)
           .maybeSingle();
-        if (cnslRegRow?.cnsl_stat === 'D') {
+        // 화상 상담 전용: cnsl_tp가 5(화상 상담)가 아니면 진입 차단
+        if (!cnslRegRow || String(cnslRegRow.cnsl_tp || '').trim() !== '5') {
+          setErrorMsg('해당 상담은 화상 상담 유형(cnsl_tp=5)이 아닙니다.');
+          setLoading(false);
+          return;
+        }
+        if (cnslRegRow.cnsl_stat === 'D') {
           setErrorMsg('완료된 상담은 재진입할 수 없습니다.');
           setLoading(false);
           return;
@@ -375,14 +381,12 @@ const VisualChat = () => {
         setOther(finalOther);
 
         // 6) 상담 정보(cnsl_reg): 2.5에서 조회한 cnslRegRow 사용
-        if (cnslRegRow) {
-          const reqNick = memberRows.find((m) => m.member_id === cnslRegRow.member_id)?.nickname;
-          setCnslInfo({
-            title: cnslRegRow.cnsl_title || '',
-            content: cnslRegRow.cnsl_content || '',
-            requesterNick: reqNick || cnslRegRow.member_id || '',
-          });
-        }
+        const reqNick = memberRows.find((m) => m.member_id === cnslRegRow.member_id)?.nickname;
+        setCnslInfo({
+          title: cnslRegRow.cnsl_title || '',
+          content: cnslRegRow.cnsl_content || '',
+          requesterNick: reqNick || cnslRegRow.member_id || '',
+        });
       } catch (error) {
         console.error('VisualChat 초기화 오류', error);
         setErrorMsg('상담 정보를 불러오는 중 오류가 발생했습니다.');
