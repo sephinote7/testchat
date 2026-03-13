@@ -516,7 +516,16 @@ const CounselorChat = () => {
     }
     const { data: inserted, error } = await supabase
       .from('chat_msg')
-      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data })
+      // summary 컬럼 NOT NULL 방어: 초기에는 간단히 첫 메시지 텍스트를 summary로 넣고,
+      // 상담 종료 시 saveSummaryAndMsgData에서 최종 요약(JSON)으로 덮어쓴다.
+      .insert({
+        cnsl_id: cnslIdNum,
+        member_id,
+        cnsler_id,
+        role: speaker,
+        msg_data,
+        summary: trimmed || ' ',
+      })
       .select('chat_id')
       .single();
     return error ? null : { chatId: inserted?.chat_id };
@@ -535,30 +544,12 @@ const CounselorChat = () => {
     lastLocalAddAtRef.current = now;
     setChatInput('');
 
-    // Supabase 우선 사용 (CORS 등 API 장애 시에도 채팅 정상 작동)
+    // Supabase 우선 사용 (이제는 Supabase만 사용, Spring /api/cnsl/{id}/chat는 제거됨)
     try {
       const ok = await insertChatToSupabase(trimmed);
       if (ok) return;
     } catch (err) {
       console.warn('Supabase 채팅 저장 실패:', err);
-    }
-
-    const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-    const base = apiBase.endsWith('/api') ? apiBase : apiBase ? `${apiBase}/api` : '';
-    const roleForApi = me.role === 'SYSTEM' ? 'counselor' : 'user';
-    if (base) {
-      try {
-        const res = await fetch(`${base}/cnsl/${cnsl_id}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ role: roleForApi, content: trimmed }),
-          mode: 'cors',
-        });
-        if (res.ok) return;
-      } catch (err) {
-        console.warn('채팅 API fallback 실패:', err);
-      }
     }
   };
 
