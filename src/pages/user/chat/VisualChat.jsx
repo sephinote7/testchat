@@ -31,6 +31,20 @@ function roleDisplayLabel(role) {
   return role === 'USER' ? '상담자' : '상담사';
 }
 
+function formatTimeFromTimestamp(ts) {
+  if (!ts) return '';
+  try {
+    const d = typeof ts === 'number' ? new Date(ts) : new Date(Number(ts));
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
 /** MediaRecorder 호환 MIME 타입 선택 (Safari 등 브라우저별 지원 차이 대응) */
 function getSupportedAudioMime() {
   const options = ['audio/webm', 'audio/mp4', 'audio/ogg'];
@@ -1327,7 +1341,13 @@ const VisualChat = () => {
                         }`}
                       >
                         <p className="text-[10px] font-medium text-[#6b7280]">
-                          {msg.nickname || roleDisplayLabel(msg.role)}
+                          {(() => {
+                            const baseName = msg.nickname || roleDisplayLabel(msg.role);
+                            const nameWithRole =
+                              msg.role === 'SYSTEM' ? `${baseName} 상담사` : baseName;
+                            const timeLabel = formatTimeFromTimestamp(msg.timestamp);
+                            return timeLabel ? `${nameWithRole} · ${timeLabel}` : nameWithRole;
+                          })()}
                         </p>
                         <div
                           className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-tight border break-words ${
@@ -1545,8 +1565,18 @@ const VisualChat = () => {
                             key={msg.id}
                             className={`flex flex-col gap-1 ${msg.role === me.role ? 'items-end' : 'items-start'}`}
                           >
-                            <p className={`text-[11px] text-[#6b7280] ${msg.role === me.role ? 'text-right' : 'text-left'}`}>
-                              {msg.nickname || roleDisplayLabel(msg.role)}
+                            <p
+                              className={`text-[11px] text-[#6b7280] ${
+                                msg.role === me.role ? 'text-right' : 'text-left'
+                              }`}
+                            >
+                              {(() => {
+                                const baseName = msg.nickname || roleDisplayLabel(msg.role);
+                                const nameWithRole =
+                                  msg.role === 'SYSTEM' ? `${baseName} 상담사` : baseName;
+                                const timeLabel = formatTimeFromTimestamp(msg.timestamp);
+                                return timeLabel ? `${nameWithRole} · ${timeLabel}` : nameWithRole;
+                              })()}
                             </p>
                             <div
                               className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-5 border break-words ${
