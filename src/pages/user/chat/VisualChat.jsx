@@ -1004,6 +1004,7 @@ const VisualChat = () => {
           method: 'POST',
           body: formData,
           mode: 'cors',
+          credentials: 'include',
         });
         if (!summaryRes.ok) {
           console.warn('요약 API 응답 오류:', summaryRes.status);
