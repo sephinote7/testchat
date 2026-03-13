@@ -59,12 +59,11 @@ const App = () => {
         {/* MY PAGE */}
         <Route path="/mypage/*" element={<MyPage />} />
 
-        {/* USER */}
-        {/* CHAT */}
+        {/* USER & COUNSELOR 공용 CHAT (AI/텍스트/화상 상담 진입용) */}
         <Route
           path="/chat/*"
           element={
-            <ProtectedRoute allowRoles={['USER']}>
+            <ProtectedRoute allowRoles={['USER', 'SYSTEM']}>
               <Chat />
             </ProtectedRoute>
           }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { useChatbotStore } from '../stores/useChatbotStore';
+import chatbotIcon from '../img/chatboticon.png';
 
 const DISCLAIMER_TEXT =
   "저희 고민순삭 어시스턴트 '순삭이'는 웹사이트를 기반으로 유용한 답변을 제공합니다. 그러나 때로는 부정확한 정보가 포함되거나 사람의 확인이 필요할 수 있습니다.";
@@ -1372,10 +1373,10 @@ const FloatingChatbot = () => {
       {/* 플로팅 버튼 (모바일 / PC 공통, 알림 있을 때 우상단 숫자 배지) */}
       {!isOpen && (
         <div className="fixed bottom-20 right-3 z-40 sm:bottom-6 sm:right-6">
-        <button
+          <button
             type="button"
             onClick={openChat}
-            className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-main-02 text-white shadow-xl transition-transform hover:scale-105 sm:h-16 sm:w-16"
+            className="relative flex h-14 w-14 items-center justify-center rounded-2xl shadow-xl transition-transform hover:scale-105 sm:h-16 sm:w-16"
             aria-label="고민순삭 챗봇 열기"
           >
             {notificationCount > 0 && (
@@ -1386,19 +1387,13 @@ const FloatingChatbot = () => {
                 {notificationCount > 99 ? '99+' : notificationCount}
               </span>
             )}
-            <svg
-              className="h-6 w-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 11.5C21.0034 12.8199 20.6321 14.1152 19.93 15.24C19.0831 16.6514 17.7923 17.7365 16.2541 18.3078C14.7159 18.8791 13.0259 18.9026 11.4723 18.3741L7 20L8.10457 16.0523C7.41024 14.9044 7.03955 13.5755 7.037 12.22C7.037 8.497 9.962 5.5 13.5 5.5C15.2141 5.48777 16.8582 6.1511 18.0826 7.35914C19.307 8.56717 20.012 10.2251 20 11.94L21 11.5Z" />
-            </svg>
-        </button>
-      </div>
+            <img
+              src={chatbotIcon}
+              alt="고민순삭 챗봇 아이콘"
+              className="h-full w-full object-contain"
+            />
+          </button>
+        </div>
       )}
     </>
   );

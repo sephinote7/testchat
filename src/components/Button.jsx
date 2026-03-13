@@ -26,7 +26,12 @@ const buttonVariants = cva(
 );
 
 const Button = ({ size, variant, className, ...props }) => {
-  return <button className={twMerge(buttonVariants({ size, variant }), className)} {...props} />;
+  return (
+    <button
+      className={twMerge(buttonVariants({ size, variant }), className)}
+      {...props}
+    />
+  );
 };
 
 export default Button;
