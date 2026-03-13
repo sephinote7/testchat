@@ -966,14 +966,6 @@ const VisualChat = () => {
       timestamp: String(msg.timestamp || Date.now()),
     }));
 
-    const clampSummary = (text, limit = 250) => {
-      if (!text) return '';
-      if (text.length <= limit) return text;
-      const sliced = text.slice(0, limit + 1);
-      const lastSpace = sliced.lastIndexOf(' ');
-      return (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced.slice(0, limit)).trim();
-    };
-
     let summaryText = '';
     let summaryLine = '';
     let msgDataList = basePayload;
@@ -997,43 +989,33 @@ const VisualChat = () => {
           body: formData,
           mode: 'cors',
         });
-        if (summaryRes.ok) {
-          const data = await summaryRes.json();
-          summaryText = clampSummary(data.summary || '');
-          summaryLine = clampSummary((data.summary_line || '').replace(/\s+/g, ' ').trim(), 250);
-          // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
-          const apiMsgData = data.msg_data;
-          if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
-            msgDataList = apiMsgData.map((item) => ({
-              type: item.type || 'chat',
-              speaker: item.speaker || 'user',
-              text: item.text != null ? String(item.text) : '',
-              timestamp: item.timestamp != null ? String(item.timestamp) : String(Date.now()),
-            }));
-          } else {
-            msgDataList = basePayload;
-          }
+        if (!summaryRes.ok) {
+          console.warn('요약 API 응답 오류:', summaryRes.status);
+          return;
+        }
+        const data = await summaryRes.json();
+        summaryText = (data.summary || '').toString();
+        summaryLine = (data.summary_line || '').toString().trim();
+        // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
+        const apiMsgData = data.msg_data;
+        if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
+          msgDataList = apiMsgData.map((item) => ({
+            type: item.type || 'chat',
+            speaker: item.speaker || 'user',
+            text: item.text != null ? String(item.text) : '',
+            timestamp: item.timestamp != null ? String(item.timestamp) : String(Date.now()),
+          }));
+        } else {
+          msgDataList = basePayload;
         }
       } catch (e) {
         console.warn('요약 API 실패:', e);
+        return;
       }
     }
 
-    if (!summaryText && basePayload.length > 0) {
-      const texts = basePayload
-        .filter((x) => x.text && typeof x.text === 'string')
-        .map((x) => x.text)
-        .slice(0, 10);
-      const joined = texts.length > 0
-        ? texts.join(' ')
-        : `화상 상담 (${new Date().toLocaleString('ko-KR')})`;
-      summaryText = clampSummary(joined);
-      summaryLine = clampSummary(texts[0] || joined, 250);
-    } else if (!summaryText) {
-      const fallback = `화상 상담 (${new Date().toLocaleString('ko-KR')})`;
-      summaryText = clampSummary(fallback);
-      summaryLine = fallback;
-    }
+    // 요약이 생성되지 못한 경우에는 저장을 시도하지 않는다.
+    if (!summaryText || !msgDataList.length) return;
 
     const summaryPayload = JSON.stringify({
       summary: summaryText,
@@ -1064,55 +1046,22 @@ const VisualChat = () => {
     };
 
     let apiSaved = false;
-    if (apiBase) {
+    if (apiBase && summaryText) {
       try {
-        if (msgDataList.length > 0) {
-          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              summary: summaryText,
-              summary_line: summaryLine || undefined,
-              msg_data: msgDataList,
-            }),
-            mode: 'cors',
-          });
-          if (r.ok) apiSaved = true;
-          else {
-            const fallback = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              credentials: 'include',
-              body: JSON.stringify({
-                role: 'summary',
-                content: summaryText,
-                summary: summaryText,
-              }),
-              mode: 'cors',
-            });
-            if (fallback.ok) apiSaved = true;
-          }
-        } else {
-          const r = await fetch(`${apiBase}/cnsl/${chatId}/chat`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              role: 'summary',
-              content: summaryText,
-              summary: summaryText,
-            }),
-            mode: 'cors',
-          });
-          if (r.ok) apiSaved = true;
-        }
+        const r = await fetch(`${apiBase}/cnsl/${chatId}/chat/summary-full`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            summary: summaryText,
+            summary_line: summaryLine || undefined,
+            msg_data: msgDataList,
+          }),
+          mode: 'cors',
+        });
+        if (r.ok) apiSaved = true;
       } catch (err) {
         console.warn('chat_msg API 저장 실패:', err);
       }
