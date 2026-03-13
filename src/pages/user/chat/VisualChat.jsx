@@ -1190,6 +1190,7 @@ const VisualChat = () => {
     const cnsler_id = me.role === 'USER' ? other.email : me.email;
     const speaker = me.role === 'SYSTEM' ? 'cnsler' : 'user';
     const entry = { speaker, text: trimmed, type: 'chat', timestamp: Date.now() };
+    const initialSummary = trimmed ? String(trimmed).slice(0, 200) : '';
 
     const { data: existing } = await supabase
       .from('chat_msg')
@@ -1211,7 +1212,7 @@ const VisualChat = () => {
     }
     const { error } = await supabase
       .from('chat_msg')
-      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data });
+      .insert({ cnsl_id: cnslIdNum, member_id, cnsler_id, role: speaker, msg_data, summary: initialSummary || ' ' });
     return error ? null : {};
   };
 
@@ -1300,7 +1301,7 @@ const VisualChat = () => {
 
           {/* 상담 정보 + 상대 정보 */}
           <section className="shrink-0 flex flex-col gap-3">
-            <div className="max-h-[180px] overflow-y-auto flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb]">
+            <div className="max-h-[180px] overflow-y-auto overflow-x-hidden flex flex-col gap-2 rounded-2xl border border-[#e5e7eb] p-3 bg-[#f9fafb]">
               {cnslInfo && (
                 <div className="shrink-0">
                   <h2 className="text-2xl font-semibold text-gray-800 mb-1">상담 정보</h2>
@@ -1350,7 +1351,7 @@ const VisualChat = () => {
             <div className="flex flex-col gap-2 min-h-[160px]">
               <div
                 ref={chatScrollRefMobile}
-                className="flex-1 min-h-[120px] max-h-[200px] overflow-y-auto border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]"
+                className="flex-1 min-h-[120px] max-h-[200px] overflow-y-auto overflow-x-hidden border border-[#e5e7eb] rounded-2xl px-3 py-2 bg-[#f9fafb]"
               >
                 {chatMessages.length === 0 ? (
                   <p className="text-[10px] text-[#9ca3af]">
@@ -1369,7 +1370,7 @@ const VisualChat = () => {
                           {msg.nickname || roleDisplayLabel(msg.role)}
                         </p>
                         <div
-                          className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-tight border ${
+                          className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-tight border break-words ${
                             msg.role === me.role
                               ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]'
                               : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
@@ -1448,7 +1449,7 @@ const VisualChat = () => {
 
           {/* 메인: 정보+화상 600px 고정, 채팅 300px 고정 (초과 시 스크롤) */}
           <main className="flex shrink-0 flex-col pt-2 pb-4">
-            <div className="w-full flex flex-col bg-white rounded-b-2xl shadow-2xl overflow-hidden">
+                <div className="w-full flex flex-col bg-white rounded-b-2xl shadow-2xl overflow-hidden">
               <section className="flex shrink-0 gap-4 p-4 h-[600px]">
                 {/* 좌측 정보창 480px × 600px 고정 */}
                 <div
@@ -1458,7 +1459,7 @@ const VisualChat = () => {
                   {cnslInfo ? (
                     <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-b border-[#e5e7eb]">
                       <h3 className="text-2xl font-semibold text-gray-800 px-4 py-3 shrink-0">상담 정보</h3>
-                      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 text-sm text-[#374151]">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-2 text-sm text-[#374151]">
                         {cnslInfo.title && (
                           <p className="text-2xl font-medium text-gray-800 mb-1">제목: {cnslInfo.title}</p>
                         )}
@@ -1489,7 +1490,7 @@ const VisualChat = () => {
                         {peer.nickname}
                       </span>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-3 text-sm text-[#374151]">
                       {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
                         <p className="leading-relaxed whitespace-pre-line">
                           {systemMember.profile}
@@ -1572,7 +1573,7 @@ const VisualChat = () => {
                     </h3>
                     <div
                       ref={chatScrollRefPc}
-                      className="flex-1 min-h-0 overflow-y-auto px-4 py-2 flex flex-col gap-3"
+                      className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-2 flex flex-col gap-3"
                     >
                       {chatMessages.length === 0 ? (
                         <p className="text-xs text-[#9ca3af]">
@@ -1588,7 +1589,7 @@ const VisualChat = () => {
                               {msg.nickname || roleDisplayLabel(msg.role)}
                             </p>
                             <div
-                              className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-5 border ${
+                              className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-5 border break-words ${
                                 msg.role === me.role
                                   ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]'
                                   : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
