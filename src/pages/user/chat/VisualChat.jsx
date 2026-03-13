@@ -372,35 +372,50 @@ const VisualChat = () => {
       };
     });
 
-  // 현재 Supabase chat_msg 테이블에는 msg_data 컬럼이 없어서
-  // 조회 시 400(42703 column does not exist) 에러가 발생하므로
-  // 우선 Supabase 기반 채팅 로드는 비활성화하고, 백엔드 API 응답만 사용한다.
-  const fetchFromSupabase = async () => [];
+  // Supabase chat_msg.msg_data(JSONB)에 저장된 채팅 내역 로드
+  const fetchFromSupabase = async () => {
+    const cnslIdNum = parseInt(chatId, 10);
+    if (Number.isNaN(cnslIdNum) || cnslIdNum <= 0) return [];
+
+    const { data: rows, error } = await supabase
+      .from('chat_msg')
+      .select('chat_id, msg_data, member_id, cnsler_id')
+      .eq('cnsl_id', cnslIdNum)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Supabase chat_msg 조회 실패:', error);
+      return [];
+    }
+    if (!rows?.length) return [];
+
+    const row = rows[0];
+    const content = row?.msg_data?.content;
+    if (!Array.isArray(content)) return [];
+
+    const memberId = row.member_id || '';
+    const cnslerId = row.cnsler_id || '';
+
+    return content.map((item, idx) => {
+      const speaker = (item.speaker || 'user').toLowerCase();
+      const role = speaker === 'counselor' || speaker === 'cnsler' ? 'counselor' : 'user';
+      return {
+        chatId: `${row.chat_id}-${idx}`,
+        role,
+        content: item.text ?? '',
+        memberId,
+        cnslerId,
+        createdAt: item.timestamp,
+        created_at: item.timestamp,
+      };
+    });
+  };
 
   const fetchChatMessages = async () => {
     if (!chatId || !me?.email) return;
-    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
     try {
-      let list = [];
-      list = await fetchFromSupabase();
-      if (list.length === 0 && base) {
-        try {
-          const res = await fetch(`${base}/cnsl/${chatId}/chat`, {
-            headers: {
-              Accept: 'application/json',
-            },
-            credentials: 'include',
-            mode: 'cors',
-          });
-          if (res.ok) {
-            const data = await res.json();
-            list = Array.isArray(data) ? data : [];
-          }
-        } catch {
-          /* API 실패 시 Supabase 결과 유지 */
-        }
-      }
+      const list = await fetchFromSupabase();
       const mapped = mapApiMessagesToUI(list);
       setChatMessages((prev) => {
         if (mapped.length > 0) return mapped;
@@ -410,13 +425,6 @@ const VisualChat = () => {
       });
     } catch (err) {
       console.warn('채팅 조회 실패:', err);
-      try {
-        const list = await fetchFromSupabase();
-        const mapped = mapApiMessagesToUI(list);
-        if (mapped.length > 0) setChatMessages(mapped);
-      } catch (e) {
-        console.warn('Supabase 채팅 조회 실패:', e);
-      }
     }
   };
 
