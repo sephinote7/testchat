@@ -144,8 +144,8 @@ function tryStartCompositeRecordingOnce(
 ) {
   if (hadVideoRecordingRef.current) return;
   const local = mediaStreamRef.current;
-  const remote = remoteStreamRef.current;
-  if (!local || !remote || !local.getVideoTracks().length || typeof MediaRecorder === 'undefined') return;
+  // remote 스트림이 아직 없어도, 최소한 내 화면은 항상 녹화되도록 한다.
+  if (!local || !local.getVideoTracks().length || typeof MediaRecorder === 'undefined') return;
   try {
     const vRec = startCompositeVideoRecording(
       local,
@@ -316,7 +316,7 @@ const VisualChat = () => {
           .maybeSingle();
         // 화상 상담 전용: cnsl_tp가 5(화상 상담)가 아니면 진입 차단
         if (!cnslRegRow || String(cnslRegRow.cnsl_tp || '').trim() !== '5') {
-          setErrorMsg('해당 상담은 화상 상담 유형(cnsl_tp=5)이 아닙니다.');
+          setErrorMsg('해당 상담 유형이 아닙니다.');
           setLoading(false);
           return;
         }

@@ -101,7 +101,7 @@ const CounselorChat = () => {
 
         const cnslTp = String(cnslRow.cnsl_tp || '').trim();
         if (cnslTp !== '4') {
-          setErrorMsg('해당 상담 유형(cnsl_tp=4)이 아닙니다.');
+          setErrorMsg('해당 상담 유형이 아닙니다.');
           setLoading(false);
           return;
         }
