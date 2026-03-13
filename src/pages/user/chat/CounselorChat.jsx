@@ -514,6 +514,12 @@ const CounselorChat = () => {
       const { error } = await supabase.from('chat_msg').update({ msg_data }).eq('cnsl_id', cnslIdNum);
       return error ? null : { chatId: existing.chat_id };
     }
+
+    const initialSummaryPayload = JSON.stringify({
+      summary: trimmed || '',
+      summary_line: '',
+    });
+
     const { data: inserted, error } = await supabase
       .from('chat_msg')
       // summary 컬럼 NOT NULL 방어: 초기에는 간단히 첫 메시지 텍스트를 summary로 넣고,
@@ -524,7 +530,7 @@ const CounselorChat = () => {
         cnsler_id,
         role: speaker,
         msg_data,
-        summary: trimmed || ' ',
+        summary: initialSummaryPayload,
       })
       .select('chat_id')
       .single();

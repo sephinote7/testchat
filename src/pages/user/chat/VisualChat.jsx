@@ -132,6 +132,40 @@ function startCompositeVideoRecording(
   }
 }
 
+// 상대방 스트림이 실제로 도착한 뒤에만 합성 녹화를 시작하기 위한 헬퍼
+function tryStartCompositeRecordingOnce(
+  mediaStreamRef,
+  remoteStreamRef,
+  videoRecordedChunksRef,
+  compositeDrawIdRef,
+  compositeCanvasRef,
+  videoRecorderRef,
+  hadVideoRecordingRef,
+) {
+  if (hadVideoRecordingRef.current) return;
+  const local = mediaStreamRef.current;
+  const remote = remoteStreamRef.current;
+  if (!local || !remote || !local.getVideoTracks().length || typeof MediaRecorder === 'undefined') return;
+  try {
+    const vRec = startCompositeVideoRecording(
+      local,
+      () => remoteStreamRef.current,
+      videoRecordedChunksRef,
+      compositeDrawIdRef,
+      compositeCanvasRef,
+    );
+    if (vRec) {
+      hadVideoRecordingRef.current = true;
+      videoRecorderRef.current = vRec;
+    } else {
+      hadVideoRecordingRef.current = false;
+    }
+  } catch (e) {
+    console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
+    hadVideoRecordingRef.current = false;
+  }
+}
+
 // member row → UI에서 사용하기 좋은 형태로 매핑
 // Supabase member: id, email 등. 이메일은 row.email 또는 row.member_id
 function mapMemberRow(row) {
@@ -639,23 +673,16 @@ const VisualChat = () => {
     peer.on('call', async (call) => {
       currentCallRef.current = call;
       try {
-        // 카메라 필수, 음성 선택: 먼저 비디오만 시도 → 성공 시 오디오 추가 시도
-        let stream = await navigator.mediaDevices
-          .getUserMedia({ video: true })
-          .catch(() => null);
+        // 카메라+마이크를 한 번에 요청하고, 실패 시 비디오-only로 폴백
+        let stream = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true }).catch(() => null);
+        }
         if (!stream) {
           setErrorMsg('카메라를 사용할 수 없습니다. 카메라 연결 및 권한을 확인해 주세요.');
           return;
-        }
-        try {
-          const withAudio = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-          });
-          stream.getTracks().forEach((t) => t.stop());
-          stream = withAudio;
-        } catch {
-          // 오디오 실패 시 비디오만으로 진행
         }
         setMediaStream(stream);
         setIsCallActive(true);
@@ -694,31 +721,17 @@ const VisualChat = () => {
             console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
           }
         }
-        // 영상 녹화: 내 화면 + 상대 화면 합성
-        if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
-          try {
-            const vRec = startCompositeVideoRecording(
-              stream,
-              () => remoteStreamRef.current,
-              videoRecordedChunksRef,
-              compositeDrawIdRef,
-              compositeCanvasRef,
-            );
-            if (vRec) {
-              hadVideoRecordingRef.current = true;
-              videoRecorderRef.current = vRec;
-            } else {
-              hadVideoRecordingRef.current = false;
-            }
-          } catch (e) {
-            console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
-            hadVideoRecordingRef.current = false;
-          }
-        } else {
-          hadVideoRecordingRef.current = false;
-        }
         call.on('stream', (remote) => {
           setRemoteStream(remote);
+          tryStartCompositeRecordingOnce(
+            mediaStreamRef,
+            remoteStreamRef,
+            videoRecordedChunksRef,
+            compositeDrawIdRef,
+            compositeCanvasRef,
+            videoRecorderRef,
+            hadVideoRecordingRef,
+          );
         });
         call.on('close', () => {
           setRemoteStream(null);
@@ -935,29 +948,6 @@ const VisualChat = () => {
         } catch (e) {
           console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
         }
-      }
-      // 영상 녹화: 내 화면 + 상대 화면 합성 (다운로드용)
-      if (stream.getVideoTracks().length > 0 && typeof MediaRecorder !== 'undefined') {
-        try {
-          const vRecorder = startCompositeVideoRecording(
-            stream,
-            () => remoteStreamRef.current,
-            videoRecordedChunksRef,
-            compositeDrawIdRef,
-            compositeCanvasRef,
-          );
-          if (vRecorder) {
-            hadVideoRecordingRef.current = true;
-            videoRecorderRef.current = vRecorder;
-          } else {
-            hadVideoRecordingRef.current = false;
-          }
-        } catch (e) {
-          console.warn('영상 녹화 시작 실패, 녹화 생략:', e);
-          hadVideoRecordingRef.current = false;
-        }
-      } else {
-        hadVideoRecordingRef.current = false;
       }
     } catch (error) {
       console.error('통화 시작 실패:', error);
@@ -1203,6 +1193,11 @@ const VisualChat = () => {
         .eq('cnsl_id', cnslIdNum);
       return error ? null : { chatId: existing.chat_id };
     }
+    const initialSummaryPayload = JSON.stringify({
+      summary: initialSummary || '',
+      summary_line: '',
+    });
+
     const { error } = await supabase
       .from('chat_msg')
       // Table.md 기준으로 chat_msg에는 content 컬럼이 없고,
@@ -1213,7 +1208,7 @@ const VisualChat = () => {
         cnsler_id,
         role: speaker,
         msg_data,
-        summary: initialSummary || ' ',
+        summary: initialSummaryPayload,
       });
     return error ? null : {};
   };
