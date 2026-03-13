@@ -966,6 +966,14 @@ const VisualChat = () => {
       timestamp: String(msg.timestamp || Date.now()),
     }));
 
+    const clampSummary = (text, limit = 250) => {
+      if (!text) return '';
+      if (text.length <= limit) return text;
+      const sliced = text.slice(0, limit + 1);
+      const lastSpace = sliced.lastIndexOf(' ');
+      return (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced.slice(0, limit)).trim();
+    };
+
     let summaryText = '';
     let summaryLine = '';
     let msgDataList = basePayload;
@@ -991,8 +999,8 @@ const VisualChat = () => {
         });
         if (summaryRes.ok) {
           const data = await summaryRes.json();
-          summaryText = (data.summary || '').slice(0, 300);
-          summaryLine = (data.summary_line || '').trim();
+          summaryText = clampSummary(data.summary || '');
+          summaryLine = clampSummary((data.summary_line || '').replace(/\s+/g, ' ').trim(), 250);
           // STT 포함 대화록: API가 반환한 msg_data(reordered_msg 기반) 사용
           const apiMsgData = data.msg_data;
           if (Array.isArray(apiMsgData) && apiMsgData.length > 0) {
@@ -1016,13 +1024,15 @@ const VisualChat = () => {
         .filter((x) => x.text && typeof x.text === 'string')
         .map((x) => x.text)
         .slice(0, 10);
-      summaryText = texts.length > 0
-        ? texts.join(' ').slice(0, 300)
-        : `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = texts[0] || summaryText;
+      const joined = texts.length > 0
+        ? texts.join(' ')
+        : `화상 상담 (${new Date().toLocaleString('ko-KR')})`;
+      summaryText = clampSummary(joined);
+      summaryLine = clampSummary(texts[0] || joined, 250);
     } else if (!summaryText) {
-      summaryText = `화상 상담 (${new Date().toLocaleString('ko-KR')})`.slice(0, 300);
-      summaryLine = summaryText;
+      const fallback = `화상 상담 (${new Date().toLocaleString('ko-KR')})`;
+      summaryText = clampSummary(fallback);
+      summaryLine = fallback;
     }
 
     const summaryPayload = JSON.stringify({
