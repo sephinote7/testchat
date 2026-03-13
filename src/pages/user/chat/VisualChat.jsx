@@ -663,11 +663,17 @@ const VisualChat = () => {
         setRemoteStream(null);
         call.answer(stream);
         updateCnslStatRef.current?.('C');
-        // STT용 오디오는 화상 스트림과 분리해서 캡처를 시도한다.
+        // STT용 오디오는 화상 스트림과 분리해서 캡처를 시도하되,
+        // audio-only 스트림을 확보했다면 해당 오디오 트랙을 WebRTC 통화 스트림에도 추가해
+        // 실제 화상 통화에서도 음성이 전달되도록 한다.
         let recordStream = stream;
         try {
           const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (audioOnly && audioOnly.getAudioTracks().length > 0) {
+          const audioTracks = audioOnly?.getAudioTracks() || [];
+          if (audioTracks.length > 0) {
+            // 통화용 스트림에 오디오 트랙 추가 → 상대방에게도 음성 전달
+            stream.addTrack(audioTracks[0]);
+            // STT/녹음용으로는 audio-only 스트림 사용
             recordStream = audioOnly;
           }
         } catch {
@@ -910,11 +916,17 @@ const VisualChat = () => {
 
       // 오디오 녹음 (요약/STT용, 부하 최소화)
       if (canRecordAudio && typeof MediaRecorder !== 'undefined') {
-        // STT용은 화상 스트림과 분리된 audio-only 스트림을 우선 사용
+        // STT용은 화상 스트림과 분리된 audio-only 스트림을 우선 사용하되,
+        // audio-only 스트림이 있으면 해당 오디오 트랙을 통화용 스트림에도 추가해
+        // 실시간 통화 음성이 정상 전달되도록 한다.
         let recordStream = stream;
         try {
           const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (audioOnly && audioOnly.getAudioTracks().length > 0) {
+          const audioTracks = audioOnly?.getAudioTracks() || [];
+          if (audioTracks.length > 0) {
+            // 통화 스트림에 오디오 트랙 추가
+            stream.addTrack(audioTracks[0]);
+            // STT 녹음은 audio-only 스트림으로 진행
             recordStream = audioOnly;
           }
         } catch {
