@@ -103,15 +103,16 @@ const CounselorList = () => {
           if (maxPrice === null) maxPrice = 2147483647;
         }
 
-        const data = await getCounselorList({
+        const params = {
           page: 0,
           size: ITEMS_PER_PAGE,
           cnslCate: cnslCate,
           cnslTp: cnslTp,
           minPrice: minPrice,
           maxPrice: maxPrice,
-          hashTags: hashTags || '',
-        });
+        };
+        if (hashTags && hashTags.length > 0 && hashTags[0]) params.hashTags = hashTags;
+        const data = await getCounselorList(params);
 
         // Spring Page 응답: content, totalPages. 없거나 비정형이면 빈 배열로 통일
         const list = Array.isArray(data?.content) ? data.content : [];
