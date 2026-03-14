@@ -75,15 +75,12 @@ const CounselorClientChat = () => {
   //   fetchChatHistory();
   // }, [clientId]);
 
-  // TODO: DB 연동 시 WebSocket 연결
+  // TODO: DB 연동 시 STOMP 연결 (Spring /ws). accessToken은 쿠키에 없으므로 아래 중 하나로 전달.
+  // 1) 쿼리: SockJS(`${API_URL}/ws?token=${encodeURIComponent(accessToken)}`)
+  // 2) CONNECT 프레임 헤더: { Authorization: `Bearer ${accessToken}` } 또는 { token: accessToken }
   // useEffect(() => {
   //   const ws = new WebSocket(`ws://your-domain/api/chat/counselor/${clientId}`);
-  //
-  //   ws.onmessage = (event) => {
-  //     const newMessage = JSON.parse(event.data);
-  //     setMessages((prev) => [...prev, newMessage]);
-  //   };
-  //
+  //   ws.onmessage = (event) => { ... };
   //   return () => ws.close();
   // }, [clientId]);
 
