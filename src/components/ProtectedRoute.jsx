@@ -26,8 +26,8 @@ export default function ProtectedRoute({ children, allowRoles }) {
   if (nickname.split('_')[0] === 'social')
     return <Navigate to="/member/kakao-additional" replace />;
 
-  // 권한이 없는 경우
-  if (allowRoles && !allowRoles.includes(roleName)) {
+  // 권한이 없는 경우 (roleName이 확정된 경우에만 리다이렉트, 초기값 미로딩 시 대기)
+  if (allowRoles && roleName != null && roleName !== '' && !allowRoles.includes(roleName)) {
     return <Navigate to="/" replace />;
   }
 

@@ -32,19 +32,19 @@ const ChatDefaultPage = () => {
   const aicnslimg = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/aichat.png";
   const cnslimg = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_cnsl.png";
 
-  // 뒤로 가기 또는 Nav바 상담 클릭으로 온 경우 리다이렉트 하지 않음
+  // 뒤로 가기 또는 Nav바 상담 클릭으로 온 경우 리다이렉트 하지 않음 (replace 제거 → 리마운트 시 ref 초기화 방지)
   useEffect(() => {
     if (location.state?.fromBack || location.state?.fromNav) {
       skipRedirectRef.current = true;
-      navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state?.fromBack, location.state?.fromNav, location.pathname, navigate]);
+  }, [location.state?.fromBack, location.state?.fromNav]);
 
   useEffect(() => {
+    if (location.state?.fromNav || location.state?.fromBack) return;
     if (activeCnslId && !skipRedirectRef.current) {
       navigate(`/chat/withai/${activeCnslId}`, { replace: true });
     }
-  }, [activeCnslId, navigate]);
+  }, [activeCnslId, navigate, location.state?.fromNav, location.state?.fromBack]);
 
   const handleResetTestData = async () => {
     if (!window.confirm('진행 중인 AI 상담(cnsl_stat=C) 데이터를 종료 처리합니다. 계속할까요?')) return;
