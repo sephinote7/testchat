@@ -111,6 +111,17 @@ const BoardList = () => {
     };
   }, []);
 
+  // 목록 응답 정규화: Spring Page는 { content, totalPages } 또는 배열만 올 수 있음
+  const normalizeListResponse = (res) => {
+    if (res == null || typeof res !== 'object') return { content: [], totalPages: 1 };
+    const content = Array.isArray(res)
+      ? res
+      : (res.content ?? res.data ?? res.result ?? res.list ?? []);
+    const arr = Array.isArray(content) ? content : [];
+    const totalPages = Math.max(1, res.totalPages ?? res.total_pages ?? 1);
+    return { content: arr, totalPages };
+  };
+
   useEffect(() => {
     let cancelled = false;
     const cacheKey = `${page}-${bbsDivParam ?? 'all'}`;
@@ -122,24 +133,26 @@ const BoardList = () => {
       return;
     }
     setLoading(true);
+    setErrorMessage('');
 
     if (bbsDivParam === 'FREE' || bbsDivParam === 'MBTI') {
       bbsApi
         .getList({ page, limit: pageSize, bbs_div: bbsDivParam })
         .then((res) => {
           if (cancelled) return;
-          const list = (res.content || []).map(mapBbsToPost);
+          const { content: raw, totalPages: total } = normalizeListResponse(res);
+          const list = raw.map(mapBbsToPost);
           setPosts(list);
-          const total = Math.max(1, res.totalPages ?? 1);
-          setTotalPages(total);
+          setTotalPages(Math.max(1, total));
           listCache.key = cacheKey;
-          listCache.data = { content: res.content || [], totalPages: total };
+          listCache.data = { content: raw, totalPages: Math.max(1, total) };
           listCache.ts = Date.now();
         })
-        .catch(() => {
+        .catch((err) => {
           if (cancelled) return;
           setPosts([]);
           setTotalPages(1);
+          setErrorMessage(err?.message || '목록을 불러오지 못했습니다. 네트워크 탭에서 GET /api/bbs 응답을 확인해 주세요.');
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -153,9 +166,10 @@ const BoardList = () => {
       .getList({ page, limit: pageSize, bbs_div: bbsDivParam })
       .then((res) => {
         if (cancelled) return;
-        let raw = res.content || [];
+        const { content: rawContent, totalPages: total } = normalizeListResponse(res);
+        let raw = [...rawContent];
         if (!bbsDivParam) {
-          raw = [...raw].sort((a, b) => {
+          raw.sort((a, b) => {
             const aNoti = a.bbs_div === 'NOTI' ? 1 : 0;
             const bNoti = b.bbs_div === 'NOTI' ? 1 : 0;
             if (bNoti !== aNoti) return bNoti - aNoti;
@@ -164,16 +178,16 @@ const BoardList = () => {
         }
         const list = raw.map(mapBbsToPost);
         setPosts(list);
-        const total = Math.max(1, res.totalPages ?? 1);
-        setTotalPages(total);
+        setTotalPages(Math.max(1, total));
         listCache.key = cacheKey;
-        listCache.data = { content: raw, totalPages: total };
+        listCache.data = { content: raw, totalPages: Math.max(1, total) };
         listCache.ts = Date.now();
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setPosts([]);
         setTotalPages(1);
+        setErrorMessage(err?.message || '목록을 불러오지 못했습니다. 네트워크 탭에서 GET /api/bbs 응답을 확인해 주세요.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -405,12 +419,21 @@ const BoardList = () => {
             </Link>
           </div>
 
+          {/* 목록 로드 실패 시 안내 */}
+          {errorMessage && (
+            <div className="mb-3 px-3 py-2 rounded bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+              {errorMessage}
+            </div>
+          )}
+
           {/* Mobile List */}
           <div className="border border-blue-300 rounded-md overflow-hidden bg-white">
             {loading ? (
               <div className="px-3 py-10 text-center text-sm text-gray-500">로딩 중...</div>
             ) : pagedItems.length === 0 ? (
-              <div className="px-3 py-10 text-center text-sm text-gray-500">해당 조건의 게시글이 없습니다.</div>
+              <div className="px-3 py-10 text-center text-sm text-gray-500">
+                {errorMessage || '해당 조건의 게시글이 없습니다.'}
+              </div>
             ) : (
               pagedItems.map((item) => (
                 <div key={item.id} className="border-b border-blue-200 last:border-b-0 px-3 py-3">
@@ -790,7 +813,7 @@ const BoardList = () => {
                 ) : pagedItems.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="px-6 py-20 text-center text-[14px] text-gray-500">
-                      해당 조건의 게시글이 없습니다.
+                      {errorMessage || '해당 조건의 게시글이 없습니다.'}
                     </td>
                   </tr>
                 ) : (
