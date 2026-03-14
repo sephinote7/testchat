@@ -252,12 +252,16 @@ export default function useAuth() {
     }
   };
 
-  // 닉네임 중복 확인 함수
+  // 닉네임 중복 확인 함수 (빈 값이면 API 호출하지 않음 — 403/파싱 오류 방지)
   const getmemberInfoNicknameCheckYn = async (nickname) => {
+    const trimmed = nickname != null ? String(nickname).trim() : '';
+    if (!trimmed) {
+      throw new Error('닉네임을 입력해 주세요.');
+    }
     try {
       const { data } = await authApi.get('/api/member_InfoNicknameChk', {
         params: {
-          nickname,
+          nickname: trimmed,
         },
       });
       return data;

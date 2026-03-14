@@ -47,8 +47,12 @@ const SignUp = () => {
   };
 
   const handleNickname = async () => {
+    if (!formData.nickname?.trim()) {
+      alert('닉네임을 입력해 주세요.');
+      return;
+    }
     try {
-      const { userInfoNicknameCheckYn: result } = await getmemberInfoNicknameCheckYn(formData.nickname);
+      const { userInfoNicknameCheckYn: result } = await getmemberInfoNicknameCheckYn(formData.nickname.trim());
       if (result === 'Y') {
         alert('해당 닉네임은 이미 등록되어 있습니다. 고유한 닉네임을 입력해주세요.');
         return;
