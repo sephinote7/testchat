@@ -34,11 +34,14 @@ export const refreshAccessToken = async () => {
     return data.accessToken;
   } catch (error) {
     const status = error.response?.status;
+    const serverMessage = error.response?.data?.error || error.response?.data?.message;
     const isServerError = status >= 500 || status === 502 || status === 503 || status === 504;
-    if (isServerError) {
+    if (status === 401) {
+      console.warn('토큰 갱신 실패: 로그인이 만료되었거나 refreshToken이 없습니다. 다시 로그인해 주세요.', serverMessage || '');
+    } else if (isServerError) {
       console.warn('토큰 갱신 실패: 서버 일시 오류. 로그인이 필요할 수 있습니다.');
     } else {
-      console.warn('토큰 갱신 실패:', error.response?.data?.message || error.message || status);
+      console.warn('토큰 갱신 실패:', serverMessage || error.message || status);
     }
     clearAuth();
     return null;

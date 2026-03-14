@@ -995,7 +995,7 @@ const FloatingChatbot = () => {
           // ignore
         }
         const detail = (errorBody && (errorBody.error || errorBody.message)) || response.statusText || 'Unknown error';
-        throw new Error(`챗봇 서버 응답 오류 (${response.status} ${detail})`);
+        throw new Error(`챗봇 서버 응답 오류 (${response.status} ${detail})`); // 콘솔용, 사용자에게는 표시 안 함
       } else {
         data = await response.json();
       }
@@ -1039,8 +1039,6 @@ const FloatingChatbot = () => {
         minute: '2-digit',
       });
 
-      const detail = error instanceof Error && error.message ? ` (${error.message})` : '';
-
       setMessages((prev) => {
         const base = Array.isArray(prev) ? prev : [];
         const withoutPending = base.filter((m) => m.id !== pendingId);
@@ -1049,9 +1047,7 @@ const FloatingChatbot = () => {
           {
             id: `bot-error-${Date.now()}`,
             sender: 'bot',
-            text:
-              '지금은 챗봇 서버와 통신이 원활하지 않습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객 지원 팀에 문의해 주세요.' +
-              detail,
+            text: '지금은 챗봇 서버와 통신이 원활하지 않습니다. 잠시 후 다시 시도해 주세요. 문제가 계속되면 고객 지원 팀에 문의해 주세요.',
             timestamp: now,
           },
         ];
