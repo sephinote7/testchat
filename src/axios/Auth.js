@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth.store';
 import { BASE_URL } from '../api/config';
+import { normalizeRole } from '../utils/roleUtils';
 
 export const authApi = axios.create({
   baseURL: BASE_URL,
@@ -31,7 +32,7 @@ export const refreshAccessToken = async () => {
     setLoginStatus(true);
     setEmail(data.email);
     setNickname(data.nickname);
-    setRoleName(data.roleNames[0]);
+    setRoleName(normalizeRole(data.roleNames?.[0]));
     return data.accessToken;
   } catch (error) {
     const status = error.response?.status;

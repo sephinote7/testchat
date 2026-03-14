@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
 import { useAuthStore } from '../../../store/auth.store';
 import { authApi } from '../../../axios/Auth';
+import { normalizeRole } from '../../../utils/roleUtils';
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -35,9 +36,10 @@ const SignIn = () => {
 
       console.log('로그인 테스트 == ', res);
       if (res.data.accessToken) {
+        const role = normalizeRole(res.data.roleNames?.[0]);
         setAccessToken(res.data.accessToken);
         setLoginStatus(true);
-        setRoleName(res.data.roleNames[0]);
+        setRoleName(role);
         setNickname(res.data.nickname);
 
         if (res.data.email) {
@@ -46,8 +48,8 @@ const SignIn = () => {
 
         setShowSuccessModal(true);
         setTimeout(() => {
-          if (res.data.roleNames[0] === 'USER') navigate('/');
-          else if (res.data.roleNames[0] === 'SYSTEM') navigate('/system/mypage');
+          if (role === 'USER') navigate('/');
+          else if (role === 'SYSTEM') navigate('/system/mypage');
           else navigate('/alarm');
         }, 1500);
       } else {
