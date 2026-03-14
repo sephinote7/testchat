@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { authApi } from '../axios/Auth';
 import { supabase } from '../lib/supabase';
 import { useChatbotStore } from '../stores/useChatbotStore';
 import chatbotIcon from '../img/chatboticon.png';
@@ -890,25 +891,40 @@ const FloatingChatbot = () => {
 
   const saveConversationToSupabase = async (conversation, summary, endSession = false) => {
     if (!user?.isLogin || !user.email) return;
+    const storageMessages = toStorageMessages(conversation);
+
+    // 1) Spring 백엔드 API 우선 시도 (JWT 사용 시 bot_msg에 저장 보장)
     try {
-      const storageMessages = toStorageMessages(conversation);
-      // 1) 진행 중 row가 있으면 msg_data(+ summary)만 업데이트
+      const body = {
+        msg_data: storageMessages,
+        summary: typeof summary === 'string' ? summary : undefined,
+        bot_id: currentBotId || undefined,
+        endSession: endSession || undefined,
+      };
+      const { data } = await authApi.post('/api/bot_msg/session', body);
+      if (data && data.bot_id != null) {
+        if (endSession) {
+          clearCurrentBotId();
+        } else {
+          setCurrentBotId(data.bot_id);
+        }
+        return;
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('bot_msg 백엔드 저장 실패, Supabase로 시도:', err?.response?.status ?? err?.message);
+    }
+
+    // 2) Supabase 직접 저장 (Supabase Auth 사용 시 또는 백엔드 실패 시)
+    try {
       if (currentBotId && !endSession) {
         const { error } = await supabase
           .from('bot_msg')
-          .update({
-            msg_data: storageMessages,
-          })
+          .update({ msg_data: storageMessages })
           .eq('bot_id', currentBotId);
-        if (error) {
-          // eslint-disable-next-line no-console
-          console.warn('bot_msg 업데이트 실패:', error);
-        }
-        return;
+        if (error) console.error('bot_msg 업데이트 실패:', error?.message || error, error);
         return;
       }
-
-      // 2) 세션 종료(endSession=true) + currentBotId가 있으면 같은 row에 summary까지 업데이트
       if (currentBotId && endSession) {
         const { error } = await supabase
           .from('bot_msg')
@@ -917,36 +933,26 @@ const FloatingChatbot = () => {
             summary: typeof summary === 'string' ? summary : null,
           })
           .eq('bot_id', currentBotId);
-        if (error) {
-          // eslint-disable-next-line no-console
-          console.warn('bot_msg 종료 저장 실패:', error);
-        }
+        if (error) console.error('bot_msg 종료 저장 실패:', error?.message || error, error);
         clearCurrentBotId();
         return;
       }
-
-      // 3) 진행 중 row가 없는 첫 저장 또는 요약만 있는 경우: 새 row 생성
       const payload = {
         member_id: user.email,
         msg_data: storageMessages,
         created_at: new Date().toISOString(),
       };
-      if (typeof summary === 'string') {
-        payload.summary = summary;
-      }
+      if (typeof summary === 'string') payload.summary = summary;
       const { data, error } = await supabase.from('bot_msg').insert(payload).select('bot_id').single();
-
       if (error) {
-        // eslint-disable-next-line no-console
-        console.warn('bot_msg 저장 실패:', error);
+        console.error('bot_msg 저장 실패:', error?.message || error, error);
       } else if (!endSession && data?.bot_id) {
         setCurrentBotId(data.bot_id);
       } else if (endSession) {
         clearCurrentBotId();
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('bot_msg 저장 실패:', e);
+      console.error('bot_msg 저장 실패:', e);
     }
   };
 
