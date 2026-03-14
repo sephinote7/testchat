@@ -33,7 +33,7 @@ const Nav = () => {
     }
     MENUS.push(
       { label: '홈', to: '/', icon: m_home },
-      { label: '상담', to: '/chat', icon: m_chat },
+      { label: '상담', to: { pathname: '/chat', state: { fromNav: true } }, icon: m_chat },
       { label: '게시판', to: '/board', icon: m_board },
       { label: 'INFO', to: '/info', icon: m_info },
       {
@@ -59,7 +59,7 @@ const Nav = () => {
       <div className="w-full mx-auto px-3">
         <ul className="flex h-16">
           {MENUS.map(({ label, to, icon }) => (
-            <li key={to} className="flex-1">
+            <li key={typeof to === 'object' ? to.pathname : to} className="flex-1">
               <NavLink to={to} className="h-full w-full">
                 {/* 핵심 수정 부분: isActive를 인자로 받는 함수형 자식 노드 */}
                 {({ isActive }) => (

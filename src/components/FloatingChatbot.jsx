@@ -684,8 +684,8 @@ const FloatingChatbot = () => {
   };
 
   const handleNavigateLink = (path) => {
-    navigate(path);
     setIsOpen(false);
+    navigate(path, { replace: true });
   };
 
   const handleQuickAction = (path, label) => {

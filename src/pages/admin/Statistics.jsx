@@ -117,6 +117,10 @@ const Statistics = () => {
     const fetchWeeklyKeywords = async () => {
       try {
         const data = await getWeeklyKeywords();
+        if (!data?.keywords?.length) {
+          setChartData([]);
+          return;
+        }
 
         // 총합 계산
         const totalScore = data.keywords.reduce((sum, item) => sum + item.score, 0);

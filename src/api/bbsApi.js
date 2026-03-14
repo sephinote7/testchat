@@ -86,13 +86,17 @@ export const getRecommendedPosts = async (email) => {
   }
 };
 
-// [이번 주 키워드]
+// [이번 주 키워드. 엔드포인트 없거나 404/500 시 빈 키워드 반환]
 export const getWeeklyKeywords = async () => {
   try {
     const { data } = await mlAuthApi.get(`/weekly-keywords`);
-
-    return data;
+    return data ?? { keywords: [] };
   } catch (error) {
+    const status = error?.response?.status;
+    if (status === 404 || status >= 500) {
+      console.warn('getWeeklyKeywords: API 미제공 또는 서버 오류, 빈 키워드 반환');
+      return { keywords: [] };
+    }
     console.error('getWeeklyKeywords error:', error);
     throw error;
   }

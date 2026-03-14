@@ -19,7 +19,7 @@ const PcNav = () => {
     }
     MENUS.push(
       { label: 'HOME', to: '/' },
-      { label: '상담', to: '/chat' },
+      { label: '상담', to: { pathname: '/chat', state: { fromNav: true } } },
       { label: '게시판', to: '/board' },
       { label: 'INFO', to: '/info' },
       {
@@ -57,7 +57,7 @@ const PcNav = () => {
               const isMyPage = label.includes('마이페이지') || label === '로그인';
 
               return (
-                <li key={to}>
+                <li key={typeof to === 'object' ? to.pathname : to}>
                   {isMyPage ? (
                     <NavLink
                       to={to}
