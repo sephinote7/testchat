@@ -9,6 +9,7 @@ const ML_API_BASE =
 
 export const mlAuthApi = axios.create({
   baseURL: ML_API_BASE,
+  withCredentials: true, // ML이 백엔드(api.gmss.site)로 갈 때 쿠키 포함
 });
 
 mlAuthApi.interceptors.request.use((config) => {

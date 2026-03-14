@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth.store';
+import { BASE_URL } from '../api/config';
 
 export const authApi = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  withCredentials: true, // refreshToken cookie
+  baseURL: BASE_URL,
+  withCredentials: true, // cross-origin에서 refreshToken 쿠키 전송 필수 (www → api)
 });
 
 authApi.interceptors.request.use((config) => {

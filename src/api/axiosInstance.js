@@ -25,6 +25,7 @@ const axiosInstance = axios.create({
   baseURL: BACKEND_BASE,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // api.gmss.site 쿠키(refreshToken 등) 전송
 });
 
 axiosInstance.interceptors.request.use(

@@ -93,8 +93,8 @@ export const getWeeklyKeywords = async () => {
     return data ?? { keywords: [] };
   } catch (error) {
     const status = error?.response?.status;
-    if (status === 404 || status >= 500) {
-      console.warn('getWeeklyKeywords: API 미제공 또는 서버 오류, 빈 키워드 반환');
+    if (status === 401 || status === 404 || status >= 500) {
+      console.warn('getWeeklyKeywords: 인증/미제공/서버 오류, 빈 키워드 반환');
       return { keywords: [] };
     }
     console.error('getWeeklyKeywords error:', error);
