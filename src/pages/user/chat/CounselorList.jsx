@@ -78,12 +78,13 @@ const CounselorList = () => {
       try {
         setLoading(true);
 
+        // 선택 없음 = 전체 보기. null 전달 시 백엔드에서 필터 미적용(상담사 전원 노출)
         const cnslCate =
-          selectedCategories.length > 0 ? selectedCategories.map((cat) => String(categoryMap[cat])) : ['2', '3'];
+          selectedCategories.length > 0 ? selectedCategories.map((cat) => String(categoryMap[cat])) : null;
         const cnslTp =
           selectedMethods.length > 0
             ? selectedMethods.map((method) => String(methodMap[method]))
-            : ['1', '2', '4', '5', '6'];
+            : null;
         let minPrice = null;
         let maxPrice = null;
 
