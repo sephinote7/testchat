@@ -70,8 +70,11 @@ const SignIn = () => {
   };
 
   const handleKakaoLogin = () => {
-    // TODO: 카카오톡 로그인 API 연동
-    window.location.href = 'http://localhost:8080/oauth2/authorization/kakao';
+    const apiBase =
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_BACKEND_URL ||
+      'http://localhost:8080';
+    window.location.href = `${apiBase.replace(/\/$/, '')}/oauth2/authorization/kakao`;
   };
 
   return (

@@ -151,7 +151,7 @@ const PointCharge = () => {
 
     const confirmPayment = async () => {
       try {
-        const response = await authApi.post('http://localhost:8080/confirm', {
+        const response = await authApi.post('/confirm', {
           paymentKey,
           orderId,
           amount,
