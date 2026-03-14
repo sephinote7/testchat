@@ -68,15 +68,19 @@ export const getMonthlyPopularPosts_py = async () => {
   }
 };
 
-// [추천순 (파이썬)]
+// [추천순 (ML/파이썬). 엔드포인트 없거나 404/405 시 빈 목록 반환]
 export const getRecommendedPosts = async (email) => {
   try {
     const { data } = await mlAuthApi.post(`/recommend`, {
       user_id: email,
     });
-
-    return data;
+    return data ?? { recommendations: [] };
   } catch (error) {
+    const status = error?.response?.status;
+    if (status === 404 || status === 405) {
+      console.warn('getRecommendedPosts: 추천 API 미제공(404/405), 빈 목록 반환');
+      return { recommendations: [] };
+    }
     console.error('getRecommendedPosts error:', error);
     throw error;
   }
