@@ -26,16 +26,20 @@ export const refreshAccessToken = async () => {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
     const data = res.data;
-    console.log('리플래쉬 자료 전송 완료');
-    console.log(data);
-
     setAccessToken(data.accessToken);
     setLoginStatus(true);
     setEmail(data.email);
     setNickname(data.nickname);
     setRoleName(data.roleNames[0]);
+    return data.accessToken;
   } catch (error) {
-    console.error('토큰 갱신 실패 : ', error);
+    const status = error.response?.status;
+    const isServerError = status >= 500 || status === 502 || status === 503 || status === 504;
+    if (isServerError) {
+      console.warn('토큰 갱신 실패: 서버 일시 오류. 로그인이 필요할 수 있습니다.');
+    } else {
+      console.warn('토큰 갱신 실패:', error.response?.data?.message || error.message || status);
+    }
     clearAuth();
     return null;
   }

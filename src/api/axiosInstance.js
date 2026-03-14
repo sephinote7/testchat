@@ -4,7 +4,7 @@ import { refreshAccessToken } from '../axios/Auth.js';
 
 export const BACKEND_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
 
-/** 로그인 토큰: Zustand(권장) → localStorage 순으로 조회 (상담사/관리자 민감키워드 검사 등 인증 API용) */
+/** 로그인 토큰: Zustand → localStorage 순 조회. Spring JWT 검증용으로만 사용 (커스텀 헤더 X-User-Email 등 없음) */
 function getAccessToken() {
   const storeToken = useAuthStore.getState().accessToken;
   if (storeToken) return storeToken;
@@ -13,31 +13,11 @@ function getAccessToken() {
   );
 }
 
-export function getHeaders(userId = null) {
+/** 요청 공통 헤더. Content-Type + Authorization(Bearer) 만 사용 (X-User-Email 등 커스텀 헤더 없음, Spring JWT만 사용) */
+export function getHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-
-  const hasValidUserId = userId != null && String(userId).trim() !== '' && String(userId) !== 'anonymous';
-
-  const xUserId = hasValidUserId
-    ? String(userId).trim()
-    : localStorage.getItem('dummyUser')
-      ? (() => {
-          try {
-            const u = JSON.parse(localStorage.getItem('dummyUser'));
-            return u?.id ?? 'anonymous';
-          } catch {
-            return 'anonymous';
-          }
-        })()
-      : 'anonymous';
-
-  headers['X-User-Id'] = xUserId;
-
   const token = getAccessToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   return headers;
 }
 
@@ -47,52 +27,13 @@ const axiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// 요청 보낼 때 Authorization 자동 부착
-// axiosInstance.interceptors.request.use(
-//   (config) => {
-//     const token = getAccessToken();
-
-//     config.headers = {
-//       ...(config.headers || {}),
-//       ...(getHeaders() || {}),
-//     };
-
-//     if (token) {
-//       config.headers.Authorization = `Bearer ${token}`;
-//     }
-
-//     return config;
-//   },
-//   (error) => Promise.reject(error),
-// );
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
-    const incomingXUserId = (config.headers || {})['X-User-Id'];
-
     config.headers = {
       ...(config.headers || {}),
-      ...(getHeaders() || {}),
+      ...getHeaders(),
     };
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    // backendApi 등에서 넘긴 userId가 있으면 덮어쓰지 않음 (anonymous로 바뀌면 Spring에서 401 낌)
-    if (
-      incomingXUserId != null &&
-      String(incomingXUserId).trim() !== '' &&
-      String(incomingXUserId) !== 'anonymous'
-    ) {
-      config.headers['X-User-Id'] = String(incomingXUserId).trim();
-    }
-
-    console.log('[REQ]', config.method?.toUpperCase(), config.url, {
-      Authorization: config.headers.Authorization,
-      XUserId: config.headers['X-User-Id'],
-      tokenRaw: token,
-    });
-
     return config;
   },
   (error) => Promise.reject(error),

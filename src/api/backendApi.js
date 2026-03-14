@@ -1,18 +1,18 @@
 /**
  * Spring 백엔드 API 클라이언트 (axios 연동)
  * - 게시판(BBS), 리뷰, 민감키워드/위험게시물, 활동내역
- * - 로그인 연동 전에는 X-User-Id를 'anonymous' 또는 개발용 ID로 전달
+ * - 인증: Spring JWT만 사용. X-User-Email 등 커스텀 헤더 없음 (testchatpy 연동 제거)
  * - 백엔드 주소: .env에 VITE_BACKEND_URL 설정 (기본값 http://localhost:8080)
  */
 
 import axiosInstance, { BACKEND_BASE, getHeaders } from './axiosInstance.js';
 
 async function request(method, path, options = {}) {
-  const { body, userId } = options;
+  const { body } = options;
   const config = {
     method,
     url: path,
-    headers: getHeaders(userId),
+    headers: getHeaders(),
     ...(body != null && { data: body }),
   };
   const res = await axiosInstance.request(config);
@@ -191,7 +191,7 @@ export const cnslApi = {
     if (status) q.set('status', status);
 
     const res = await axiosInstance.get(`/api/cnslReg_allList/${encodeURIComponent(cnslerId)}?${q}`, {
-      headers: getHeaders(userId),
+      headers: getHeaders(),
     });
 
     if (res.status === 204) {
@@ -206,7 +206,7 @@ export const cnslApi = {
     const q = new URLSearchParams({ page, size });
 
     const res = await axiosInstance.get(`/api/cnslReg_pendingReservationList/${encodeURIComponent(cnslerId)}?${q}`, {
-      headers: getHeaders(userId),
+      headers: getHeaders(),
     });
 
     if (res.status === 204) {
