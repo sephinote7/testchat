@@ -8,6 +8,9 @@ const Admin = () => {
   const { email, nickname } = useAuthStore();
   const navigate = useNavigate();
 
+  const admin_modi = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/admin_modify.png";
+  const admin_setting = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/admin_setting.png";
+
   const handleLogout = async () => {
     await signOut();
     navigate('/');
@@ -58,6 +61,17 @@ const Admin = () => {
                   />
                 </svg>
                 <span className="text-lg">대시보드</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/admin/keywords"
+                className="flex items-center gap-4 px-6 py-4 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                <span className="text-lg">민감키워드</span>
               </Link>
             </li>
             <li>
@@ -121,29 +135,16 @@ const Admin = () => {
 
             {/* CARDS GRID */}
             <div className="grid grid-cols-2 gap-10 mx-auto" style={{ maxWidth: '900px' }}>
-              {/* 상담사 정보 수정 카드 */}
+              {/* 관리자 정보 수정 카드 */}
               <Link
                 to="/admin/edit"
                 className="group bg-[#2563eb] rounded-[2rem] shadow-2xl hover:shadow-3xl transition-all hover:scale-[1.02] flex flex-col items-center justify-center text-center"
                 style={{ height: '320px' }}
               >
-                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-16 h-16 text-[#2563eb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    />
-                  </svg>
+                <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <img src={admin_modi} alt="관리자 정보 수정" />
                 </div>
-                <h2 className="text-3xl font-bold text-white">상담사 정보 수정</h2>
+                <h2 className="text-3xl font-bold text-white">관리자 정보 수정</h2>
               </Link>
 
               {/* 최근 활동 내역 카드 */}
@@ -152,21 +153,8 @@ const Admin = () => {
                 className="group bg-[#60a5fa] rounded-[2rem] shadow-2xl hover:shadow-3xl transition-all hover:scale-[1.02] flex flex-col items-center justify-center text-center"
                 style={{ height: '320px' }}
               >
-                <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-16 h-16 text-[#60a5fa]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
+                <div className="w-32 h-32 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                  <img src={admin_setting} alt="최근 활동 내역" />
                 </div>
                 <h2 className="text-3xl font-bold text-white">최근 활동 내역</h2>
               </Link>

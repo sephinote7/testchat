@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children, allowRoles }) {
     return <Navigate to="/member/signin" replace />;
   }
 
-  if (nickname?.split('_')?.[0] === 'social')
+  if (nickname.split('_')[0] === 'social')
     return <Navigate to="/member/kakao-additional" replace />;
 
   // 권한이 없는 경우

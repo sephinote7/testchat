@@ -120,13 +120,13 @@ const ChatDefaultPage = () => {
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-16">
           {/* HEADER */}
-          <div className="flex items-center justify-center mb-16">
-            <h1 className="text-[48px] font-bold text-gray-800">채팅</h1>
+          <div className="flex items-center justify-center mb-8">
+            <h3 className="text-[48px] font-bold text-gray-800">채팅</h3>
           </div>
 
           {/* CONTENT */}
           <div className="mx-auto">
-            <h2 className="text-[36px] font-semibold text-gray-800 mb-12 text-center">누구와 상담을 하고 싶으세요?</h2>
+            <h4 className="text-[36px] font-semibold text-gray-800 mb-12 text-center">누구와 상담을 하고 싶으세요?</h4>
 
             <div className="grid grid-cols-2 gap-12 max-w-[1200px] mx-auto">
               {/* AI 상담하기 */}
@@ -138,8 +138,8 @@ const ChatDefaultPage = () => {
                   <img src={aicnslimg} alt="AI 상담" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[32px] font-bold mb-3">AI와 상담하기</p>
-                  <p className="text-[20px] opacity-90">빠르게 상담 시작하세요</p>
+                  <h5 className="font-bold mb-5">AI와 상담하기</h5>
+                  <h6 className="opacity-90">빠르게 상담 시작하세요</h6>
                 </div>
               </Link>
 
@@ -152,8 +152,8 @@ const ChatDefaultPage = () => {
                   <img src={cnslimg} alt="상담사 상담" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[32px] font-bold mb-3">상담사와 상담하기</p>
-                  <p className="text-[20px] opacity-90">전문 상담사를 찾아보세요</p>
+                  <h5 className="text-[32px] font-bold mb-5">상담사와 상담하기</h5>
+                  <h6 className="text-[20px] opacity-90">전문 상담사를 찾아보세요</h6>
                 </div>
               </Link>
             </div>

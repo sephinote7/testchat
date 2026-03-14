@@ -26,7 +26,7 @@ const MBTI_OPTIONS = [
 
 const FONT_OPTIONS = ['Regular', 'Medium', 'SemiBold', 'BM HANNA Pro'];
 const HEADING_OPTIONS = ['본문', '제목1', '제목2', '제목3', '제목4'];
-const SIZE_OPTIONS = ['10px', '12px', '14px', '16px', '18px', '22px', '28px'];
+const SIZE_OPTIONS = ['16px', '18px', '22px', '28px'];
 
 const BoardForm = ({ mode = 'write', postId = null }) => {
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
   const [content, setContent] = useState('');
   const [font, setFont] = useState('Regular');
   const [heading, setHeading] = useState('본문');
-  const [fontSize, setFontSize] = useState('10px');
+  const [fontSize, setFontSize] = useState('16px');
   const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -308,14 +308,15 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                     const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
                     setSubmitting(true);
                     try {
-                      // Supabase Auth 미사용. Spring 로그인(store) 사용자 사용 — member_id=email
-                      const userIdForApi = storeEmail ?? null;
+                      // Supabase 세션 또는 Spring 로그인(store) 사용자 사용 — Spring은 member_id=email
+                      const { data: { user: supaUser } } = await supabase.auth.getUser();
+                      const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
                       if (!userIdForApi || userIdForApi === 'anonymous') {
                         alert('로그인 후 글을 작성할 수 있습니다.');
                         setSubmitting(false);
                         return;
                       }
-                      const nickname = storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
+                      const nickname = supaUser?.user_metadata?.nickname ?? storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
                       await memberApi.sync({ memberId: userIdForApi, nickname }).catch(() => {});
                       if (mode === 'edit' && postId) {
                         await bbsApi.update(postId, body, userIdForApi);
@@ -403,6 +404,7 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                   <div className="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 border-b border-gray-200">
                     <label htmlFor="board-image-pc" className="flex items-center gap-2 cursor-pointer font-normal">
                       <span className="text-xl leading-none">📎</span>
+                      파일 첨부
                     </label>
                     <input
                       id="board-image-pc"
@@ -412,19 +414,6 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                       className="hidden"
                       onChange={handleFileUpload}
                     />
-                    {/* 툴바 아이콘 */}
-                    <button type="button" className="p-1">
-                      <span className="text-xl">≣</span>
-                    </button>
-                    <button type="button" className="p-1">
-                      <span className="text-xl">≣</span>
-                    </button>
-                    <button type="button" className="p-1">
-                      <span className="text-xl">≣</span>
-                    </button>
-                    <button type="button" className="p-1">
-                      <span className="text-xl">≣</span>
-                    </button>
                   </div>
 
                   {/* 첨부된 이미지 미리보기 */}
@@ -526,13 +515,14 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                     const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
                     setSubmitting(true);
                     try {
-                      const userIdForApi = storeEmail ?? null;
+                      const { data: { user: supaUser } } = await supabase.auth.getUser();
+                      const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
                       if (!userIdForApi || userIdForApi === 'anonymous') {
                         alert('로그인 후 글을 작성할 수 있습니다.');
                         setSubmitting(false);
                         return;
                       }
-                      const nickname = storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
+                      const nickname = supaUser?.user_metadata?.nickname ?? storeNickname ?? (userIdForApi.includes('@') ? userIdForApi.split('@')[0] : 'user');
                       await memberApi.sync({ memberId: userIdForApi, nickname }).catch(() => {});
                       if (mode === 'edit' && postId) {
                         await bbsApi.update(postId, body, userIdForApi);

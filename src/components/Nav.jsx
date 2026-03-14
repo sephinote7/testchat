@@ -9,11 +9,11 @@ const Nav = () => {
 
   if (location.pathname.startsWith('/member')) return null;
 
-  const m_home = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_main_home.png";
-  const m_chat = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_cheating.png";
-  const m_board = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_board.png";
-  const m_info = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_info.png";
-  const m_login = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_login.png";
+  const m_home = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_main_home.png';
+  const m_chat = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_cheating.png';
+  const m_board = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_board.png';
+  const m_info = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_info.png';
+  const m_login = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/m_login.png';
 
   if (
     location.pathname.startsWith('/mycounsel') ||
@@ -36,20 +36,22 @@ const Nav = () => {
       { label: '상담', to: '/chat', icon: m_chat },
       { label: '게시판', to: '/board', icon: m_board },
       { label: 'INFO', to: '/info', icon: m_info },
-      { 
-        label: loginStatus ? '마이페이지' : '로그인', 
-        to: loginStatus ? '/mypage' : '/member/signin', 
-        icon: m_login 
+      {
+        label: loginStatus ? '마이페이지' : '로그인',
+        to: loginStatus ? '/mypage' : '/member/signin',
+        icon: m_login,
       },
     );
   } else if (roleName === 'ADMIN') {
     // 관리자 메뉴에도 아이콘이 필요하다면 추가해주어야 합니다.
-    MENUS.push(
-      { label: '대시보드', to: '/dashboard', icon: m_home },
-      { label: '알림', to: '/alarm', icon: m_info },
-      { label: '통계자료', to: '/stats', icon: m_board },
-      { label: '마이페이지', to: '/mypage', icon: m_login },
-    );
+    // MENUS.push(
+    //   { label: '대시보드', to: '/dashboard', icon: m_home },
+    //   { label: '알림', to: '/alarm', icon: m_info },
+    //   { label: '통계자료', to: '/stats', icon: m_board },
+    //   { label: '마이페이지', to: '/mypage', icon: m_login },
+    // );
+
+    return;
   } else return null;
 
   return (
@@ -61,14 +63,15 @@ const Nav = () => {
               <NavLink to={to} className="h-full w-full">
                 {/* 핵심 수정 부분: isActive를 인자로 받는 함수형 자식 노드 */}
                 {({ isActive }) => (
-                  <div className={`flex flex-col items-center justify-center h-full gap-1 transition-colors
-                    ${isActive ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
-                    
+                  <div
+                    className={`flex flex-col items-center justify-center h-full gap-1 transition-colors
+                    ${isActive ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}
+                  >
                     {/* 이제 이 스코프 안에서 isActive를 안전하게 사용 가능합니다 */}
-                    <img 
-                      src={icon} 
-                      alt={label} 
-                      className={`w-6 h-6 object-contain ${isActive ? '' : 'grayscale opacity-70'}`} 
+                    <img
+                      src={icon}
+                      alt={label}
+                      className={`w-6 h-6 object-contain ${isActive ? '' : 'grayscale opacity-70'}`}
                     />
                     <span className="!text-xs">{label}</span>
                   </div>

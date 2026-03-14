@@ -4,6 +4,7 @@ const About = () => {
   const aboutimg1 = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/info1.png";
   const aboutimg2 = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/info2.png";
   const aboutimg3 = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/info3.png";
+  const f_logo = "https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png";
 
   return (
     <div className="bg-white lg:bg-transparent rounded-[14px] lg:rounded-none p-5 lg:p-0 shadow-[0_10px_20px_rgba(31,41,55,0.08)] lg:shadow-none">
@@ -13,10 +14,7 @@ const About = () => {
       {/* 로고 영역 */}
       <div className="flex items-center justify-center bg-[#f3f7ff] rounded-[14px] lg:rounded-2xl py-6 lg:py-16 mb-5 lg:mb-12">
         <div className="text-center">
-          <div className="text-[12px] lg:text-base text-[#6b7280] font-semibold lg:font-normal mb-2 lg:mb-3">
-            Healing Therapy
-          </div>
-          <div className="text-[26px] lg:text-[60px] font-extrabold lg:font-bold text-[#111827]">고민순삭</div>
+          <img src={f_logo} alt="로고" />
         </div>
       </div>
 

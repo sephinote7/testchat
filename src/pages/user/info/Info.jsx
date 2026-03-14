@@ -68,7 +68,7 @@ const Info = () => {
         </div>
 
         {/* PC Container */}
-        <div className="lg:max-w-[1520px] lg:mx-auto lg:bg-white lg:rounded-2xl lg:shadow-sm lg:overflow-hidden">
+        <div className="lg:max-w-[76.04%] lg:mx-auto lg:bg-white lg:rounded-2xl lg:shadow-sm lg:overflow-hidden">
           {/* PC 탭 버튼 */}
           <div className="hidden lg:flex bg-white border-b border-gray-200">
             {OPTIONS.map((opt) => {
@@ -77,7 +77,7 @@ const Info = () => {
                 <Link
                   key={opt.value}
                   to={opt.to}
-                  className={`flex-1 h-[72px] flex items-center justify-center text-[18px] font-medium transition-colors ${
+                  className={`flex-1 h-[72px] flex items-center justify-center !text-[24px] font-medium transition-colors ${
                     isActive ? 'bg-[#2f80ed] text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >

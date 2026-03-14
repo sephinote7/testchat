@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  fetchCounselsBeforeAccept,
-  fetchCounselsByStatus,
-} from './../../../api/counselApi';
+import { fetchCounselsBeforeAccept, fetchCounselsByStatus } from './../../../api/counselApi';
 import { useAuthStore } from './../../../store/auth.store';
 
 // TODO: DB 연동 가이드
@@ -66,24 +63,19 @@ const MyCounselHistory = () => {
   const currentItems = counselReservation;
 
   const getStatusLabel = (status) => {
-    if (status === '상담 예약')
-      return { text: status, bg: 'bg-[#2563eb]', color: 'text-[#2563eb]' };
-    if (status === '상담 진행 중')
-      return { text: status, bg: 'bg-[#ff8d28]', color: 'text-[#ff8d28]' };
-    if (status === '상담 완료')
-      return { text: status, bg: 'bg-chat', color: 'text-chat' };
+    if (status === '상담 예약') return { text: status, bg: 'bg-[#2563eb]', color: 'text-[#2563eb]' };
+    if (status === '상담 진행 중') return { text: status, bg: 'bg-[#ff8d28]', color: 'text-[#ff8d28]' };
+    if (status === '상담 완료') return { text: status, bg: 'bg-chat', color: 'text-chat' };
     return { text: '상담 예정', bg: 'bg-blue-500' };
   };
 
   // 상담 유형 라벨 가져오기
   const getCounselTypeLabel = (type) => {
-    if (type === 'chat')
-      return { text: '채팅 상담', icon: '💬', color: 'text-blue-600' };
-    if (type === 'video')
-      return { text: '화상 상담', icon: '📹', color: 'text-purple-600' };
-    if (type === 'phone')
-      return { text: '전화 상담', icon: '📞', color: 'text-green-600' };
-    return { text: '상담', icon: '💬', color: ' text-gray-600' };
+    if (type === '채팅') return { text: '채팅 상담', icon: '💬', color: 'text-blue-600' };
+    if (type === '화상') return { text: '화상 상담', icon: '💻', color: 'text-purple-600' };
+    if (type === '전화') return { text: '전화 상담', icon: '📞', color: 'text-green-600' };
+    if (type === '방문') return { text: '방문 상담', icon: '🏢', color: 'text-yellow-600' };
+    if (type === '게시판') return { text: '게시판 상담', icon: '📝', color: 'text-orange-600' };
   };
 
   const handlePageChange = (page) => {
@@ -112,9 +104,7 @@ const MyCounselHistory = () => {
           key={i}
           onClick={() => handlePageChange(i)}
           className={`w-8 h-8 rounded ${
-            currentPage === i
-              ? 'bg-blue-500 text-white'
-              : 'text-gray-700 hover:bg-gray-200'
+            currentPage === i ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-200'
           }`}
         >
           {i}
@@ -133,9 +123,7 @@ const MyCounselHistory = () => {
         </button>
         {pages}
         <button
-          onClick={() =>
-            handlePageChange(Math.min(totalPages, currentPage + 1))
-          }
+          onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
           className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
         >
@@ -152,18 +140,8 @@ const MyCounselHistory = () => {
         {/* 헤더 */}
         <div className="bg-blue-600 text-white p-4 flex items-center">
           <button onClick={() => navigate(-1)} className="mr-4 text-white">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <div className="flex-1 text-center">
@@ -179,16 +157,14 @@ const MyCounselHistory = () => {
 
         {/* 제목 */}
         <div className="px-4 mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">
-            내 상담 예약 관리
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-800">내 상담 예약 관리</h1>
         </div>
 
         {/* 상담 내역 리스트 */}
         <div className="px-4 space-y-3 mb-6">
           {currentItems?.map((item) => {
             const statusInfo = getStatusLabel('상담 예약');
-            const typeInfo = getCounselTypeLabel(item.counselType);
+            const typeInfo = getCounselTypeLabel(item.type);
             return (
               <div
                 key={item.cnslId}
@@ -198,21 +174,13 @@ const MyCounselHistory = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 flex-1">
-                        {item.cnslTitle}
-                      </h3>
-                      <span
-                        className={`text-xs font-medium ${typeInfo.color} whitespace-nowrap`}
-                      >
+                      <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 flex-1">{item.cnslTitle}</h3>
+                      <span className={`text-xs font-medium ${typeInfo.color} whitespace-nowrap`}>
                         {typeInfo.icon} {typeInfo.text}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-600 mb-1">
-                      상담자 : {item.nickname}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      예약일시 : {item.dtTime}
-                    </p>
+                    <p className="text-xs text-gray-600 mb-1">상담자 : {item.nickname}</p>
+                    <p className="text-xs text-gray-500">예약일시 : {item.dtTime}</p>
                   </div>
                 </div>
               </div>
@@ -229,9 +197,7 @@ const MyCounselHistory = () => {
         <div className="max-w-[1520px] mx-auto px-8 py-16">
           {/* HEADER */}
           <div className="mb-12">
-            <h1 className="text-4xl font-bold text-gray-800">
-              내 상담 내역 관리
-            </h1>
+            <h1 className="text-4xl font-bold text-gray-800">내 상담 내역 관리</h1>
           </div>
 
           {/* 상담 내역 리스트 */}
@@ -239,7 +205,7 @@ const MyCounselHistory = () => {
             {currentItems?.map((item) => {
               // console.log(item);
               const statusInfo = getStatusLabel('상담 예약');
-              const typeInfo = getCounselTypeLabel(item.counselType);
+              const typeInfo = getCounselTypeLabel(item.type);
               return (
                 <div
                   key={item.cnslId}
@@ -249,26 +215,17 @@ const MyCounselHistory = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
-                        <h3 className="text-xl font-bold text-gray-800 flex-1">
-                          {item.cnslTitle}
-                        </h3>
-                        <span
-                          className={`text-base font-bold ${typeInfo.color} px-4 py-2 rounded-full bg-gray-50`}
-                        >
+                        <h3 className="text-xl font-bold text-gray-800 flex-1">{item.cnslTitle}</h3>
+                        <span className={`text-base font-bold ${typeInfo.color} px-4 py-2 rounded-full bg-gray-50`}>
                           {typeInfo.icon} {typeInfo.text}
                         </span>
                       </div>
                       <div className="flex flex-col gap-2.5 text-sm text-gray-600">
                         <span>상담자 : {item.nickname}</span>
                         <span>
-                          상태 :{' '}
-                          <span className={statusInfo.color}>
-                            {statusInfo.text}
-                          </span>
+                          상태 : <span className={statusInfo.color}>{statusInfo.text}</span>
                         </span>
-                        <p className="text-sm text-gray-500">
-                          예약 일시 : {item.dtTime}
-                        </p>
+                        <p className="text-sm text-gray-500">예약 일시 : {item.dtTime}</p>
                       </div>
                     </div>
                   </div>
@@ -286,10 +243,7 @@ const MyCounselHistory = () => {
             >
               &lt;
             </button>
-            {Array.from(
-              { length: Math.min(10, totalPages) },
-              (_, i) => i + 1,
-            ).map((page) => (
+            {Array.from({ length: Math.min(10, totalPages) }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
                 onClick={() => handlePageChange(page)}
@@ -303,9 +257,7 @@ const MyCounselHistory = () => {
               </button>
             ))}
             <button
-              onClick={() =>
-                handlePageChange(Math.min(totalPages, currentPage + 1))
-              }
+              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className="w-12 h-12 flex items-center justify-center text-gray-600 disabled:text-gray-300 border-2 border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-xl"
             >

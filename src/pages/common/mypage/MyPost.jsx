@@ -18,7 +18,7 @@ const MyPost = () => {
   const [searchField, setSearchField] = useState('title+content');
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const pageSize = 20;
+  const pageSize = 10;
 
   // 데이터 로드
   const fetchPosts = useCallback(async () => {
@@ -100,7 +100,10 @@ const MyPost = () => {
 
     if (endPage < totalPages) {
       pages.push(
-        <span key="dots" className="w-8 h-8 flex items-center justify-center text-gray-400">
+        <span
+          key="dots"
+          className="w-8 h-8 flex items-center justify-center text-gray-400"
+        >
           ...
         </span>,
       );
@@ -135,7 +138,9 @@ const MyPost = () => {
           <Link to="/mypage" className="text-white text-xl">
             ←
           </Link>
-          <h1 className="text-white text-lg font-bold flex-1 text-center mr-6">내 작성 글 보기</h1>
+          <h1 className="text-white text-lg font-bold flex-1 text-center mr-6">
+            내 작성 글 보기
+          </h1>
         </header>
 
         <div className="px-5 pt-4 pb-2">
@@ -150,7 +155,9 @@ const MyPost = () => {
 
         <div className="px-5 pt-2">
           {loading ? (
-            <div className="text-center py-20 text-gray-500">데이터를 불러오는 중...</div>
+            <div className="text-center py-20 text-gray-500">
+              데이터를 불러오는 중...
+            </div>
           ) : serverPosts.length === 0 ? (
             <div className="text-center py-20 text-gray-500">
               <p>작성한 글이 없습니다.</p>
@@ -176,7 +183,11 @@ const MyPost = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-sm">
                       <span className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <svg
+                          className="w-4 h-4"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
                           <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                           <path
                             fillRule="evenodd"
@@ -187,7 +198,11 @@ const MyPost = () => {
                         {post.views}
                       </span>
                       <span className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <svg
+                          className="w-4 h-4"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
                           <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                         </svg>
                         {post.likeCount}
@@ -227,20 +242,31 @@ const MyPost = () => {
       {/* PC VIEW */}
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-16">
-          <div className="flex items-center justify-between mb-8 px-[200px]">
-            <h1 className="text-[30px] font-semibold text-gray-800">내가 작성한 글</h1>
-          </div>
+          <div className="flex-col items-center justify-between mb-8">
+            <h3 className="!font-bold text-gray-800 mb-6">내가 작성한 글</h3>
 
-          <div className="w-[1520px] mx-auto bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="w-full mx-auto bg-white rounded-2xl shadow-sm overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-32">게시판명</th>
-                  <th className="px-6 py-4 text-left text-base font-normal text-gray-700">제 목</th>
-                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-32">작성자</th>
-                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-32">작성일</th>
-                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-24">조회</th>
-                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-24">추천</th>
+                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-32">
+                    게시판명
+                  </th>
+                  <th className="px-6 py-4 text-left text-base font-normal text-gray-700">
+                    제 목
+                  </th>
+                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-32">
+                    작성자
+                  </th>
+                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-32">
+                    작성일
+                  </th>
+                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-24">
+                    조회
+                  </th>
+                  <th className="px-6 py-4 text-center text-base font-normal text-gray-700 w-24">
+                    추천
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -252,7 +278,10 @@ const MyPost = () => {
                   </tr>
                 ) : serverPosts.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-20 text-center text-base text-gray-500">
+                    <td
+                      colSpan="6"
+                      className="px-6 py-20 text-center text-base text-gray-500"
+                    >
                       작성한 글이 없습니다.
                     </td>
                   </tr>
@@ -264,20 +293,32 @@ const MyPost = () => {
                       onClick={() => navigate(`/board/view/${item.bbs_id}`)}
                     >
                       <td className="px-6 py-4 text-center">
-                        <span className="text-base font-normal text-gray-600">{item.bbs_div}</span>
+                        <span className="text-base font-normal text-gray-600">
+                          {item.bbs_div}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-base font-normal text-gray-800 flex items-center gap-2">
                           <span className="line-clamp-1">{item.title}</span>
                           {item.commentCount > 0 && (
-                            <span className="text-sm font-normal text-gray-500">[{item.commentCount}]</span>
+                            <span className="text-sm font-normal text-gray-500">
+                              [{item.commentCount}]
+                            </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center text-gray-600">{item.nickname}</td>
-                      <td className="px-6 py-4 text-center text-gray-500">{formatDate(item.created_at)}</td>
-                      <td className="px-6 py-4 text-center text-gray-600">{item.views}</td>
-                      <td className="px-6 py-4 text-center text-gray-600">{item.likeCount}</td>
+                      <td className="px-6 py-4 text-center text-gray-600">
+                        {item.nickname}
+                      </td>
+                      <td className="px-6 py-4 text-center text-gray-500">
+                        {formatDate(item.created_at)}
+                      </td>
+                      <td className="px-6 py-4 text-center text-gray-600">
+                        {item.views}
+                      </td>
+                      <td className="px-6 py-4 text-center text-gray-600">
+                        {item.likeCount}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -286,7 +327,9 @@ const MyPost = () => {
           </div>
 
           {serverPosts.length > 0 && (
-            <div className="flex items-center justify-center gap-1 mt-8">{renderPagination()}</div>
+            <div className="flex items-center justify-center gap-1 mt-8">
+              {renderPagination()}
+            </div>
           )}
 
           <div className="w-[1520px] mx-auto mt-8 flex items-center justify-center gap-3">
@@ -313,6 +356,7 @@ const MyPost = () => {
             >
               검 색
             </button>
+          </div>
           </div>
         </div>
       </div>

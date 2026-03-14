@@ -37,22 +37,12 @@ const CounselorProfile = () => {
   }, [accessToken]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#EAF1FF]">
       {/* 모바일 헤더 */}
       <div className="bg-blue-600 text-white p-4 flex items-center lg:hidden">
         <button onClick={() => navigate(-1)} className="mr-4">
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <h1 className="text-lg font-bold">상담사 프로필</h1>
@@ -65,10 +55,20 @@ const CounselorProfile = () => {
       </div>
 
       {/* 메인 컨텐츠 */}
-      <div className="bg-white">
+      <div className="bg-[#EAF1FF]">
         {/* 배너 이미지 */}
         <div className="relative">
-          <img src={null} alt="배너" className="w-full h-48 object-cover" />
+          <img
+            src={'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1600&q=80'}
+            alt="배너"
+            className="w-full h-48 object-cover"
+          />
+          <button
+            onClick={() => navigate('/system/info/about')}
+            className="hidden lg:inline-block absolute top-5 right-[13%] bg-white text-blue-600 px-4 py-2 rounded border-2 border-white font-semibold hover:bg-gray-100 hover:text-blue-700 transition"
+          >
+            수정
+          </button>
           {/* 프로필 사진 */}
           <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2">
             <img
@@ -85,10 +85,7 @@ const CounselorProfile = () => {
           <p className="text-blue-600 text-sm mb-3">{text}</p>
           <div className="flex justify-center gap-2 flex-wrap">
             {hashTags?.map((tag, index) => (
-              <span
-                key={index}
-                className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium"
-              >
+              <span key={index} className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">
                 # {tag} 상담
               </span>
             ))}
@@ -96,25 +93,21 @@ const CounselorProfile = () => {
         </div>
 
         {/* 심리상담사 소개 */}
-        <div className="px-4 py-8 border-t border-gray-200">
-          <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="flex m-auto w-[76%] px-4 py-8 border-t border-gray-200">
+          <div className="w-full bg-white rounded-xl shadow-sm p-6">
             {/* 제목 */}
-            <h3 className="text-xl font-bold text-gray-800 mb-4">
-              심리상담사 소개
-            </h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-4">프로필 또는 자격 및 경력</h3>
 
             {/* 구분선 */}
             <div className="w-12 h-1 bg-blue-500 rounded mb-6"></div>
 
             {/* 프로필 내용 */}
-            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
-              {profile || ''}
-            </p>
+            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">{profile || ''}</p>
           </div>
         </div>
 
         {/* 상담 리뷰 */}
-        <div className="px-4 py-6 border-t border-gray-200">
+        <div className="w-[76%] m-auto px-4 py-6 border-t border-gray-200">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold">상담 리뷰</h3>
             <button
@@ -125,11 +118,11 @@ const CounselorProfile = () => {
             </button>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 lg:flex lg:flex-row lg:gap-4 lg:overflow-x-auto lg:pb-2 lg:items-stretch">
             {counselorReviews.slice(0, 3).map((review) => (
               <div
                 key={review.id}
-                className="bg-gray-50 p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition"
+                className="bg-gray-50 lg:w-[35%] m-auto p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition"
                 onClick={() => handleReviewClick(review.id)}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -137,13 +130,9 @@ const CounselorProfile = () => {
                   <span className="text-xs text-gray-500">{review.date}</span>
                 </div>
                 <div className="mb-2">
-                  <span className="text-yellow-500">
-                    {renderStars(review.rating)}
-                  </span>
+                  <span className="text-yellow-500">{renderStars(review.rating)}</span>
                 </div>
-                <p className="text-sm text-gray-700 line-clamp-3">
-                  {review.content}
-                </p>
+                <p className="text-sm text-gray-700 line-clamp-3">{review.content}</p>
               </div>
             ))}
           </div>

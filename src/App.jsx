@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Route, Routes, useNavigate } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import KakaoAdditionalRedirect from './components/KakaoAdditionalRedirect';
 import Home from './pages/common/home/Home';
 import Chat from './pages/user/chat/Chat';
@@ -34,6 +34,7 @@ import EditCounselorAbout from './pages/system/info/EditCounselorAbout';
 import CounselorClientChat from './pages/system/info/CounselorClientChat';
 import ScheduleManagement from './pages/system/info/ScheduleManagement';
 import RiskCaseList from './pages/system/info/RiskCaseList';
+import RiskCaseDetail from './pages/system/info/RiskCaseDetail';
 import { refreshAccessToken } from './axios/Auth';
 import { useAuthStore } from './store/auth.store';
 
@@ -43,7 +44,7 @@ const App = () => {
   useEffect(() => {
     if (!accessToken) refreshAccessToken().finally(() => setIsLoading(false));
     else setIsLoading(false);
-  }, []);
+  }, [accessToken]);
 
   if (isLoading) return <div>로딩 중 ...</div>;
 
@@ -59,7 +60,8 @@ const App = () => {
         {/* MY PAGE */}
         <Route path="/mypage/*" element={<MyPage />} />
 
-        {/* USER & COUNSELOR 공용 CHAT (AI/텍스트/화상 상담 진입용) */}
+        {/* USER */}
+        {/* CHAT */}
         <Route
           path="/chat/*"
           element={
@@ -125,6 +127,15 @@ const App = () => {
           element={
             <ProtectedRoute allowRoles={['SYSTEM']}>
               <RiskCaseList />
+            </ProtectedRoute>
+          }
+        />
+        {/* RISK CASE DETAIL - 상담사 게시글 보기 및 댓글 */}
+        <Route
+          path="/system/info/risk-case/:riskId"
+          element={
+            <ProtectedRoute allowRoles={['SYSTEM']}>
+              <RiskCaseDetail />
             </ProtectedRoute>
           }
         />

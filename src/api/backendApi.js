@@ -44,15 +44,30 @@ export const bbsApi = {
     return request('DELETE', `/api/bbs/${id}`, { userId });
   },
 
+  /** 응답이 배열이거나 { content / data / result / body } 형태일 때 배열 추출 */
+  _normalizePopularList(data) {
+    if (Array.isArray(data)) return data;
+    if (data == null || typeof data !== 'object') return [];
+    const arr =
+      data.content ?? data.data ?? data.result ?? data.body ?? data.list ?? [];
+    return Array.isArray(arr) ? arr : [];
+  },
+
   getPopularRealtime() {
     return request('GET', '/api/bbs_popularPostRealtimeList?period=realtime').then((data) =>
-      Array.isArray(data) ? data : [],
+      bbsApi._normalizePopularList(data),
     );
   },
 
   getPopularWeekly() {
     return request('GET', '/api/bbs_popularPostWeeklyList?period=week').then((data) =>
-      Array.isArray(data) ? data : [],
+      bbsApi._normalizePopularList(data),
+    );
+  },
+
+  getPopularMonthly() {
+    return request('GET', '/api/bbs_popularPostMonthlyList?period=month').then((data) =>
+      bbsApi._normalizePopularList(data),
     );
   },
 
@@ -62,6 +77,11 @@ export const bbsApi = {
 
   addComment(bbsId, body, userId) {
     return request('POST', `/api/bbs/${bbsId}/comments`, { body, userId });
+  },
+
+  /** 댓글 좋아요(true) / 싫어요(false) */
+  toggleCommentLike(cmtId, body, userId) {
+    return request('POST', `/api/bbs/comments/${cmtId}/like`, { body, userId });
   },
 
   deleteComment(cmtId, userId) {
@@ -84,6 +104,10 @@ export const risksApi = {
     return request('GET', `/api/risks?page=${page}&limit=${limit}`);
   },
 
+  getById(id) {
+    return request('GET', `/api/risks/${id}`);
+  },
+
   getRecent() {
     return request('GET', '/api/risks/recent');
   },
@@ -97,14 +121,14 @@ export const risksApi = {
   },
 };
 
-// ========== 민감 키워드 (Keywords) ==========
+// ========== 민감 키워드 (Keywords) - Spring 백엔드 ==========
 export const keywordsApi = {
   getList() {
-    return request('GET', '/api/keywords');
+    return request('GET', '/api/keywords').then((data) => (Array.isArray(data) ? data : []));
   },
 
   add(body) {
-    return request('POST', '/api/keywords', { body });
+    return request('POST', '/api/keywords', { body }).then((res) => res?.data ?? res);
   },
 
   toggle(id, isActive) {

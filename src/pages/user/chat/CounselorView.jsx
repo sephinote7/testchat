@@ -11,21 +11,11 @@ import {
 import { useAuthStore } from '../../../store/auth.store';
 import { getMyPoint } from '../../../api/walletApi';
 
-const TIME_SLOTS = [
-  '09:00',
-  '10:00',
-  '11:00',
-  '12:00',
-  '13:00',
-  '14:00',
-  '15:00',
-  '16:00',
-  '17:00',
-  '18:00',
-  '19:00',
-];
+const TIME_SLOTS = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+const logo = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/h_logo.png';
 
 const formatDate = (year, month, day) => {
   const mm = String(month + 1).padStart(2, '0');
@@ -39,11 +29,7 @@ const getMonthMatrix = (baseDate) => {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const today = new Date();
-  const todayMidnight = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate(),
-  );
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   const weeks = [];
   let currentWeek = Array(firstDay.getDay()).fill(null);
@@ -76,6 +62,7 @@ const getMonthMatrix = (baseDate) => {
 
 const CounselorView = () => {
   const { c_id } = useParams();
+  const { accessToken } = useAuthStore();
   const { email } = useAuthStore();
   const navigate = useNavigate();
 
@@ -188,6 +175,7 @@ const CounselorView = () => {
   useEffect(() => {
     const fetchCounselorInfo = async () => {
       const data = await getCounselor(c_id);
+      console.log('test', data);
       setCounselor(data);
     };
 
@@ -205,7 +193,7 @@ const CounselorView = () => {
 
     fetchCounselorInfo();
     fetchReview();
-  }, [c_id]);
+  }, [c_id, accessToken]);
 
   const getDisabledSlots = (dateStr, bookedSlots = []) => {
     if (!dateStr) return new Set();
@@ -226,11 +214,7 @@ const CounselorView = () => {
 
     if (bookedSlots) {
       bookedSlots.forEach((slot) => {
-        disabled.add(
-          slot.cnslStartTime.split(':')[0] +
-            ':' +
-            slot.cnslStartTime.split(':')[1],
-        );
+        disabled.add(slot.cnslStartTime.split(':')[0] + ':' + slot.cnslStartTime.split(':')[1]);
       });
     }
 
@@ -241,20 +225,9 @@ const CounselorView = () => {
     serviceAgree: false,
     refundAgree: false,
   });
-  const disabledSlots = useMemo(
-    () => getDisabledSlots(form.date, bookedSlots),
-    [form.date, bookedSlots],
-  );
-  const monthWeeks = useMemo(
-    () => getMonthMatrix(calendarMonth),
-    [calendarMonth],
-  );
-  const isFormValid =
-    form.type &&
-    form.date &&
-    form.time &&
-    form.title.trim() &&
-    form.content.trim();
+  const disabledSlots = useMemo(() => getDisabledSlots(form.date, bookedSlots), [form.date, bookedSlots]);
+  const monthWeeks = useMemo(() => getMonthMatrix(calendarMonth), [calendarMonth]);
+  const isFormValid = form.type && form.date && form.time && form.title.trim() && form.content.trim();
 
   // TODO: DB 연동 시 실제 포인트 조회
   // 현재는 더미 데이터로 표시
@@ -264,9 +237,7 @@ const CounselorView = () => {
   };
 
   // 결제 포인트 계산
-  const usedPoints = price?.find(
-    (v) => v.cnslTypeName === form.type,
-  )?.cnslPrice; // TODO: DB 연동 시 사용자가 선택한 사용 포인트
+  const usedPoints = price?.find((v) => v.cnslTypeName === form.type)?.cnslPrice; // TODO: DB 연동 시 사용자가 선택한 사용 포인트
   const remainingPoints = userPoints.current - usedPoints;
 
   if (!counselor) {
@@ -355,17 +326,17 @@ const CounselorView = () => {
           <div className="bg-white rounded-[14px] overflow-hidden shadow-[0_8px_16px_rgba(0,0,0,0.06)]">
             <div className="h-[120px] bg-gradient-to-r from-[#60a5fa] to-[#2563eb]" />
             <div className="px-4 pb-4 -mt-8">
-              <div className="w-[84px] h-[84px] rounded-full bg-white border-4 border-white shadow flex items-center justify-center text-[22px] font-bold text-[#2f80ed]">
-                {counselor?.nickname.slice(0, 1)}
-              </div>
-              <h2 className="mt-3 text-[18px] font-bold text-[#111827]">
-                {counselor?.nickname} {counselor?.title || 'test'}
-              </h2>
+              {counselor?.imgUrl ? (
+                <img src={counselor.imgUrl} />
+              ) : (
+                <div className="w-[84px] h-[84px] rounded-full bg-white border-4 border-white shadow flex items-center justify-center text-[22px] font-bold text-[#2f80ed]">
+                  {counselor?.nickname.slice(0, 1)}
+                </div>
+              )}
+              <h2 className="mt-3 text-[18px] font-bold text-[#111827]">{counselor?.nickname} 상담사</h2>
               {/* <p className="text-[12px] text-[#6b7280]">{counselor?.tags.map((tag) => `#${tag}`).join(' ')}</p> */}
               <div className="flex items-center gap-1 text-[12px] text-[#f59e0b] mt-2">
-                <div className="flex flex-row text-point items-center">
-                  {renderStars(counselor?.avgEvalPt || 0)}
-                </div>
+                <div className="flex flex-row text-point items-center">{renderStars(counselor?.avgEvalPt || 0)}</div>
                 <span className="text-[#6b7280]">({counselor?.cnslCnt})</span>
               </div>
             </div>
@@ -378,24 +349,13 @@ const CounselorView = () => {
           )}
 
           <section className="bg-white rounded-[14px] p-4 shadow-[0_8px_16px_rgba(0,0,0,0.06)]">
-            <h3 className="text-[15px] font-bold mb-2 text-[#111827]">
-              심리상담사 소개
-            </h3>
-            <p className="text-[13px] text-[#374151] leading-6">
-              {counselor?.text}
-            </p>
+            <h3 className="text-[15px] font-bold mb-2 text-[#111827]">심리상담사 소개</h3>
+            <p className="text-[13px] text-[#374151] leading-6">{counselor?.text}</p>
           </section>
 
           <section className="bg-white rounded-[14px] p-4 shadow-[0_8px_16px_rgba(0,0,0,0.06)]">
-            <h3 className="text-[15px] font-bold mb-2 text-[#111827]">
-              자격 및 경력
-            </h3>
-            <ul className="text-[13px] text-[#374151] list-disc pl-4 space-y-1">
-              {/* {counselor?.experience.map((item) => (
-                <li key={item}>{item}</li>
-              ))} */}
-              {counselor?.profile}
-            </ul>
+            <h3 className="text-[15px] font-bold mb-2 text-[#111827]">자격 및 경력</h3>
+            <ul className="text-[13px] text-[#374151] list-disc space-y-1 whitespace-pre-line">{counselor?.profile}</ul>
           </section>
 
           {/* 상담 진행 방식 */}
@@ -409,40 +369,30 @@ const CounselorView = () => {
           </section> */}
 
           <section className="bg-white rounded-[14px] p-4 shadow-[0_8px_16px_rgba(0,0,0,0.06)]">
-            <h3 className="text-[15px] font-bold mb-3 text-[#111827]">
-              상담 요금
-            </h3>
+            <h3 className="text-[15px] font-bold mb-3 text-[#111827]">상담 요금</h3>
             <div className="grid grid-cols-4 text-[13px] text-[#111827] gap-2">
               <div className="border border-[#dbe3f1] rounded-[10px] p-3 text-center">
                 <p className="text-[11px] text-[#6b7280]">전화</p>
                 <p className="font-semibold">
-                  {counselor?.cnsl2Price
-                    ? counselor?.cnsl2Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl2Price ? counselor?.cnsl2Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
               <div className="border border-[#dbe3f1] rounded-[10px] p-3 text-center">
                 <p className="text-[11px] text-[#6b7280]">채팅</p>
                 <p className="font-semibold">
-                  {counselor?.cnsl4Price
-                    ? counselor?.cnsl4Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl4Price ? counselor?.cnsl4Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
               <div className="border border-[#dbe3f1] rounded-[10px] p-3 text-center">
                 <p className="text-[11px] text-[#6b7280]">화상</p>
                 <p className="font-semibold">
-                  {counselor?.cnsl5Price
-                    ? counselor?.cnsl5Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl5Price ? counselor?.cnsl5Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
               <div className="border border-[#dbe3f1] rounded-[10px] p-3 text-center">
                 <p className="text-[11px] text-[#6b7280]">방문</p>
                 <p className="font-semibold">
-                  {counselor?.cnsl6Price
-                    ? counselor?.cnsl6Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl6Price ? counselor?.cnsl6Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
             </div>
@@ -465,17 +415,10 @@ const CounselorView = () => {
           <div className="fixed inset-0 bg-black/40 z-50 overflow-y-auto">
             <div className="min-h-full flex items-start justify-center p-4">
               <div className="w-[340px] bg-white rounded-[16px] p-4 my-6 max-h-[calc(100vh-3rem)] overflow-y-auto overscroll-contain">
-                <h3 className="text-[16px] font-bold text-[#111827] mb-3">
-                  상담 예약
-                </h3>
-                <form
-                  className="flex flex-col gap-3"
-                  onSubmit={handleReservationSubmit}
-                >
+                <h3 className="text-[16px] font-bold text-[#111827] mb-3">상담 예약</h3>
+                <form className="flex flex-col gap-3" onSubmit={handleReservationSubmit}>
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">
-                      상담 유형
-                    </label>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">상담 유형</label>
                     <select
                       className="w-full border border-[#dbe3f1] rounded-[10px] px-3 py-2 text-[13px]"
                       value={form.type}
@@ -502,9 +445,7 @@ const CounselorView = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">
-                      상담 카테고리
-                    </label>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">상담 카테고리</label>
                     <select
                       className="w-full border border-[#dbe3f1] rounded-[10px] px-3 py-2 text-[13px]"
                       value={form.category}
@@ -516,52 +457,33 @@ const CounselorView = () => {
                       }
                       required
                     >
-                      <option value="">
-                        원하는 상담 카테고리를 선택해주세요
-                      </option>
+                      <option value="">원하는 상담 카테고리를 선택해주세요</option>
                       <option value="취업상담">취업상담</option>
                       <option value="커리어상담">커리어상담</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">
-                      예약 날짜
-                    </label>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">예약 날짜</label>
                     <div className="border border-[#dbe3f1] rounded-[12px] p-3 bg-[#f9fafb]">
                       <div className="flex items-center justify-between mb-2">
                         <button
                           type="button"
                           className="px-2 py-1 text-[12px] rounded border border-[#d1d5db]"
                           onClick={() =>
-                            setCalendarMonth(
-                              (prev) =>
-                                new Date(
-                                  prev.getFullYear(),
-                                  prev.getMonth() - 1,
-                                  1,
-                                ),
-                            )
+                            setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
                           }
                         >
                           이전
                         </button>
                         <span className="text-[13px] font-semibold text-[#1f2937]">
-                          {calendarMonth.getFullYear()}년{' '}
-                          {calendarMonth.getMonth() + 1}월
+                          {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
                         </span>
                         <button
                           type="button"
                           className="px-2 py-1 text-[12px] rounded border border-[#d1d5db]"
                           onClick={() =>
-                            setCalendarMonth(
-                              (prev) =>
-                                new Date(
-                                  prev.getFullYear(),
-                                  prev.getMonth() + 1,
-                                  1,
-                                ),
-                            )
+                            setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
                           }
                         >
                           다음
@@ -603,16 +525,12 @@ const CounselorView = () => {
                           );
                         })}
                       </div>
-                      <p className="text-[11px] text-[#6b7280] mt-2">
-                        지난 날짜는 선택할 수 없습니다.
-                      </p>
+                      <p className="text-[11px] text-[#6b7280] mt-2">지난 날짜는 선택할 수 없습니다.</p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">
-                      예약 시간
-                    </label>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">예약 시간</label>
                     <select
                       className="w-full border border-[#dbe3f1] rounded-[10px] px-3 py-2 text-[13px]"
                       value={form.time}
@@ -627,25 +545,18 @@ const CounselorView = () => {
                     >
                       <option value="">원하는 시간을 선택해주세요</option>
                       {TIME_SLOTS.map((slot) => (
-                        <option
-                          key={slot}
-                          value={slot}
-                          disabled={disabledSlots.has(slot)}
-                        >
+                        <option key={slot} value={slot} disabled={disabledSlots.has(slot)}>
                           {slot}
                         </option>
                       ))}
                     </select>
                     <p className="text-[11px] text-[#6b7280] mt-1">
-                      날짜를 먼저 선택해주세요. 시간 슬롯은 추후 DB 연동으로
-                      실시간 제공 예정입니다.
+                      날짜를 먼저 선택해주세요. 시간 슬롯은 추후 DB 연동으로 실시간 제공 예정입니다.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">
-                      제목
-                    </label>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">제목</label>
                     <input
                       type="text"
                       className="w-full border border-[#dbe3f1] rounded-[10px] px-3 py-2 text-[13px]"
@@ -662,9 +573,7 @@ const CounselorView = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">
-                      상담 내용
-                    </label>
+                    <label className="block text-[12px] font-semibold text-[#374151] mb-1">상담 내용</label>
                     <textarea
                       className="w-full border border-[#dbe3f1] rounded-[10px] px-3 py-2 text-[13px] h-[100px]"
                       placeholder="상담 내용을 간단히 입력해주세요"
@@ -708,25 +617,16 @@ const CounselorView = () => {
               <div className="w-[340px] bg-white rounded-[16px] p-5 my-6 max-h-[calc(100vh-3rem)] overflow-y-auto overscroll-contain">
                 {/* 헤더 */}
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
-                  <h2 className="text-[18px] font-bold text-[#111827]">
-                    예약 후 결제하기
-                  </h2>
-                  <span className="text-[14px] font-semibold text-[#6b7280]">
-                    {counselor?.nickname}
-                  </span>
+                  <h2 className="text-[18px] font-bold text-[#111827]">예약 후 결제하기</h2>
                 </div>
 
                 {/* 결제 확인 */}
                 <div className="mb-4">
-                  <h3 className="text-[15px] font-bold text-[#111827] mb-2">
-                    결제확인
-                  </h3>
+                  <h3 className="text-[15px] font-bold text-[#111827] mb-2">결제확인</h3>
                   <div className="bg-[#f9fafb] rounded-[12px] p-3 space-y-1">
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[#6b7280]">상담사 :</span>
-                      <span className="text-[#111827] font-medium">
-                        {counselor?.nickname} 상담사
-                      </span>
+                      <span className="text-[#111827] font-medium">{counselor?.nickname} 상담사</span>
                     </div>
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[#6b7280]">결제일 :</span>
@@ -736,30 +636,22 @@ const CounselorView = () => {
                     </div>
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[#6b7280]">상담 :</span>
-                      <span className="text-[#111827] font-medium">
-                        {form.type}
-                      </span>
+                      <span className="text-[#111827] font-medium">{form.type}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* 최종 결제 */}
                 <div className="mb-4">
-                  <h3 className="text-[15px] font-bold text-[#111827] mb-2">
-                    최종 결제
-                  </h3>
+                  <h3 className="text-[15px] font-bold text-[#111827] mb-2">최종 결제</h3>
                   <div className="bg-white border border-[#e5e7eb] rounded-[12px] p-3 space-y-2">
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[#6b7280]">보유 포인트</span>
-                      <span className="text-[#2f80ed] font-semibold">
-                        {userPoints.reserved.toLocaleString()} P
-                      </span>
+                      <span className="text-[#2f80ed] font-semibold">{userPoints.reserved.toLocaleString()} P</span>
                     </div>
                     <div className="flex justify-between text-[13px]">
                       <span className="text-[#6b7280]">사용 포인트</span>
-                      <span className="text-[#dc2626] font-semibold">
-                        -{usedPoints.toLocaleString()} P
-                      </span>
+                      <span className="text-[#dc2626] font-semibold">-{usedPoints.toLocaleString()} P</span>
                     </div>
                   </div>
                 </div>
@@ -767,12 +659,8 @@ const CounselorView = () => {
                 {/* 결제 후 잔여 포인트 */}
                 <div className="mb-4">
                   <div className="bg-[#f3f7ff] rounded-[12px] p-3 flex justify-between items-center">
-                    <span className="text-[14px] font-bold text-[#111827]">
-                      결제 후 잔여 포인트
-                    </span>
-                    <span className="text-[18px] font-bold text-[#2f80ed]">
-                      {remainingPoints.toLocaleString()} P
-                    </span>
+                    <span className="text-[14px] font-bold text-[#111827]">결제 후 잔여 포인트</span>
+                    <span className="text-[18px] font-bold text-[#2f80ed]">{remainingPoints.toLocaleString()} P</span>
                   </div>
                 </div>
 
@@ -790,9 +678,7 @@ const CounselorView = () => {
                       }
                       className="mt-0.5 w-4 h-4 accent-[#2f80ed]"
                     />
-                    <span className="text-[12px] text-[#6b7280]">
-                      서비스 이용 및 포인트 결제 동의
-                    </span>
+                    <span className="text-[12px] text-[#6b7280]">서비스 이용 및 포인트 결제 동의</span>
                   </label>
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
@@ -806,9 +692,7 @@ const CounselorView = () => {
                       }
                       className="mt-0.5 w-4 h-4 accent-[#2f80ed]"
                     />
-                    <span className="text-[12px] text-[#6b7280]">
-                      취소 및 환불 규정 동의
-                    </span>
+                    <span className="text-[12px] text-[#6b7280]">취소 및 환불 규정 동의</span>
                   </label>
                 </div>
 
@@ -817,10 +701,7 @@ const CounselorView = () => {
                   type="button"
                   className="w-full bg-[#2f80ed] text-white font-semibold py-3 rounded-[12px] disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handlePaymentComplete}
-                  disabled={
-                    !paymentAgreements.serviceAgree ||
-                    !paymentAgreements.refundAgree
-                  }
+                  disabled={!paymentAgreements.serviceAgree || !paymentAgreements.refundAgree}
                 >
                   결제 완료하기
                 </button>
@@ -855,9 +736,17 @@ const CounselorView = () => {
             >
               {/* 프로필 사진 */}
               <div className="absolute bottom-0 left-12 transform translate-y-1/2">
-                <div className="w-[180px] h-[180px] rounded-full bg-gradient-to-br from-[#e9efff] to-[#d1e0ff] border-8 border-white flex items-center justify-center text-[#2f80ed] font-bold text-6xl shadow-2xl">
-                  {counselor?.nickname.slice(0, 1)}
-                </div>
+                {counselor?.imgUrl ? (
+                  <img
+                    src={counselor.imgUrl}
+                    alt=""
+                    className="block w-[180px] h-[180px] rounded-full object-cover overflow-hidden bg-gradient-to-br from-[#e9efff] to-[#d1e0ff] border-8 border-white shadow-2xl"
+                  />
+                ) : (
+                  <div className="w-[180px] h-[180px] rounded-full bg-gradient-to-br from-[#e9efff] to-[#d1e0ff] border-8 border-white flex items-center justify-center text-[#2f80ed] font-bold text-6xl shadow-2xl">
+                    {counselor?.nickname.slice(0, 1)}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -865,29 +754,20 @@ const CounselorView = () => {
             <div className="pt-24 px-12 pb-8">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h1 className="text-4xl font-bold text-gray-800 mb-2">
-                    {counselor?.nickname}{' '}
-                    <span className="text-gray-600">
-                      {counselor?.title || 'test'}
-                    </span>
-                  </h1>
+                  <h1 className="text-4xl font-bold text-gray-800 mb-2">{counselor?.nickname} 상담사</h1>
                   {/* <p className="text-lg text-gray-600 mb-4">{counselor?.tags.map((tag) => `#${tag}`).join(' ')}</p> */}
                   <div className="flex items-center gap-3 text-xl">
                     <div className="flex flex-row text-point items-center">
                       {renderStars(counselor?.avgEvalPt || 0)}
                     </div>
-                    <span className="text-gray-700 font-semibold">
-                      ({counselor?.cnslCnt})
-                    </span>
+                    <span className="text-gray-700 font-semibold">({counselor?.cnslCnt})</span>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     setShowReservation(true);
-                    setCalendarMonth(
-                      form.date ? new Date(form.date) : new Date(),
-                    );
+                    setCalendarMonth(form.date ? new Date(form.date) : new Date());
                   }}
                   className="px-8 py-4 bg-gradient-to-r from-[#2f80ed] to-[#1e40af] text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105"
                 >
@@ -900,9 +780,7 @@ const CounselorView = () => {
           {reservationDone && (
             <div className="bg-gradient-to-r from-[#c7d2fe] to-[#ddd6fe] rounded-2xl p-6 mb-8 border-2 border-[#6366f1] shadow-md">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl">
-                  ✓
-                </div>
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl">✓</div>
                 <div className="text-lg text-[#1e3a8a] font-semibold">
                   상담 예약이 완료되었습니다. 확인 후 처리될 예정입니다.
                 </div>
@@ -914,80 +792,47 @@ const CounselorView = () => {
           <div className="grid grid-cols-2 gap-8 mb-8">
             {/* 심리상담사 소개 */}
             <section className="bg-white rounded-2xl p-8 shadow-sm">
-              <h3 className="text-2xl font-bold mb-4 text-gray-800 border-b-2 border-gray-200 pb-3">
-                심리상담사 소개
-              </h3>
-              <p className="text-base text-gray-700 leading-relaxed">
-                {counselor?.text}
-              </p>
+              <h3 className="text-2xl font-bold mb-4 text-gray-800 border-b-2 border-gray-200 pb-3">심리상담사 소개</h3>
+              <p className="text-base text-gray-700 leading-relaxed">{counselor?.text}</p>
             </section>
 
             {/* 자격 및 경력 */}
             <section className="bg-white rounded-2xl p-8 shadow-sm">
-              <h3 className="text-2xl font-bold mb-4 text-gray-800 border-b-2 border-gray-200 pb-3">
-                자격 및 경력
-              </h3>
-              <ul className="text-base text-gray-700 list-disc pl-6 space-y-2">
-                {/* {counselor?.experience.map((item) => (
-                  <li key={item}>{item}</li>
-                ))} */}
-                {counselor?.profile}
-              </ul>
+              <h3 className="text-2xl font-bold mb-4 text-gray-800 border-b-2 border-gray-200 pb-3">자격 및 경력</h3>
+              <ul className="text-base text-gray-700 list-disc space-y-2 whitespace-pre-line">{counselor?.profile}</ul>
             </section>
           </div>
 
-          {/* 상담 진행 방식 */}
-          {/* <section className="bg-white rounded-2xl p-8 shadow-sm mb-8">
-            <h3 className="text-2xl font-bold mb-4 text-gray-800 border-b-2 border-gray-200 pb-3">
-              상담은 이렇게 진행됩니다
-            </h3>
-            <ol className="text-base text-gray-700 list-decimal pl-6 space-y-2">
-              {counselor?.process.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ol>
-          </section> */}
-
           {/* 상담 요금 */}
           <section className="bg-white rounded-2xl p-8 shadow-sm">
-            <h3 className="text-2xl font-bold mb-6 text-gray-800 border-b-2 border-gray-200 pb-3">
-              상담 요금
-            </h3>
+            <h3 className="text-2xl font-bold mb-6 text-gray-800 border-b-2 border-gray-200 pb-3">상담 요금</h3>
             <div className="grid grid-cols-4 gap-6">
               <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 text-center">
                 <div className="w-4 h-4 rounded-full bg-[#60a5fa] mx-auto mb-3" />
                 <p className="text-sm text-gray-600 mb-2">전화</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {counselor?.cnsl2Price
-                    ? counselor?.cnsl2Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl2Price ? counselor?.cnsl2Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
               <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6 text-center">
                 <div className="w-4 h-4 rounded-full bg-[#22c55e] mx-auto mb-3" />
                 <p className="text-sm text-gray-600 mb-2">채팅</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {counselor?.cnsl4Price
-                    ? counselor?.cnsl4Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl4Price ? counselor?.cnsl4Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
               <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-6 text-center">
                 <div className="w-4 h-4 rounded-full bg-[#a78bfa] mx-auto mb-3" />
                 <p className="text-sm text-gray-600 mb-2">화상</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {counselor?.cnsl5Price
-                    ? counselor?.cnsl5Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl5Price ? counselor?.cnsl5Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
               <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-6 text-center">
                 <div className="w-4 h-4 rounded-full bg-[#fb923c] mx-auto mb-3" />
                 <p className="text-sm text-gray-600 mb-2">방문</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {counselor?.cnsl6Price
-                    ? counselor?.cnsl6Price.toLocaleString() + '원'
-                    : '-'}
+                  {counselor?.cnsl6Price ? counselor?.cnsl6Price.toLocaleString() + ' P' : '-'}
                 </p>
               </div>
             </div>
@@ -995,9 +840,7 @@ const CounselorView = () => {
 
           {/* 상담 리뷰 */}
           <section className="bg-white rounded-2xl p-8 shadow-sm mt-8">
-            <h3 className="text-2xl font-bold mb-6 text-gray-800 border-b-2 border-gray-200 pb-3">
-              상담 리뷰
-            </h3>
+            <h3 className="text-2xl font-bold mb-6 text-gray-800 border-b-2 border-gray-200 pb-3">상담 리뷰</h3>
             {reviews.length > 0 ? (
               <div className="grid grid-cols-3 gap-6 cursor-pointer">
                 {reviews.map((v, i) => (
@@ -1007,23 +850,17 @@ const CounselorView = () => {
                     onClick={() => navigate('')}
                   >
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-[#f59e0b]">
-                        {renderStars(v.evalPt)}
-                      </span>
+                      <span className="text-[#f59e0b]">{renderStars(v.evalPt)}</span>
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
                       {v.nickname} | {v.createdAt.split('T')[0]}
                     </p>
-                    <p className="text-base text-gray-800 leading-relaxed">
-                      {v.content}
-                    </p>
+                    <p className="text-base text-gray-800 leading-relaxed">{v.content}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center text-gray-500 py-10">
-                리뷰가 없습니다.
-              </div>
+              <div className="text-center text-gray-500 py-10">리뷰가 없습니다.</div>
             )}
           </section>
         </div>
@@ -1033,9 +870,7 @@ const CounselorView = () => {
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-8">
             <div className="bg-white rounded-2xl p-8 max-w-[900px] w-full max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">
-                  상담 예약하기
-                </h2>
+                <h2 className="text-3xl font-bold text-gray-800">상담 예약하기</h2>
                 <button
                   type="button"
                   onClick={() => setShowReservation(false)}
@@ -1048,15 +883,11 @@ const CounselorView = () => {
               <form className="space-y-6" onSubmit={handleReservationSubmit}>
                 {/* 상담 유형 */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    유형 선택
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">유형 선택</label>
                   <select
                     className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-[#2f80ed] transition-colors"
                     value={form.type}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, type: event.target.value }))
-                    }
+                    onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value }))}
                     required
                   >
                     <option value="">원하는 상담 유형을 선택해주세요</option>
@@ -1075,9 +906,7 @@ const CounselorView = () => {
 
                 {/* 상담 카테고리 */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    카테고리 선택
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">카테고리 선택</label>
                   <select
                     className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-[#2f80ed] transition-colors"
                     value={form.category}
@@ -1089,9 +918,7 @@ const CounselorView = () => {
                     }
                     required
                   >
-                    <option value="">
-                      원하는 상담 카테고리를 선택해주세요
-                    </option>
+                    <option value="">원하는 상담 카테고리를 선택해주세요</option>
                     <option value="취업상담">취업상담</option>
                     <option value="커리어상담">커리어상담</option>
                   </select>
@@ -1099,9 +926,7 @@ const CounselorView = () => {
 
                 {/* 시간 선택 */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    시간 선택
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">시간 선택</label>
                   <div className="grid grid-cols-2 gap-6">
                     {/* 날짜 선택 캘린더 */}
                     <div className="border-2 border-gray-300 rounded-xl p-4">
@@ -1110,34 +935,19 @@ const CounselorView = () => {
                           type="button"
                           className="px-4 py-2 text-base rounded-lg border-2 border-gray-300 hover:bg-gray-50"
                           onClick={() =>
-                            setCalendarMonth(
-                              (prev) =>
-                                new Date(
-                                  prev.getFullYear(),
-                                  prev.getMonth() - 1,
-                                  1,
-                                ),
-                            )
+                            setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
                           }
                         >
                           이전
                         </button>
                         <span className="text-lg font-bold text-gray-800">
-                          {calendarMonth.getFullYear()}년{' '}
-                          {calendarMonth.getMonth() + 1}월
+                          {calendarMonth.getFullYear()}년 {calendarMonth.getMonth() + 1}월
                         </span>
                         <button
                           type="button"
                           className="px-4 py-2 text-base rounded-lg border-2 border-gray-300 hover:bg-gray-50"
                           onClick={() =>
-                            setCalendarMonth(
-                              (prev) =>
-                                new Date(
-                                  prev.getFullYear(),
-                                  prev.getMonth() + 1,
-                                  1,
-                                ),
-                            )
+                            setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
                           }
                         >
                           다음
@@ -1185,22 +995,17 @@ const CounselorView = () => {
 
                     {/* 시간 선택 */}
                     <div>
-                      <p className="text-base font-semibold text-gray-700 mb-3">
-                        시간 선택
-                      </p>
+                      <p className="text-base font-semibold text-gray-700 mb-3">시간 선택</p>
                       <div className="grid grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-2">
                         {TIME_SLOTS.map((slot) => {
-                          const isDisabled =
-                            disabledSlots.has(slot) || !form.date;
+                          const isDisabled = disabledSlots.has(slot) || !form.date;
                           const isSelected = form.time === slot;
                           return (
                             <button
                               key={slot}
                               type="button"
                               disabled={isDisabled}
-                              onClick={() =>
-                                setForm((prev) => ({ ...prev, time: slot }))
-                              }
+                              onClick={() => setForm((prev) => ({ ...prev, time: slot }))}
                               className={`px-4 py-3 rounded-lg border-2 text-base font-medium transition-all ${
                                 isDisabled
                                   ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -1214,20 +1019,14 @@ const CounselorView = () => {
                           );
                         })}
                       </div>
-                      {!form.date && (
-                        <p className="text-sm text-gray-500 mt-3">
-                          날짜를 먼저 선택해주세요.
-                        </p>
-                      )}
+                      {!form.date && <p className="text-sm text-gray-500 mt-3">날짜를 먼저 선택해주세요.</p>}
                     </div>
                   </div>
                 </div>
 
                 {/* 제목 */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    제목
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">제목</label>
                   <input
                     type="text"
                     className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:border-[#2f80ed] transition-colors"
@@ -1245,9 +1044,7 @@ const CounselorView = () => {
 
                 {/* 상담 내용 */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    상담 내용
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">상담 내용</label>
                   <textarea
                     className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 text-base h-[120px] focus:outline-none focus:border-[#2f80ed] transition-colors resize-none"
                     placeholder="상담 내용을 간단히 입력해주세요"
@@ -1290,25 +1087,19 @@ const CounselorView = () => {
             <div className="bg-white rounded-2xl p-8 max-w-[600px] w-full">
               {/* 헤더 */}
               <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  예약 후 결제하기
-                </h2>
+                <h3 className="text-2xl font-bold text-gray-800">결제하기</h3>
                 <span className="text-lg font-semibold text-gray-600">
-                  {counselor?.nickname}
+                  <img src={logo} alt="로고" />
                 </span>
               </div>
 
               {/* 결제 확인 */}
               <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-3">
-                  결제확인
-                </h3>
+                <h4 className="text-lg font-bold text-gray-800 mb-3">결제확인</h4>
                 <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                   <div className="flex justify-between text-base">
                     <span className="text-gray-600">상담사 :</span>
-                    <span className="text-gray-800 font-medium">
-                      {counselor?.nickname} 상담사
-                    </span>
+                    <span className="text-gray-800 font-medium">{counselor?.nickname} 상담사</span>
                   </div>
                   <div className="flex justify-between text-base">
                     <span className="text-gray-600">결제일 :</span>
@@ -1318,30 +1109,22 @@ const CounselorView = () => {
                   </div>
                   <div className="flex justify-between text-base">
                     <span className="text-gray-600">상담 :</span>
-                    <span className="text-gray-800 font-medium">
-                      {form.type}
-                    </span>
+                    <span className="text-gray-800 font-medium">{form.type}</span>
                   </div>
                 </div>
               </div>
 
               {/* 최종 결제 */}
               <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-3">
-                  최종 결제
-                </h3>
+                <h4 className="text-lg font-bold text-gray-800 mb-3">최종 결제</h4>
                 <div className="bg-white border-2 border-gray-200 rounded-xl p-4 space-y-3">
                   <div className="flex justify-between text-base">
                     <span className="text-gray-600">보유 포인트</span>
-                    <span className="text-[#2f80ed] font-bold text-lg">
-                      {userPoints.reserved.toLocaleString()} P
-                    </span>
+                    <span className="text-[#2f80ed] font-bold text-lg">{userPoints.reserved.toLocaleString()} P</span>
                   </div>
                   <div className="flex justify-between text-base">
                     <span className="text-gray-600">사용 포인트</span>
-                    <span className="text-red-600 font-bold text-lg">
-                      -{usedPoints.toLocaleString()} P
-                    </span>
+                    <span className="text-red-600 font-bold text-lg">-{usedPoints.toLocaleString()} P</span>
                   </div>
                 </div>
               </div>
@@ -1349,12 +1132,8 @@ const CounselorView = () => {
               {/* 결제 후 잔여 포인트 */}
               <div className="mb-6">
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex justify-between items-center">
-                  <span className="text-lg font-bold text-gray-800">
-                    결제 후 잔여 포인트
-                  </span>
-                  <span className="text-2xl font-bold text-[#2f80ed]">
-                    {remainingPoints.toLocaleString()} P
-                  </span>
+                  <span className="text-lg font-bold text-gray-800">결제 후 잔여 포인트</span>
+                  <span className="text-2xl font-bold text-[#2f80ed]">{remainingPoints.toLocaleString()} P</span>
                 </div>
               </div>
 
@@ -1372,9 +1151,7 @@ const CounselorView = () => {
                     }
                     className="w-5 h-5 accent-[#2f80ed]"
                   />
-                  <span className="text-base text-gray-700">
-                    서비스 이용 및 포인트 결제 동의
-                  </span>
+                  <span className="text-base text-gray-700">서비스 이용 및 포인트 결제 동의</span>
                 </label>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -1388,9 +1165,7 @@ const CounselorView = () => {
                     }
                     className="w-5 h-5 accent-[#2f80ed]"
                   />
-                  <span className="text-base text-gray-700">
-                    취소 및 환불 규정 동의
-                  </span>
+                  <span className="text-base text-gray-700">취소 및 환불 규정 동의</span>
                 </label>
               </div>
 
@@ -1399,10 +1174,7 @@ const CounselorView = () => {
                 type="button"
                 className="w-full bg-gradient-to-r from-[#2f80ed] to-[#1e40af] text-white text-lg font-bold py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handlePaymentComplete}
-                disabled={
-                  !paymentAgreements.serviceAgree ||
-                  !paymentAgreements.refundAgree
-                }
+                disabled={!paymentAgreements.serviceAgree || !paymentAgreements.refundAgree}
               >
                 결제 완료하기
               </button>

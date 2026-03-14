@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
 import { authApi } from '../../../axios/Auth';
+import MbtiTest from './MbtiTest';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -9,6 +10,25 @@ const SignUp = () => {
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isMbtiOpen, setIsMbtiOpen] = useState(false);
+  const [mbtiDisabled, setMbtiDisabled] = useState(false);
+
+  // 모달 열릴 때 바깥 스크롤 막기
+  useEffect(() => {
+    if (isMbtiOpen) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden'; // html까지 막기
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    // cleanup
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [isMbtiOpen]);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -248,8 +268,8 @@ const SignUp = () => {
                   name="mbti"
                   value={formData.mbti}
                   onChange={handleChange}
-                  className="flex-1 h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
-                  disabled={loading}
+                  className="disabled:cursor-not-allowed disabled:bg-gray-100 flex-1 h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
+                  disabled={loading || mbtiDisabled}
                 >
                   <option value="">MBTI 유형(리스트형)</option>
                   <option value="ISTJ">ISTJ</option>
@@ -271,8 +291,9 @@ const SignUp = () => {
                 </select>
                 <button
                   type="button"
-                  className="cursor-pointer w-24 lg:w-28 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-[10px] lg:text-xs font-semibold lg:font-normal transition-colors leading-tight"
-                  disabled={loading}
+                  className="w-24 lg:w-28 h-11 lg:h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-[10px] lg:text-xs font-semibold lg:font-normal transition-colors leading-tight disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
+                  disabled={loading || mbtiDisabled}
+                  onClick={() => setIsMbtiOpen(true)}
                 >
                   MBTI 검사하기
                   <br />
@@ -283,6 +304,23 @@ const SignUp = () => {
                 상담 서비스를 이용하려면 해당 정보 입력이 필요합니다.
               </p>
             </div>
+
+            {/* MBTI 모달 */}
+            {isMbtiOpen && (
+              <MbtiTest
+                isOpen={isMbtiOpen}
+                onClose={() => setIsMbtiOpen(false)}
+                onResult={(mbtiValue) => {
+                  setFormData((prev) => ({ ...prev, mbti: mbtiValue })); // 모달 결과 부모 state에 반영
+                  setMbtiDisabled(true); // 결과 확인 후 select 비활성화
+                }}
+                className="fixed inset-0 flex justify-center items-center z-50 bg-black/20 p-4"
+              >
+                <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-auto p-6">
+                  {/* 질문 카드 + 결과 버튼 */}
+                </div>
+              </MbtiTest>
+            )}
 
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">

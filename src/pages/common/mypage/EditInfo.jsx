@@ -6,13 +6,7 @@ import { MBTI_OPTIONS } from '../../user/board/boardData';
 import { useAuthStore } from '../../../store/auth.store';
 
 const EditInfo = () => {
-  const {
-    getmemberInfoNicknameCheckYn,
-    getUserInfo,
-    uploadProfileImage,
-    saveProfileImage,
-    editInfo,
-  } = useAuth();
+  const { getmemberInfoNicknameCheckYn, getUserInfo, uploadProfileImage, saveProfileImage, editInfo } = useAuth();
   const { accessToken, email } = useAuthStore();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -84,12 +78,9 @@ const EditInfo = () => {
         alert('닉네임을 입력해 주세요.');
         return;
       }
-      const { userInfoNicknameCheckYn: result } =
-        await getmemberInfoNicknameCheckYn(formData.nickname);
+      const { userInfoNicknameCheckYn: result } = await getmemberInfoNicknameCheckYn(formData.nickname);
       if (result === 'Y') {
-        alert(
-          '해당 닉네임은 이미 등록되어 있습니다. 고유한 닉네임을 입력해주세요.',
-        );
+        alert('해당 닉네임은 이미 등록되어 있습니다. 고유한 닉네임을 입력해주세요.');
         return;
       } else alert('사용 가능한 닉네임입니다.');
     } catch (error) {
@@ -137,11 +128,7 @@ const EditInfo = () => {
       });
 
       if (imageInfo) {
-        await saveProfileImage(
-          email,
-          imageInfo.imgName || null,
-          imageInfo.imgUrl || null,
-        );
+        await saveProfileImage(email, imageInfo.imgName || null, imageInfo.imgUrl || null);
       }
 
       setShowSuccessModal(true);
@@ -167,9 +154,7 @@ const EditInfo = () => {
           <Link to="/mypage" className="text-white text-xl">
             ←
           </Link>
-          <h1 className="text-white text-lg font-bold flex-1 text-center mr-6">
-            회원정보 수정
-          </h1>
+          <h1 className="text-white text-lg font-bold flex-1 text-center mr-6">회원정보 수정</h1>
         </header>
 
         {/* CONTENT */}
@@ -178,39 +163,24 @@ const EditInfo = () => {
           <div className="flex flex-col items-center mb-8">
             <div className="relative w-32 h-32 rounded-full overflow-hidden cursor-pointer mb-4">
               {imageInfo ? (
-                <img
-                  src={imageInfo.imgUrl || null}
-                  alt="프로필"
-                  className="w-full h-full object-cover"
-                />
+                <img src={imageInfo.imgUrl || null} alt="프로필" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-                  <svg
-                    className="w-16 h-16 text-gray-500"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-16 h-16 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                   </svg>
                 </div>
               )}
             </div>
             <label className="bg-[#2563eb] text-white px-6 py-2 rounded-xl text-sm font-semibold">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-              />
+              <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
               프로필 사진 변경
             </label>
           </div>
 
           {/* MBTI 선택 */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              MBTI 선택
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">MBTI 선택</label>
             <select
               value={selectedMbti}
               onChange={(e) => setSelectedMbti(e.target.value)}
@@ -227,9 +197,7 @@ const EditInfo = () => {
 
           {/* 변경할 닉네임 */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              변경할 닉네임
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">변경할 닉네임</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -252,9 +220,7 @@ const EditInfo = () => {
 
           {/* 새 비밀번호 */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              비밀번호 변경
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">비밀번호 변경</label>
             <input
               type="password"
               name="newPassword"
@@ -268,9 +234,7 @@ const EditInfo = () => {
 
           {/* 비밀번호 확인 */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              비밀번호 확인
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">비밀번호 확인</label>
             <input
               type="password"
               name="confirmPassword"
@@ -322,46 +286,30 @@ const EditInfo = () => {
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-16">
           {/* HEADER */}
-          <div className="flex items-center justify-between mb-8 ">
-            <h1 className="text-[30px] font-semibold text-gray-800">
+          <div className="flex-col items-center justify-between mb-8 ">
+            <h3 className="!font-bold text-gray-800 mb-8">
               회원정보 수정
-            </h1>
-          </div>
+            </h3>
 
           {/* CONTENT */}
-          <div className="w-[1520px] mx-auto bg-white rounded-2xl shadow-sm p-16">
+          <div className="w-full mx-auto bg-white rounded-2xl shadow-sm p-16">
             <div className="flex gap-16">
               {/* LEFT: 프로필 사진 */}
               <div className="flex flex-col items-center">
-                <h2 className="text-lg font-semibold text-gray-800 mb-6">
-                  프로필 사진
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-800 mb-6">프로필 사진</h2>
                 <div className="relative w-48 h-48 rounded-full overflow-hidden mb-6 border-4 border-gray-200">
                   {imageInfo ? (
-                    <img
-                      src={imageInfo.imgUrl || null}
-                      alt="프로필"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={imageInfo.imgUrl || null} alt="프로필" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-                      <svg
-                        className="w-24 h-24 text-gray-500"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                      >
+                      <svg className="w-24 h-24 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                       </svg>
                     </div>
                   )}
                 </div>
                 <label className="cursor-pointer bg-[#2563eb] text-white px-8 py-3 rounded-xl text-base font-normal hover:bg-[#1d4ed8] transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
+                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                   사진 추가/변경
                 </label>
               </div>
@@ -370,9 +318,7 @@ const EditInfo = () => {
               <div className="flex-1">
                 {/* MBTI 리스트 */}
                 <div className="mb-6">
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    MBTI 리스트
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">MBTI 리스트</label>
                   <select
                     value={selectedMbti}
                     onChange={(e) => setSelectedMbti(e.target.value)}
@@ -390,9 +336,7 @@ const EditInfo = () => {
 
                 {/* 변경할 닉네임 */}
                 <div className="mb-6">
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    변경할 닉네임
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">변경할 닉네임</label>
                   <div className="flex gap-3">
                     <input
                       type="text"
@@ -415,9 +359,7 @@ const EditInfo = () => {
 
                 {/* 비밀번호 변경 */}
                 <div className="mb-6">
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    비밀번호 변경
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">비밀번호 변경</label>
                   <input
                     type="password"
                     name="newPassword"
@@ -431,9 +373,7 @@ const EditInfo = () => {
 
                 {/* 비밀번호 확인 */}
                 <div className="mb-6">
-                  <label className="block text-lg font-semibold text-gray-800 mb-3">
-                    비밀번호 확인
-                  </label>
+                  <label className="block text-lg font-semibold text-gray-800 mb-3">비밀번호 확인</label>
                   <input
                     type="password"
                     name="confirmPassword"
@@ -449,9 +389,7 @@ const EditInfo = () => {
 
             {/* 자기소개 */}
             <div className="mt-8">
-              <label className="block text-lg font-semibold text-gray-800 mb-3">
-                자기소개
-              </label>
+              <label className="block text-lg font-semibold text-gray-800 mb-3">자기소개</label>
               <textarea
                 name="introduction"
                 value={formData.introduction}
@@ -487,6 +425,7 @@ const EditInfo = () => {
                 {loading ? '수정 중...' : '완 료'}
               </button>
             </div>
+            </div>
           </div>
         </div>
       </div>
@@ -505,9 +444,7 @@ const EditInfo = () => {
               </div>
 
               {/* 메시지 */}
-              <p className="text-lg font-semibold text-gray-800 mb-2">
-                정보 수정이 완료되었습니다
-              </p>
+              <p className="text-lg font-semibold text-gray-800 mb-2">정보 수정이 완료되었습니다</p>
 
               {/* 확인 버튼 */}
               <button
@@ -535,12 +472,8 @@ const EditInfo = () => {
               </div>
 
               {/* 메시지 */}
-              <p className="text-lg font-semibold text-gray-800 mb-2">
-                정보 수정을 그만두시겠습니까?
-              </p>
-              <p className="text-sm text-gray-600 mb-6">
-                작성 중인 내용은 저장되지 않습니다
-              </p>
+              <p className="text-lg font-semibold text-gray-800 mb-2">정보 수정을 그만두시겠습니까?</p>
+              <p className="text-sm text-gray-600 mb-6">작성 중인 내용은 저장되지 않습니다</p>
 
               {/* 버튼 */}
               <div className="flex w-full gap-3">

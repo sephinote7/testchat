@@ -1,11 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  acceptCounsel,
-  fetchCounselDetail,
-  rejectCounsel,
-} from '../../../api/counselApi';
+import { acceptCounsel, fetchCounselDetail, rejectCounsel } from '../../../api/counselApi';
 import { useAuthStore } from '../../../store/auth.store';
+import CounselDecisionModal from './CounselDecisionModal';
 
 const MyCounselDetail = () => {
   const navigate = useNavigate();
@@ -91,16 +88,14 @@ const MyCounselDetail = () => {
 
   // 상담 상태 라벨
   const getStatusLabel = (status) => {
-    if (status === 'scheduled')
-      return { text: '상담 예정', color: 'text-blue-600', bg: 'bg-blue-100' };
+    if (status === 'scheduled') return { text: '상담 예정', color: 'text-blue-600', bg: 'bg-blue-100' };
     if (status === 'inProgress')
       return {
         text: '상담 진행중',
         color: 'text-orange-600',
         bg: 'bg-orange-100',
       };
-    if (status === 'completed')
-      return { text: '상담 완료', color: 'text-green-600', bg: 'bg-green-100' };
+    if (status === 'completed') return { text: '상담 완료', color: 'text-green-600', bg: 'bg-green-100' };
     return { text: '상담 예정', color: 'text-blue-600', bg: 'bg-blue-100' };
   };
 
@@ -133,27 +128,56 @@ const MyCounselDetail = () => {
     ]);
   };
 
-  const handleAcceptCounsel = async () => {
-    const data = await acceptCounsel({
-      cnslId: parseInt(id),
-      message: '늦지 않게 오쇼',
-    });
-
-    setCounselData({ ...counselData, status: 'inProgress' });
-    // show modal
-    console.log('accept', data);
-    if (data) navigate('/system/info/counsel-reservation-list');
+  // 상담 수락
+  const handleAcceptCounsel = () => {
+    setModalType('accept');
+    setModalOpen(true);
   };
 
-  const handleRejectCounsel = async () => {
-    const data = await rejectCounsel({
-      cnslId: parseInt(id),
-      reason: '진상은 안받아줍니다.',
-    });
-
-    console.log('reject', data);
-    if (data) navigate('/system/info/counsel-reservation-list');
+  // 상담 거절
+  const handleRejectCounsel = () => {
+    setModalType('reject');
+    setModalOpen(true);
   };
+
+  const handleSubmitDecision = async (message) => {
+    if (modalType === 'accept') {
+      const data = await acceptCounsel({
+        cnslId: parseInt(id),
+        message,
+      });
+
+      if (data) {
+        setCounselData({ ...counselData, status: 'inProgress' });
+        alert('상담 요청을 수락했습니다.');
+        navigate('/system/info/counsel-reservation-list');
+      }
+    }
+
+    if (modalType === 'reject') {
+      const data = await rejectCounsel({
+        cnslId: parseInt(id),
+        reason: message,
+      });
+
+      if (data) {
+        alert('상담 요청을 거절했습니다.');
+        navigate('/system/info/counsel-reservation-list');
+      }
+    }
+
+    setModalOpen(false);
+  };
+
+  // const handleRejectCounsel = async () => {
+  //   const data = await rejectCounsel({
+  //     cnslId: parseInt(id),
+  //     reason: '진상은 안받아줍니다.',
+  //   });
+
+  //   console.log('reject', data);
+  //   if (data) navigate('/system/info/counsel-reservation-list');
+  // };
 
   // 메시지 전송
   const handleSendMessage = async () => {
@@ -200,7 +224,6 @@ const MyCounselDetail = () => {
     setCounselData({ ...counselData, status: 'completed' });
   };
 
-  // 메시지 스크롤 자동 이동
   useEffect(() => {
     const getCounselDetail = async () => {
       const data = await fetchCounselDetail(parseInt(id));
@@ -226,6 +249,9 @@ const MyCounselDetail = () => {
     }
   };
 
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState(null);
+
   // 상담 예정 화면
   const renderScheduledView = () => (
     <>
@@ -236,10 +262,7 @@ const MyCounselDetail = () => {
           <div className="flex-1 text-center">
             <img src="/logo.png" alt="고민순삭" className="h-8 mx-auto" />
           </div>
-          <button
-            onClick={() => navigate(-1)}
-            className="px-3 py-1 border border-white rounded text-sm"
-          >
+          <button onClick={() => navigate(-1)} className="px-3 py-1 border border-white rounded text-sm">
             뒤로가기
           </button>
         </div>
@@ -248,9 +271,7 @@ const MyCounselDetail = () => {
         <div className="px-4 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-800">상담 예약 내용</h1>
-            <span
-              className={`px-4 py-2 rounded-full text-sm font-bold ${statusInfo.bg} ${statusInfo.color}`}
-            >
+            <span className={`px-4 py-2 rounded-full text-sm font-bold ${statusInfo.bg} ${statusInfo.color}`}>
               {statusInfo.text}
             </span>
           </div>
@@ -259,10 +280,7 @@ const MyCounselDetail = () => {
         {/* 예약일자 */}
         <div className="px-4 mb-4">
           <p className="text-base text-gray-600">
-            예약일자 :{' '}
-            <span className="font-semibold text-gray-800">
-              {counselData?.cnslDt}
-            </span>
+            예약일자 : <span className="font-semibold text-gray-800">{counselData?.cnslDt}</span>
           </p>
         </div>
 
@@ -270,15 +288,9 @@ const MyCounselDetail = () => {
         <div className="mx-4 mb-6 bg-white rounded-lg shadow-md overflow-hidden">
           <div className="p-4">
             <h2 className="text-lg font-bold text-gray-800 mb-3">상담 내용</h2>
-            <h3 className="text-base font-semibold text-gray-800 mb-2">
-              {counselData?.cnslTitle}
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              예약자 : {counselData?.nickname}
-            </p>
-            <p className="text-sm text-gray-700 leading-relaxed">
-              {counselData?.cnslContent}
-            </p>
+            <h3 className="text-base font-semibold text-gray-800 mb-2">{counselData?.cnslTitle}</h3>
+            <p className="text-sm text-gray-600 mb-4">예약자 : {counselData?.nickname}</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{counselData?.cnslContent}</p>
           </div>
         </div>
 
@@ -291,7 +303,7 @@ const MyCounselDetail = () => {
           <div className="flex items-center gap-4 mb-4">
             <div className="w-16 h-16 rounded-full bg-gray-300 overflow-hidden">
               <img
-                src={'https://picsum.photos/200'}
+                src={counselData?.imgUrl}
                 alt={email}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -301,9 +313,7 @@ const MyCounselDetail = () => {
             </div>
             <div>
               <h4 className="font-bold text-gray-800 text-lg">{nickname}</h4>
-              <p className="text-sm text-gray-600">
-                MBTI : {counselData?.mbti}
-              </p>
+              <p className="text-sm text-gray-600">MBTI : {counselData?.mbti}</p>
               <p className="text-sm text-gray-500">
                 성별 : {counselData?.gender} / 나이 : {counselData?.age}
               </p>
@@ -311,12 +321,8 @@ const MyCounselDetail = () => {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              상담사 페르소나
-            </h3>
-            <p className="text-xs text-gray-600 leading-relaxed break-all">
-              {counselData?.text}
-            </p>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담사 소개</h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all">{counselData?.text}</p>
           </div>
         </div>
 
@@ -359,12 +365,8 @@ const MyCounselDetail = () => {
           {/* HEADER */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-6">
-              <h1 className="text-4xl font-bold text-gray-800">
-                상담 예약 내용
-              </h1>
-              <span
-                className={`px-6 py-3 rounded-full text-xl font-bold ${statusInfo.bg} ${statusInfo.color}`}
-              >
+              <h1 className="text-4xl font-bold text-gray-800">상담 예약 내용</h1>
+              <span className={`px-6 py-3 rounded-full text-xl font-bold ${statusInfo.bg} ${statusInfo.color}`}>
                 {statusInfo.text}
               </span>
             </div>
@@ -379,10 +381,7 @@ const MyCounselDetail = () => {
           {/* 예약 일자 */}
           <div className="mb-8">
             <p className="text-2xl text-gray-600">
-              예약일자 :{' '}
-              <span className="font-bold text-gray-800">
-                {counselData?.cnslDt}
-              </span>
+              예약일자 : <span className="font-bold text-gray-800">{counselData?.cnslDt}</span>
             </p>
           </div>
 
@@ -390,29 +389,21 @@ const MyCounselDetail = () => {
           <div className="bg-white rounded-3xl p-10 shadow-xl mb-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">상담 내용</h2>
             <div className="mb-4">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                {counselData?.cnslTitle}
-              </h3>
-              <p className="text-base text-gray-600 mb-2">
-                예약자 : {counselData?.nickname}
-              </p>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">{counselData?.cnslTitle}</h3>
+              <p className="text-base text-gray-600 mb-2">예약자 : {counselData?.nickname}</p>
             </div>
             <div className="space-y-4">
-              <p className="text-base text-gray-700 leading-relaxed">
-                {counselData?.cnslContent}
-              </p>
+              <p className="text-base text-gray-700 leading-relaxed">{counselData?.cnslContent}</p>
             </div>
           </div>
 
           {/* 상담자 정보 */}
           <div className="bg-white rounded-3xl p-10 shadow-xl mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
-              상담자 정보
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">상담자 정보</h2>
             <div className="flex items-center gap-6 mb-8">
               <div className="w-32 h-32 rounded-full bg-gray-300 overflow-hidden">
                 <img
-                  src={'https://picsum.photos/200'}
+                  src={counselData?.imgUrl}
                   alt={nickname}
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -421,12 +412,8 @@ const MyCounselDetail = () => {
                 />
               </div>
               <div>
-                <h3 className="text-3xl font-bold text-gray-800 mb-2">
-                  {nickname}
-                </h3>
-                <p className="text-lg text-gray-600 mb-1">
-                  MBTI : {counselData?.mbti}
-                </p>
+                <h3 className="text-3xl font-bold text-gray-800 mb-2">{nickname}</h3>
+                <p className="text-lg text-gray-600 mb-1">MBTI : {counselData?.mbti}</p>
                 <p className="text-base text-gray-500">
                   성별 : {counselData?.gender} / 나이 : {counselData?.age}
                 </p>
@@ -434,13 +421,9 @@ const MyCounselDetail = () => {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">
-                상담사 페르소나
-              </h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">상담사 소개</h3>
               <div className="bg-gray-50 rounded-2xl p-6">
-                <p className="text-base text-gray-700 leading-relaxed break-all">
-                  {counselData?.text}
-                </p>
+                <p className="text-base text-gray-700 leading-relaxed break-all">{counselData?.text}</p>
               </div>
             </div>
           </div>
@@ -478,6 +461,13 @@ const MyCounselDetail = () => {
           )}
         </div>
       </div>
+
+      <CounselDecisionModal
+        open={modalOpen}
+        type={modalType}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleSubmitDecision}
+      />
     </>
   );
 
@@ -490,18 +480,8 @@ const MyCounselDetail = () => {
         <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate(-1)}>
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <div>
@@ -519,36 +499,25 @@ const MyCounselDetail = () => {
         {/* 예약일자 */}
         <div className="bg-white px-4 py-3 border-b">
           <p className="text-sm text-gray-600">
-            예약일자 :{' '}
-            <span className="font-semibold text-gray-800">
-              {counselData?.cnslDt}
-            </span>
+            예약일자 : <span className="font-semibold text-gray-800">{counselData?.cnslDt}</span>
           </p>
         </div>
 
         {/* 상담 내용 */}
         <div className="bg-white px-4 py-4 border-b">
           <h2 className="text-base font-bold text-gray-800 mb-2">상담 내용</h2>
-          <h3 className="text-sm font-semibold text-gray-800 mb-2">
-            {counselData?.cnslTitle}
-          </h3>
-          <p className="text-xs text-gray-600 mb-2">
-            예약자 : {counselData?.nickname}
-          </p>
-          <p className="text-sm text-gray-700 leading-relaxed">
-            {counselData?.cnslContent}
-          </p>
+          <h3 className="text-sm font-semibold text-gray-800 mb-2">{counselData?.cnslTitle}</h3>
+          <p className="text-xs text-gray-600 mb-2">예약자 : {counselData?.nickname}</p>
+          <p className="text-sm text-gray-700 leading-relaxed">{counselData?.cnslContent}</p>
         </div>
 
         {/* 상담자 정보 */}
         <div className="bg-white px-4 py-4 border-b">
-          <h2 className="text-base font-bold text-gray-800 mb-3">
-            상담자 정보
-          </h2>
+          <h2 className="text-base font-bold text-gray-800 mb-3">상담자 정보</h2>
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-full bg-gray-300 overflow-hidden">
               <img
-                src={'https://picsum.photos/200'}
+                src={counselData?.imgUrl}
                 alt={nickname}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -559,32 +528,25 @@ const MyCounselDetail = () => {
             <div>
               <h4 className="font-bold text-gray-800">{nickname}</h4>
               <p className="text-xs text-gray-600">
-                MBTI : {counselData?.mbti} / 성별 : {counselData?.gender} / 나이
-                : {counselData?.age}
+                MBTI : {counselData?.mbti} / 성별 : {counselData?.gender} / 나이 : {counselData?.age}
               </p>
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              상담사 페르소나
-            </h3>
-            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">
-              {counselData?.text}
-            </p>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담사 소개</h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">{counselData?.text}</p>
           </div>
         </div>
 
         {/* 채팅 영역 */}
         <div className="flex-1 bg-white overflow-y-auto p-4 space-y-4">
-          <h2 className="text-base font-bold text-gray-800 mb-4">
-            상담사와의 상담 내용
-          </h2>
+          <h2 className="text-base font-bold text-gray-800 mb-4">상담사와의 상담 내용</h2>
 
           {/* 상담사 프로필 헤더 */}
           <div className="bg-blue-600 text-white p-4 rounded-lg flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-white overflow-hidden">
               <img
-                src={'https://picsum.photos/200'}
+                src={counselData?.imgUrl}
                 alt={nickname}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -600,24 +562,15 @@ const MyCounselDetail = () => {
 
           {/* 메시지 목록 */}
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}
-            >
+            <div key={msg.id} className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}>
               <div
                 className={`max-w-[80%] ${
-                  msg.sender === 'counselor'
-                    ? 'bg-white border border-gray-300'
-                    : 'bg-blue-500 text-white'
+                  msg.sender === 'counselor' ? 'bg-white border border-gray-300' : 'bg-blue-500 text-white'
                 } rounded-lg p-3`}
               >
-                {msg.sender === 'counselor' && (
-                  <p className="text-xs font-semibold mb-1">{msg.senderName}</p>
-                )}
+                {msg.sender === 'counselor' && <p className="text-xs font-semibold mb-1">{msg.senderName}</p>}
                 <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                <p
-                  className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}
-                >
+                <p className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}>
                   {msg.time}
                 </p>
               </div>
@@ -641,12 +594,7 @@ const MyCounselDetail = () => {
               onClick={handleSendMessage}
               className="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -678,12 +626,8 @@ const MyCounselDetail = () => {
           {/* HEADER */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-16">
-              <h1 className="text-4xl font-bold text-gray-800">
-                상담 상세 내용
-              </h1>
-              <span
-                className={`px-6 py-3 rounded-full text-xl font-bold ${statusInfo.bg} ${statusInfo.color}`}
-              >
+              <h1 className="text-4xl font-bold text-gray-800">상담 상세 내용</h1>
+              <span className={`px-6 py-3 rounded-full text-xl font-bold ${statusInfo.bg} ${statusInfo.color}`}>
                 {statusInfo.text}
               </span>
             </div>
@@ -713,40 +657,27 @@ const MyCounselDetail = () => {
               {/* 예약 일자 */}
               <div className="bg-white rounded-2xl p-4 shadow-lg">
                 <p className="text-sm text-gray-600">
-                  예약일자 :{' '}
-                  <span className="font-bold text-gray-800">
-                    {counselData?.cnslDt}
-                  </span>
+                  예약일자 : <span className="font-bold text-gray-800">{counselData?.cnslDt}</span>
                 </p>
               </div>
 
               {/* 상담 내용 */}
               <div className="bg-white rounded-2xl p-4 shadow-lg">
-                <h2 className="text-base font-bold text-gray-800 mb-3">
-                  상담 내용
-                </h2>
-                <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2">
-                  {counselData?.cnslTitle}
-                </h3>
-                <p className="text-xs text-gray-600 mb-2">
-                  예약자 : {counselData?.nickname}
-                </p>
+                <h2 className="text-base font-bold text-gray-800 mb-3">상담 내용</h2>
+                <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2">{counselData?.cnslTitle}</h3>
+                <p className="text-xs text-gray-600 mb-2">예약자 : {counselData?.nickname}</p>
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-700 leading-relaxed line-clamp-3">
-                    {counselData?.cnslContent}
-                  </p>
+                  <p className="text-xs text-gray-700 leading-relaxed line-clamp-3">{counselData?.cnslContent}</p>
                 </div>
               </div>
 
               {/* 상담자 정보 */}
               <div className="bg-white rounded-2xl p-4 shadow-lg">
-                <h2 className="text-base font-bold text-gray-800 mb-3">
-                  상담자 정보
-                </h2>
+                <h2 className="text-base font-bold text-gray-800 mb-3">상담자 정보</h2>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-14 h-14 rounded-full bg-gray-300 overflow-hidden flex-shrink-0">
                     <img
-                      src={'https://picsum.photos/200'}
+                      src={counselData?.imgUrl}
                       alt={nickname}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -755,25 +686,17 @@ const MyCounselDetail = () => {
                     />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-800 mb-1">
-                      {nickname}
-                    </h3>
-                    <p className="text-xs text-gray-600">
-                      MBTI : {counselData?.mbti}
-                    </p>
+                    <h3 className="text-base font-bold text-gray-800 mb-1">{nickname}</h3>
+                    <p className="text-xs text-gray-600">MBTI : {counselData?.mbti}</p>
                     <p className="text-xs text-gray-500">
                       {counselData?.gender} / {counselData?.age}
                     </p>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-800 mb-2">
-                    상담사 페르소나
-                  </h3>
+                  <h3 className="text-sm font-bold text-gray-800 mb-2">상담사 소개</h3>
                   <div className="bg-gray-50 rounded-xl p-3 max-h-24 overflow-hidden">
-                    <p className="text-xs text-gray-700 leading-relaxed break-all line-clamp-4">
-                      {counselData?.text}
-                    </p>
+                    <p className="text-xs text-gray-700 leading-relaxed break-all line-clamp-4">{counselData?.text}</p>
                   </div>
                 </div>
               </div>
@@ -785,16 +708,14 @@ const MyCounselDetail = () => {
               style={{ height: 'calc(100vh - 200px)' }}
             >
               <div className="p-4 border-b">
-                <h2 className="text-xl font-bold text-gray-800">
-                  상담사와의 상담 내용
-                </h2>
+                <h2 className="text-xl font-bold text-gray-800">상담사와의 상담 내용</h2>
               </div>
 
               {/* 상담사 프로필 헤더 - 크기 축소 */}
               <div className="mx-4 mt-3 bg-blue-600 text-white p-3 rounded-xl flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-white overflow-hidden">
                   <img
-                    src={'https://picsum.photos/200'}
+                    src={counselData?.imgUrl}
                     alt={nickname}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -804,35 +725,22 @@ const MyCounselDetail = () => {
                 </div>
                 <div>
                   <p className="text-base font-bold">{`안녕 상담사 ${nickname}입니다`}</p>
-                  <p className="text-xs">
-                    #코인만담 #파이어족 되기 #워라밸잡기
-                  </p>
+                  <p className="text-xs">#코인만담 #파이어족 되기 #워라밸잡기</p>
                 </div>
               </div>
 
               {/* 메시지 목록 - 간격 축소 */}
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
                 {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}
-                  >
+                  <div key={msg.id} className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}>
                     <div
                       className={`max-w-[70%] ${
-                        msg.sender === 'counselor'
-                          ? 'bg-gray-100 border border-gray-200'
-                          : 'bg-blue-500 text-white'
+                        msg.sender === 'counselor' ? 'bg-gray-100 border border-gray-200' : 'bg-blue-500 text-white'
                       } rounded-xl p-3`}
                     >
-                      {msg.sender === 'counselor' && (
-                        <p className="text-xs font-semibold mb-1">
-                          {msg.senderName}
-                        </p>
-                      )}
+                      {msg.sender === 'counselor' && <p className="text-xs font-semibold mb-1">{msg.senderName}</p>}
                       <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                      <p
-                        className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}
-                      >
+                      <p className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}>
                         {msg.time}
                       </p>
                     </div>
@@ -856,12 +764,7 @@ const MyCounselDetail = () => {
                     onClick={handleSendMessage}
                     className="cursor-pointer bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -907,62 +810,39 @@ const MyCounselDetail = () => {
         <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate(-1)}>
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
             <div>
               <h1 className="font-bold text-lg">상담 상세 내용</h1>
             </div>
           </div>
-          <span className="px-4 py-2 bg-orange-500 rounded-md text-sm font-semibold">
-            상담 완료
-          </span>
+          <span className="px-4 py-2 bg-orange-500 rounded-md text-sm font-semibold">상담 완료</span>
         </div>
 
         {/* 예약일자 */}
         <div className="bg-white px-4 py-3 border-b">
           <p className="text-sm text-gray-600">
-            예약일자 :{' '}
-            <span className="font-semibold text-gray-800">
-              {counselData?.cnslDt}
-            </span>
+            예약일자 : <span className="font-semibold text-gray-800">{counselData?.cnslDt}</span>
           </p>
         </div>
 
         {/* 상담 내용 */}
         <div className="bg-white px-4 py-4 border-b">
           <h2 className="text-base font-bold text-gray-800 mb-2">상담 내용</h2>
-          <h3 className="text-sm font-semibold text-gray-800 mb-2">
-            {counselData?.cnslTitle}
-          </h3>
-          <p className="text-xs text-gray-600 mb-2">
-            예약자 : {counselData?.nickname}
-          </p>
-          <p className="text-sm text-gray-700 leading-relaxed">
-            {counselData?.cnslContent}
-          </p>
+          <h3 className="text-sm font-semibold text-gray-800 mb-2">{counselData?.cnslTitle}</h3>
+          <p className="text-xs text-gray-600 mb-2">예약자 : {counselData?.nickname}</p>
+          <p className="text-sm text-gray-700 leading-relaxed">{counselData?.cnslContent}</p>
         </div>
 
         {/* 상담자 정보 */}
         <div className="bg-white px-4 py-4 border-b">
-          <h2 className="text-base font-bold text-gray-800 mb-3">
-            상담자 정보
-          </h2>
+          <h2 className="text-base font-bold text-gray-800 mb-3">상담자 정보</h2>
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-full bg-gray-300 overflow-hidden">
               <img
-                src={'https://picsum.photos/200'}
+                src={counselData?.imgUrl}
                 alt={nickname}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -973,32 +853,25 @@ const MyCounselDetail = () => {
             <div>
               <h4 className="font-bold text-gray-800">{nickname}</h4>
               <p className="text-xs text-gray-600">
-                MBTI : {counselData?.mbti} / {counselData?.gender} /{' '}
-                {counselData?.age}
+                MBTI : {counselData?.mbti} / {counselData?.gender} / {counselData?.age}
               </p>
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              상담사 페르소나
-            </h3>
-            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">
-              {counselData?.text}
-            </p>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담사 소개</h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">{counselData?.text}</p>
           </div>
         </div>
 
         {/* 채팅 기록 */}
         <div className="flex-1 bg-white overflow-y-auto p-4 space-y-4">
-          <h2 className="text-base font-bold text-gray-800 mb-4">
-            상담사와의 상담 내용
-          </h2>
+          <h2 className="text-base font-bold text-gray-800 mb-4">상담사와의 상담 내용</h2>
 
           {/* 상담사 프로필 헤더 */}
           <div className="bg-blue-600 text-white p-4 rounded-lg flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-white overflow-hidden">
               <img
-                src={'https://picsum.photos/200'}
+                src={counselData?.imgUrl}
                 alt={nickname}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -1014,24 +887,15 @@ const MyCounselDetail = () => {
 
           {/* 메시지 목록 (읽기 전용) */}
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}
-            >
+            <div key={msg.id} className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}>
               <div
                 className={`max-w-[80%] ${
-                  msg.sender === 'counselor'
-                    ? 'bg-white border border-gray-300'
-                    : 'bg-blue-500 text-white'
+                  msg.sender === 'counselor' ? 'bg-white border border-gray-300' : 'bg-blue-500 text-white'
                 } rounded-lg p-3`}
               >
-                {msg.sender === 'counselor' && (
-                  <p className="text-xs font-semibold mb-1">{msg.senderName}</p>
-                )}
+                {msg.sender === 'counselor' && <p className="text-xs font-semibold mb-1">{msg.senderName}</p>}
                 <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                <p
-                  className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}
-                >
+                <p className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}>
                   {msg.time}
                 </p>
               </div>
@@ -1056,12 +920,8 @@ const MyCounselDetail = () => {
           {/* HEADER */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-16">
-              <h1 className="text-4xl font-bold text-gray-800">
-                상담 상세 내용
-              </h1>
-              <span className="px-6 py-3 rounded-full text-xl font-bold bg-orange-100 text-orange-600">
-                상담 완료
-              </span>
+              <h1 className="text-4xl font-bold text-gray-800">상담 상세 내용</h1>
+              <span className="px-6 py-3 rounded-full text-xl font-bold bg-orange-100 text-orange-600">상담 완료</span>
             </div>
             <button
               onClick={() => navigate(-1)}
@@ -1081,40 +941,27 @@ const MyCounselDetail = () => {
               {/* 예약 일자 */}
               <div className="bg-white rounded-2xl p-4 shadow-lg">
                 <p className="text-sm text-gray-600">
-                  예약일자 :{' '}
-                  <span className="font-bold text-gray-800">
-                    {counselData?.cnslDt}
-                  </span>
+                  예약일자 : <span className="font-bold text-gray-800">{counselData?.cnslDt}</span>
                 </p>
               </div>
 
               {/* 상담 내용 */}
               <div className="bg-white rounded-2xl p-4 shadow-lg">
-                <h2 className="text-base font-bold text-gray-800 mb-3">
-                  상담 내용
-                </h2>
-                <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2">
-                  {counselData?.cnslTitle}
-                </h3>
-                <p className="text-xs text-gray-600 mb-2">
-                  예약자 : {counselData?.nickname}
-                </p>
+                <h2 className="text-base font-bold text-gray-800 mb-3">상담 내용</h2>
+                <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-2">{counselData?.cnslTitle}</h3>
+                <p className="text-xs text-gray-600 mb-2">예약자 : {counselData?.nickname}</p>
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-700 leading-relaxed line-clamp-3">
-                    {counselData?.cnslContent}
-                  </p>
+                  <p className="text-xs text-gray-700 leading-relaxed line-clamp-3">{counselData?.cnslContent}</p>
                 </div>
               </div>
 
               {/* 상담자 정보 */}
               <div className="bg-white rounded-2xl p-4 shadow-lg">
-                <h2 className="text-base font-bold text-gray-800 mb-3">
-                  상담자 정보
-                </h2>
+                <h2 className="text-base font-bold text-gray-800 mb-3">상담자 정보</h2>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-14 h-14 rounded-full bg-gray-300 overflow-hidden flex-shrink-0">
                     <img
-                      src={'https://picsum.photos/200'}
+                      src={counselData?.imgUrl}
                       alt={nickname}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -1123,25 +970,17 @@ const MyCounselDetail = () => {
                     />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-800 mb-1">
-                      {nickname}
-                    </h3>
-                    <p className="text-xs text-gray-600">
-                      MBTI : {counselData?.mbti}
-                    </p>
+                    <h3 className="text-base font-bold text-gray-800 mb-1">{nickname}</h3>
+                    <p className="text-xs text-gray-600">MBTI : {counselData?.mbti}</p>
                     <p className="text-xs text-gray-500">
                       {counselData?.gender} / {counselData?.age}
                     </p>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-800 mb-2">
-                    상담사 페르소나
-                  </h3>
+                  <h3 className="text-sm font-bold text-gray-800 mb-2">상담사 소개</h3>
                   <div className="bg-gray-50 rounded-xl p-3 max-h-24 overflow-hidden">
-                    <p className="text-xs text-gray-700 leading-relaxed break-all line-clamp-4">
-                      {counselData?.text}
-                    </p>
+                    <p className="text-xs text-gray-700 leading-relaxed break-all line-clamp-4">{counselData?.text}</p>
                   </div>
                 </div>
               </div>
@@ -1153,16 +992,14 @@ const MyCounselDetail = () => {
               style={{ height: 'calc(100vh - 200px)' }}
             >
               <div className="p-4 border-b">
-                <h2 className="text-xl font-bold text-gray-800">
-                  상담사와의 상담 내용
-                </h2>
+                <h2 className="text-xl font-bold text-gray-800">상담사와의 상담 내용</h2>
               </div>
 
               {/* 상담사 프로필 헤더 - 크기 축소 */}
               <div className="mx-4 mt-3 bg-blue-600 text-white p-3 rounded-xl flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-white overflow-hidden">
                   <img
-                    src={'https://picsum.photos/200'}
+                    src={counselData?.imgUrl}
                     alt={nickname}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -1172,35 +1009,22 @@ const MyCounselDetail = () => {
                 </div>
                 <div>
                   <p className="text-base font-bold">{`안녕 상담사 ${nickname}입니다`}</p>
-                  <p className="text-xs">
-                    #코인만담 #파이어족 되기 #워라밸잡기
-                  </p>
+                  <p className="text-xs">#코인만담 #파이어족 되기 #워라밸잡기</p>
                 </div>
               </div>
 
               {/* 메시지 목록 (읽기 전용) - 간격 축소 */}
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
                 {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}
-                  >
+                  <div key={msg.id} className={`flex ${msg.sender === 'counselor' ? 'justify-start' : 'justify-end'}`}>
                     <div
                       className={`max-w-[70%] ${
-                        msg.sender === 'counselor'
-                          ? 'bg-gray-100 border border-gray-200'
-                          : 'bg-blue-500 text-white'
+                        msg.sender === 'counselor' ? 'bg-gray-100 border border-gray-200' : 'bg-blue-500 text-white'
                       } rounded-xl p-3`}
                     >
-                      {msg.sender === 'counselor' && (
-                        <p className="text-xs font-semibold mb-1">
-                          {msg.senderName}
-                        </p>
-                      )}
+                      {msg.sender === 'counselor' && <p className="text-xs font-semibold mb-1">{msg.senderName}</p>}
                       <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                      <p
-                        className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}
-                      >
+                      <p className={`text-xs mt-1 ${msg.sender === 'counselor' ? 'text-gray-500' : 'text-blue-100'}`}>
                         {msg.time}
                       </p>
                     </div>

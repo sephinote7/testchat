@@ -37,6 +37,7 @@ const normalizeItem = (item) => {
 };
 
 const RADIUS_KM = 5;
+const ACCURACY_THRESHOLD_M = 500; // 이보다 크면 위치가 부정확하다고 간주
 
 const Map = () => {
   const [query, setQuery] = useState('');
@@ -46,6 +47,7 @@ const Map = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [userLocation, setUserLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null); // Geolocation 실패 시 메시지
   const [selectedCenter, setSelectedCenter] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [withinRadiusOnly, setWithinRadiusOnly] = useState(true);
@@ -54,22 +56,54 @@ const Map = () => {
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
 
-  // 사용자 위치
+  // 브라우저 Geolocation API로 사용자 위치 수신 (1회)
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        () => setUserLocation(DEFAULT_CENTER),
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-      );
-    } else {
+    setLocationError(null);
+    if (!navigator.geolocation) {
+      setLocationError('이 브라우저는 위치 정보를 지원하지 않습니다.');
       setUserLocation(DEFAULT_CENTER);
+      return;
     }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        const loc = { lat: latitude, lng: longitude };
+        setUserLocation(loc);
+        let warnMessage = null;
+        if (typeof accuracy === 'number') {
+          if (accuracy > ACCURACY_THRESHOLD_M) {
+            warnMessage =
+              '정확한 위치를 가져오지 못했습니다. 대략적인 위치로 표시되며, 지도를 이동하거나 검색으로 위치를 조정해 주세요.';
+          }
+          if (typeof console !== 'undefined' && console.info) {
+            console.info('[Map] Geolocation 성공:', { lat: loc.lat, lng: loc.lng, accuracy });
+          }
+        } else if (typeof console !== 'undefined' && console.info) {
+          console.info('[Map] Geolocation 성공:', { lat: loc.lat, lng: loc.lng });
+        }
+        setLocationError(warnMessage);
+      },
+      (err) => {
+        const message =
+          err.code === 1
+            ? '위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해 주세요.'
+            : err.code === 2
+              ? '위치를 확인할 수 없습니다. 네트워크 또는 GPS를 확인해 주세요.'
+              : err.code === 3
+                ? '위치 요청 시간이 초과되었습니다. 다시 시도해 주세요.'
+                : '위치 정보를 가져올 수 없습니다.';
+        setLocationError(message);
+        setUserLocation(DEFAULT_CENTER);
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[Map] Geolocation 실패:', err.code, err.message, message);
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0, // 항상 최신 위치를 요청 (캐시 사용 안 함)
+      }
+    );
   }, []);
 
   // 센터 목록: 검색어 있으면 카카오 키워드 검색 + DB, 없으면 5km 이내 카카오 주변 + DB 또는 DB만
@@ -179,13 +213,19 @@ const Map = () => {
     fetchCenters();
   }, [query, page, userLocation, withinRadiusOnly]);
 
-  // 현재 위치로 지도 이동 (약 500m 반경 보기)
+  // 현재 위치로 지도 이동 + 주변 5km 반경이 보이도록 bounds 설정
   const moveToMyLocation = useCallback(() => {
     if (!userLocation || !mapInstanceRef.current || !window.kakao?.maps) return;
     const kakao = window.kakao.maps;
-    const pos = new kakao.LatLng(userLocation.lat, userLocation.lng);
-    mapInstanceRef.current.setCenter(pos);
-    mapInstanceRef.current.setLevel(16); // 16: 약 500m 반경
+    const { lat, lng } = userLocation;
+    // 위도 1도 ≈ 111km, 경도 1도 ≈ 88km(한국 위도) → 5km ≈ 0.045 / 0.057
+    const deltaLat = RADIUS_KM / 111.32;
+    const deltaLng = RADIUS_KM / (111.32 * Math.cos((lat * Math.PI) / 180));
+    const sw = new kakao.LatLng(lat - deltaLat, lng - deltaLng);
+    const ne = new kakao.LatLng(lat + deltaLat, lng + deltaLng);
+    const bounds = new kakao.LatLngBounds(sw, ne);
+    mapInstanceRef.current.setCenter(new kakao.LatLng(lat, lng));
+    mapInstanceRef.current.setBounds(bounds, 80, 80, 80, 80);
   }, [userLocation]);
 
   // 카카오맵 스크립트 로드 및 지도 초기화 (마운트 시 1회)
@@ -287,11 +327,16 @@ const Map = () => {
               type="button"
               onClick={moveToMyLocation}
               className="absolute bottom-3 right-3 z-10 flex items-center gap-2 px-3 py-2.5 bg-white border border-[#e5e7eb] rounded-xl shadow-md hover:bg-[#f9fafb] hover:border-[#2f80ed] transition-colors text-[13px] font-medium text-[#374151]"
-              title="현재 위치로 이동"
+              title="현재 위치로 이동 (주변 5km)"
             >
               <span className="text-lg" aria-hidden>📍</span>
               <span>현재 위치</span>
             </button>
+          )}
+          {locationError && (
+            <div className="absolute top-3 left-3 right-3 z-10 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[12px] text-amber-800 shadow-sm">
+              {locationError} 기본 위치(서울시청)로 표시됩니다.
+            </div>
           )}
         </div>
 
