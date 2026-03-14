@@ -77,8 +77,8 @@ export const getRecommendedPosts = async (email) => {
     return data ?? { recommendations: [] };
   } catch (error) {
     const status = error?.response?.status;
-    if (status === 404 || status === 405) {
-      console.warn('getRecommendedPosts: 추천 API 미제공(404/405), 빈 목록 반환');
+    if (status === 404 || status === 405 || status === 503 || (status != null && status >= 500)) {
+      console.warn('getRecommendedPosts: 추천 API 미제공/일시 오류(404/405/5xx/503), 빈 목록 반환', status);
       return { recommendations: [] };
     }
     console.error('getRecommendedPosts error:', error);

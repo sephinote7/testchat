@@ -113,12 +113,14 @@ const CounselorList = () => {
           hashTags: hashTags || '',
         });
 
-        console.log('test', data.content);
-
-        setCounselors(data?.content);
-        setTotalPages(data?.totalPages);
+        // Spring Page 응답: content, totalPages. 없거나 비정형이면 빈 배열로 통일
+        const list = Array.isArray(data?.content) ? data.content : [];
+        setCounselors(list);
+        setTotalPages(data?.totalPages ?? 0);
       } catch (error) {
         console.error('상담사 목록 조회 실패:', error);
+        setCounselors([]);
+        setTotalPages(0);
       } finally {
         setLoading(false);
       }
