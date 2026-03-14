@@ -260,10 +260,16 @@ export default function useAuth() {
           nickname,
         },
       });
-
       return data;
     } catch (error) {
-      console.error('닉네임 중복 확인 실패', error);
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.message ?? error?.message ?? '서버 연결에 실패했습니다.';
+      if (status >= 500) {
+        console.warn('닉네임 중복 확인 실패: 서버 일시 오류');
+      } else {
+        console.error('닉네임 중복 확인 실패', msg);
+      }
+      throw new Error(status >= 500 ? '서버가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해 주세요.' : msg);
     }
   };
 

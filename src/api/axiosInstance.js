@@ -45,9 +45,13 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     const data = error.response?.data;
-    const msg = data?.error || data?.message || error.message || `HTTP ${error.response?.status || 'Error'}`;
+    const status = error.response?.status;
+    const msg =
+      status >= 500
+        ? '서버가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해 주세요.'
+        : data?.error || data?.message || error.message || `HTTP ${status || 'Error'}`;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const newToken = await refreshAccessToken();
       if (useAuthStore.getState().accessToken) {
@@ -56,7 +60,12 @@ axiosInstance.interceptors.response.use(
     }
 
     if (error.response) {
-      console.error('[API Error]', error.response.status, error.config?.url, data);
+      const url = error.config?.url;
+      if (status >= 500) {
+        console.warn('[API Error]', status, url, '(서버 일시 오류)');
+      } else {
+        console.error('[API Error]', status, url, data);
+      }
     }
 
     throw new Error(msg);

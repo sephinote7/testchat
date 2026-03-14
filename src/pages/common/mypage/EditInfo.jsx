@@ -84,8 +84,8 @@ const EditInfo = () => {
         return;
       } else alert('사용 가능한 닉네임입니다.');
     } catch (error) {
-      console.error('nickname duplicate chck error', error.message);
-      alert(error.message);
+      const msg = error?.message ?? '닉네임 확인에 실패했습니다.';
+      alert(msg);
     }
   };
 

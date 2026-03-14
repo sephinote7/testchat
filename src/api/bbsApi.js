@@ -14,7 +14,12 @@ export const getRealtimePopularPosts = async (period) => {
 
     return data;
   } catch (error) {
-    console.error('getRealtimePopularPosts error:', error);
+    const status = error?.response?.status;
+    if (status >= 500) {
+      console.warn('getRealtimePopularPosts: 서버 일시 오류');
+    } else {
+      console.error('getRealtimePopularPosts error:', error?.message ?? error);
+    }
     throw error;
   }
 };
