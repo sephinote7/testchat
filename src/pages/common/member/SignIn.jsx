@@ -31,11 +31,7 @@ const SignIn = () => {
     }
 
     try {
-      // Spring Security form login은 POST body (application/x-www-form-urlencoded)의 username, password만 읽음
-      const body = new URLSearchParams({ username: email, password });
-      const res = await authApi.post('/api/member/login', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
+      const res = await authApi.post('/api/auth/login', { username: email, password });
 
       console.log('로그인 테스트 == ', res);
       if (res.data.accessToken) {

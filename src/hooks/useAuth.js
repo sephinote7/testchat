@@ -184,10 +184,7 @@ export default function useAuth() {
   // 로그인 함수
   const signIn = async (email, password) => {
     try {
-      const body = new URLSearchParams({ username: email, password });
-      const response = await authApi.post('/api/member/login', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
+      const response = await authApi.post('/api/auth/login', { username: email, password });
 
       console.log('로그인 테스트 : ', response.data);
 
