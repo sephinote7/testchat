@@ -506,41 +506,39 @@ const Home = () => {
                     </button>
                   )}
                 </div>
-                <div className="bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] p-5">
+                <div className="bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] p-5 flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-[#111827]">상위 키워드 TOP 10</h4>
                     <p className="text-[#6b7280]">이번 주</p>
                   </div>
                   {keywordLoading ? (
                     <p className="text-sm text-gray-500 py-4">불러오는 중...</p>
+                  ) : !Array.isArray(keywordCloud) || keywordCloud.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-2 py-8 flex-1">
+                      <p className="text-sm text-gray-500">상위 키워드를 불러올 수 없습니다</p>
+                      <button
+                        type="button"
+                        onClick={() => setKeywordRetryTrigger((t) => t + 1)}
+                        className="text-sm text-[#2563eb] font-medium hover:underline"
+                      >
+                        다시 시도
+                      </button>
+                    </div>
                   ) : (
-                    <>
-                      <ol className="space-y-2.5">
-                        {[...(Array.isArray(keywordCloud) ? keywordCloud : [])]
-                          .map((k) => (typeof k === 'object' && k != null && 'keyword' in k ? k.keyword : k))
-                          .filter(Boolean)
-                          .slice(0, 9)
-                          .concat(['포트폴리오'])
-                          .slice(0, 10)
-                          .map((t, idx) => (
-                            <li key={`${t}-${idx}`} className="flex items-center gap-3 !text-[18px]">
-                              <span className="w-7 text-right font-bold text-[#4b5563]">
-                                {String(idx + 1).padStart(2, '0')}
-                              </span>
-                              <span className="flex-1 text-[#111827] !font-medium">{t}</span>
-                            </li>
-                          ))}
-                      </ol>
-                      {(!Array.isArray(keywordCloud) || keywordCloud.length === 0) && (
-                        <button
-                          type="button"
-                          onClick={() => setKeywordRetryTrigger((t) => t + 1)}
-                          className="mt-3 text-sm text-[#2563eb] font-medium hover:underline"
-                        >
-                          다시 시도
-                        </button>
-                      )}
-                    </>
+                    <ol className="space-y-2.5">
+                      {[...(Array.isArray(keywordCloud) ? keywordCloud : [])]
+                        .map((k) => (typeof k === 'object' && k != null && 'keyword' in k ? k.keyword : k))
+                        .filter(Boolean)
+                        .slice(0, 10)
+                        .map((t, idx) => (
+                          <li key={`${t}-${idx}`} className="flex items-center gap-3 !text-[18px]">
+                            <span className="w-7 text-right font-bold text-[#4b5563]">
+                              {String(idx + 1).padStart(2, '0')}
+                            </span>
+                            <span className="flex-1 text-[#111827] !font-medium">{t}</span>
+                          </li>
+                        ))}
+                    </ol>
                   )}
                 </div>
               </div>
