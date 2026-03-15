@@ -423,7 +423,9 @@ const AIChat = () => {
       navigate(`/chat/withai/${newCnslId}`, { replace: true });
     } catch (e) {
       console.error('AI 즉시 상담 생성 중 오류:', e);
-      alert('상담 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      const msg = e.response?.data ?? e.message;
+      const text = typeof msg === 'string' ? msg : '상담 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+      alert(text);
     }
   };
 
