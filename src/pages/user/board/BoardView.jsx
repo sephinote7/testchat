@@ -107,6 +107,8 @@ const BoardView = () => {
           comments: Array.isArray(commentList) ? commentList.length : 0,
           mbti: b.mbti,
           content: b.content,
+          imgUrl: b.imgUrl ?? b.img_url ?? null,
+          imgName: b.imgName ?? b.img_name ?? null,
         });
         const mapped = (commentList || []).map(mapCommentRow);
         setComments(mapped);
@@ -296,6 +298,17 @@ const BoardView = () => {
                       공지
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* 첨부 이미지 (백엔드 img_url 반환 시 표시) */}
+              {post?.imgUrl && (
+                <div className="py-3">
+                  <img
+                    src={post.imgUrl}
+                    alt={post.imgName || '첨부 이미지'}
+                    className="max-w-full h-auto rounded-lg border border-gray-200"
+                  />
                 </div>
               )}
 
@@ -554,6 +567,17 @@ const BoardView = () => {
                         공지
                       </span>
                     )}
+                  </div>
+                )}
+
+                {/* 첨부 이미지 (백엔드 img_url 반환 시 표시) */}
+                {post?.imgUrl && (
+                  <div className="py-4">
+                    <img
+                      src={post.imgUrl}
+                      alt={post.imgName || '첨부 이미지'}
+                      className="max-w-full h-auto rounded-lg border border-gray-200"
+                    />
                   </div>
                 )}
 

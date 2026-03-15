@@ -595,8 +595,10 @@ const BoardList = () => {
                     <button
                       key={tab}
                       onClick={() => setPopularTab(tab)}
-                      className={`cursor-pointer px-3 py-1.5 rounded-lg text-xs font-normal transition-colors ${
-                        popularTab === tab ? 'bg-[#2f80ed] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      className={`cursor-pointer px-4 py-2 rounded-lg text-base font-medium transition-colors ${
+                        popularTab === tab
+                          ? 'bg-[#2f80ed] text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       {tab === 'realtime' && '실시간'}
@@ -746,7 +748,7 @@ const BoardList = () => {
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowMbtiDropdown(!showMbtiDropdown)}
-                  className={`w-[100px] px-4 py-[4.2px] rounded-lg text-[13px] font-medium flex items-center justify-center gap-1 ${
+                  className={`w-[100px] px-4 py-2 rounded-lg text-base font-medium flex items-center justify-center gap-1 ${
                     activeTab === 'MBTI'
                       ? 'bg-[#2f80ed] text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'

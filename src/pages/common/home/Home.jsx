@@ -153,7 +153,7 @@ const Home = () => {
   }, []);
 
   const chipClass = (active) =>
-    `border px-3 py-1.5 rounded-[18px] text-[12px] cursor-pointer transition-all ${
+    `border px-4 py-2 rounded-lg text-base font-medium cursor-pointer transition-all ${
       active
         ? 'border-[#2f80ed] bg-[#2f80ed] text-white font-bold'
         : 'border-[#d6e4ff] text-[#3b4a67] bg-white hover:border-[#2f80ed]'

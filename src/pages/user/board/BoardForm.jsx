@@ -308,6 +308,7 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                 className="px-4 py-2 rounded-md bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm font-normal transition-colors disabled:opacity-50"
                 onClick={async () => {
                     const bbsDiv = boardType === '공지' ? 'NOTI' : boardType === '자유' ? 'FREE' : boardType === 'MBTI' ? 'MBTI' : 'FREE';
+                    // 첨부 이미지는 현재 서버 업로드 미구현. Storage 업로드 후 img_url/img_name 포함 시 상세 보기에서 표시됨.
                     const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
                     setSubmitting(true);
                     try {
