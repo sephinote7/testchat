@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 import useAuth from '../../../hooks/useAuth';
 import CounselorDefaultPage from '../../system/info/CounselorDefaultPage';
@@ -143,8 +143,9 @@ const Home = () => {
     );
   }
 
-  if (roleName === 'ADMIN') return null;
-  else if (roleName === 'USER' || !roleName)
+  // ADMIN이 홈(/)에 오면 헤더/푸터/본문이 전부 null이라 챗봇만 보이는 현상 방지 → 알림 페이지로 이동
+  if (roleName === 'ADMIN') return <Navigate to="/alarm" replace />;
+  if (roleName === 'USER' || !roleName)
     return (
       <div className="w-full">
         {/* MOBILE */}

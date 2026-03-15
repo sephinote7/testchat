@@ -42,8 +42,22 @@ const App = () => {
   const { accessToken } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
-    if (!accessToken) refreshAccessToken().finally(() => setIsLoading(false));
-    else setIsLoading(false);
+    let done = false;
+    const setDone = () => {
+      if (!done) {
+        done = true;
+        setIsLoading(false);
+      }
+    };
+    const timeout = setTimeout(setDone, 8000);
+    if (!accessToken) {
+      refreshAccessToken().finally(setDone);
+    } else {
+      setDone();
+    }
+    return () => {
+      clearTimeout(timeout);
+    };
   }, [accessToken]);
 
   if (isLoading) return <div>로딩 중 ...</div>;

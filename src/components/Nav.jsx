@@ -43,15 +43,7 @@ const Nav = () => {
       },
     );
   } else if (roleName === 'ADMIN') {
-    // 관리자 메뉴에도 아이콘이 필요하다면 추가해주어야 합니다.
-    // MENUS.push(
-    //   { label: '대시보드', to: '/dashboard', icon: m_home },
-    //   { label: '알림', to: '/alarm', icon: m_info },
-    //   { label: '통계자료', to: '/stats', icon: m_board },
-    //   { label: '마이페이지', to: '/mypage', icon: m_login },
-    // );
-
-    return;
+    return null;
   } else return null;
 
   return (
