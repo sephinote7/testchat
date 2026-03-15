@@ -5,10 +5,13 @@ import { useAuthStore } from '../../../store/auth.store';
 import { signOut, deleteMember } from '../../../axios/Auth';
 import { getMyPoint } from '../../../api/walletApi';
 
+const f_logo = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png';
+
 const UserDefaultPage = () => {
   const navigate = useNavigate();
   const { nickname, email, accessToken } = useAuthStore();
   const [userPoints, setUserPoints] = useState(0);
+  const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
 
   const modifyimg =
     'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/user_modify.png';
@@ -28,8 +31,17 @@ const UserDefaultPage = () => {
   };
 
   const handleDeleteMember = async () => {
-    alert('회원 탈퇴를 하시겠습니까?');
-    await deleteMember();
+    if (!window.confirm('회원 탈퇴를 하시겠습니까?')) return;
+    try {
+      await deleteMember();
+      setShowDeleteSuccessModal(true);
+    } catch {
+      alert('탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  };
+
+  const handleCloseDeleteSuccessModal = () => {
+    setShowDeleteSuccessModal(false);
     navigate('/');
   };
 
@@ -306,6 +318,27 @@ const UserDefaultPage = () => {
           </div>
         </div>
       </div>
+
+      {/* 회원 탈퇴 완료 모달 */}
+      {showDeleteSuccessModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 w-full max-w-[340px] rounded-3xl bg-white px-8 py-10 text-center shadow-2xl">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <img src={f_logo} alt="로고" />
+            </div>
+            <h3 className="text-2xl lg:text-[30px] font-bold lg:font-semibold mb-3 text-gray-800">회원 탈퇴 완료</h3>
+            <p className="text-sm lg:text-base text-gray-600 mb-6">정상적으로 회원 탈퇴가 완료되었습니다.</p>
+            <button
+              type="button"
+              onClick={handleCloseDeleteSuccessModal}
+              className="cursor-pointer w-full h-12 rounded-xl bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm lg:text-base font-semibold lg:font-normal transition-colors"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };

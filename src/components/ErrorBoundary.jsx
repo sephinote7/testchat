@@ -27,14 +27,14 @@ class ErrorBoundary extends React.Component {
               <Link
                 to="/"
                 onClick={() => this.setState({ hasError: false, error: null })}
-                className="px-6 py-2.5 bg-[#2563eb] text-white rounded-xl font-medium hover:bg-[#1d4ed8] transition-colors"
+                className="px-6 py-2.5 bg-[#2563eb] text-white rounded-xl font-medium hover:bg-[#1d4ed8] transition-colors flex items-center justify-center text-center"
               >
                 홈으로
               </Link>
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-xl font-medium hover:bg-[#eff6ff] transition-colors"
+                className="px-6 py-2.5 bg-white border-2 border-[#2563eb] text-[#2563eb] rounded-xl font-medium hover:bg-[#eff6ff] transition-colors flex items-center justify-center text-center"
               >
                 새로고침
               </button>

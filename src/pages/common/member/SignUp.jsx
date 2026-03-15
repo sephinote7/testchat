@@ -41,6 +41,16 @@ const SignUp = () => {
     gender: '',
   });
 
+  /** 비밀번호 규칙: 6자 이상, 대문자·소문자·특수문자 각 1개 이상 */
+  const validatePassword = (pw) => {
+    if (!pw || pw.length < 6) return { valid: false, message: '비밀번호는 최소 6자 이상이어야 합니다.' };
+    if (!/[A-Z]/.test(pw)) return { valid: false, message: '비밀번호에 대문자를 1자 이상 포함해 주세요.' };
+    if (!/[a-z]/.test(pw)) return { valid: false, message: '비밀번호에 소문자를 1자 이상 포함해 주세요.' };
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw))
+      return { valid: false, message: '비밀번호에 특수문자를 1자 이상 포함해 주세요.' };
+    return { valid: true };
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -78,8 +88,9 @@ const SignUp = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('비밀번호는 최소 6자 이상이어야 합니다.');
+    const pwCheck = validatePassword(formData.password);
+    if (!pwCheck.valid) {
+      setError(pwCheck.message);
       return;
     }
 
