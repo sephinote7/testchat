@@ -11,6 +11,8 @@ import { getHeaders } from '../../../api/axiosInstance';
 
 // Spring 백엔드 JWT 인증. /api/ai/chat/* 호출 시 Authorization: Bearer 필요.
 const AI_CHAT_API_BASE = (BASE_URL || '').replace(/\/$/, '');
+const SITE_LOGO_URL =
+  'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png';
 
 function msgDataContentToMessages(content) {
   if (!Array.isArray(content)) return [];
@@ -38,6 +40,7 @@ const AIChat = () => {
   });
   const [showProfileRequiredModal, setShowProfileRequiredModal] = useState(false);
   const [profileCheckDone, setProfileCheckDone] = useState(false);
+  const [activeCheckDone, setActiveCheckDone] = useState(false);
   const [loadingChat, setLoadingChat] = useState(!!cnslId);
   const [messages, setMessages] = useState([]);
   const [cnslInfo, setCnslInfo] = useState(null); // { id, stat, startAt, endAt }
@@ -52,9 +55,16 @@ const AIChat = () => {
   const useAiApi = Boolean(cnslId && AI_CHAT_API_BASE);
   const shouldRedirectToActive = !cnslId && activeCnslId;
 
-  // cnslId 없을 때 DB에서 진행 중(C) AI 상담 조회 → store 보강 (메인/새 탭/리프레시 대비)
+  // cnslId 없을 때만: 진행 중 상담 조회 완료 후 모달 표시 여부 결정 (재진입 시 모달 플래시 방지)
   useEffect(() => {
-    if (cnslId || !userEmail) return;
+    if (cnslId) {
+      setActiveCheckDone(true);
+      return;
+    }
+    if (!userEmail) {
+      setActiveCheckDone(true);
+      return;
+    }
     (async () => {
       try {
         const { data } = await supabase
@@ -71,6 +81,8 @@ const AIChat = () => {
         }
       } catch {
         /* ignore */
+      } finally {
+        setActiveCheckDone(true);
       }
     })();
   }, [cnslId, userEmail, setActiveCnslId]);
@@ -488,23 +500,16 @@ const AIChat = () => {
 
       {/* MOBILE */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-white flex flex-col">
-        {showStartModal && !(!cnslId && activeCnslId) && (
+        {showStartModal && (cnslId || !activeCnslId) && (cnslId || activeCheckDone) && (
           <div className="fixed inset-0 bg-white z-50 flex flex-col">
             <header className="bg-[#2563eb] h-14 flex items-center justify-center">
-              <div className="flex items-center gap-2">
-                <span className="text-white text-xl leading-none font-bold">★</span>
-                <span className="text-white text-lg font-bold">고민순삭</span>
-              </div>
+              <img src={SITE_LOGO_URL} alt="고민순삭" className="h-8 w-auto object-contain" />
             </header>
             <div className="flex-1 bg-[#f3f7ff] px-6 py-8 flex flex-col items-center justify-start pt-16">
               <div className="w-full bg-white rounded-3xl shadow-xl p-6 mb-6">
                 <div className="flex flex-col items-center mb-6">
                   <div className="w-20 h-20 mb-4 flex items-center justify-center">
-                    <div className="text-[#2ed3c6] text-5xl">💬</div>
-                  </div>
-                  <div className="text-center mb-2">
-                    <p className="text-sm text-gray-600 mb-1">Healing Therapy</p>
-                    <p className="text-2xl font-bold text-gray-800">고민순삭</p>
+                    <img src={SITE_LOGO_URL} alt="고민순삭" className="w-full h-full object-contain" />
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-gray-800 text-center mb-4">꼭 확인해 주세요!</h3>
@@ -568,7 +573,9 @@ const AIChat = () => {
           )}
         </header>
         <main className="px-[18px] pt-4 flex-1 overflow-y-auto pb-[132px]">
-          {loading ? (
+          {!cnslId && !activeCheckDone ? (
+            <div className="flex items-center justify-center min-h-[240px] text-gray-500">상담 정보 확인 중...</div>
+          ) : loading ? (
             <div className="flex items-center justify-center min-h-[240px] text-gray-500">불러오는 중...</div>
           ) : (
             <div className="flex flex-col gap-3 pb-6">
@@ -625,16 +632,12 @@ const AIChat = () => {
 
       {/* PC */}
       <div className="hidden lg:flex w-full min-h-screen bg-[#f3f7ff]">
-        {showStartModal && !(!cnslId && activeCnslId) && (
+        {showStartModal && (cnslId || !activeCnslId) && (cnslId || activeCheckDone) && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-8">
             <div className="bg-white rounded-3xl shadow-2xl max-w-[500px] w-full p-8">
               <div className="flex flex-col items-center mb-6">
                 <div className="w-24 h-24 mb-4 flex items-center justify-center">
-                  <div className="text-[#2ed3c6] text-6xl">💬</div>
-                </div>
-                <div className="text-center mb-2">
-                  <p className="text-base text-gray-600 mb-1">Healing Therapy</p>
-                  <p className="text-3xl font-bold text-gray-800">고민순삭</p>
+                  <img src={SITE_LOGO_URL} alt="고민순삭" className="w-full h-full object-contain" />
                 </div>
               </div>
               <h3 className="text-2xl font-bold text-gray-800 text-center mb-4">꼭 확인해 주세요!</h3>
@@ -719,7 +722,9 @@ const AIChat = () => {
               </div>
             </div>
             <main className="flex-1 overflow-y-auto px-12 py-8 bg-gradient-to-b from-gray-50 to-white">
-              {loading ? (
+              {!cnslId && !activeCheckDone ? (
+                <div className="flex items-center justify-center min-h-[300px] text-gray-500">상담 정보 확인 중...</div>
+              ) : loading ? (
                 <div className="flex items-center justify-center min-h-[300px] text-gray-500">불러오는 중...</div>
               ) : (
                 <div className="flex flex-col gap-6 max-w-[1100px] mx-auto">

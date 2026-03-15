@@ -76,6 +76,8 @@ const MyCounselDetail = () => {
   ]);
 
   const [inputMessage, setInputMessage] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState(null);
   // ========== 더미 데이터 끝 (여기까지 삭제) ==========
 
   // 상담 상태 매핑 (API → 내부 status)
@@ -249,9 +251,6 @@ const MyCounselDetail = () => {
     }
   };
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState(null);
-
   // 상담 예정 화면
   const renderScheduledView = () => (
     <>
@@ -304,7 +303,7 @@ const MyCounselDetail = () => {
             <div className="w-16 h-16 rounded-full bg-gray-300 overflow-hidden">
               <img
                 src={counselData?.imgUrl}
-                alt={email}
+                alt={counselData?.nickname ?? '상담자'}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.src = '';
@@ -312,17 +311,17 @@ const MyCounselDetail = () => {
               />
             </div>
             <div>
-              <h4 className="font-bold text-gray-800 text-lg">{nickname}</h4>
-              <p className="text-sm text-gray-600">MBTI : {counselData?.mbti}</p>
+              <h4 className="font-bold text-gray-800 text-lg">{counselData?.nickname ?? '—'}</h4>
+              <p className="text-sm text-gray-600">MBTI : {counselData?.mbti ?? '—'}</p>
               <p className="text-sm text-gray-500">
-                성별 : {counselData?.gender} / 나이 : {counselData?.age}
+                성별 : {counselData?.gender ?? '—'} / 나이 : {counselData?.age ?? '—'}
               </p>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담사 소개</h3>
-            <p className="text-xs text-gray-600 leading-relaxed break-all">{counselData?.text}</p>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담자 소개</h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all">{counselData?.text ?? '—'}</p>
           </div>
         </div>
 
@@ -404,7 +403,7 @@ const MyCounselDetail = () => {
               <div className="w-32 h-32 rounded-full bg-gray-300 overflow-hidden">
                 <img
                   src={counselData?.imgUrl}
-                  alt={nickname}
+                  alt={counselData?.nickname ?? '상담자'}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.src = '';
@@ -412,18 +411,18 @@ const MyCounselDetail = () => {
                 />
               </div>
               <div>
-                <h3 className="text-3xl font-bold text-gray-800 mb-2">{nickname}</h3>
-                <p className="text-lg text-gray-600 mb-1">MBTI : {counselData?.mbti}</p>
+                <h3 className="text-3xl font-bold text-gray-800 mb-2">{counselData?.nickname ?? '—'}</h3>
+                <p className="text-lg text-gray-600 mb-1">MBTI : {counselData?.mbti ?? '—'}</p>
                 <p className="text-base text-gray-500">
-                  성별 : {counselData?.gender} / 나이 : {counselData?.age}
+                  성별 : {counselData?.gender ?? '—'} / 나이 : {counselData?.age ?? '—'}
                 </p>
               </div>
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">상담사 소개</h3>
+              <h3 className="text-xl font-bold text-gray-800 mb-4">상담자 소개</h3>
               <div className="bg-gray-50 rounded-2xl p-6">
-                <p className="text-base text-gray-700 leading-relaxed break-all">{counselData?.text}</p>
+                <p className="text-base text-gray-700 leading-relaxed break-all">{counselData?.text ?? '—'}</p>
               </div>
             </div>
           </div>
@@ -518,7 +517,7 @@ const MyCounselDetail = () => {
             <div className="w-12 h-12 rounded-full bg-gray-300 overflow-hidden">
               <img
                 src={counselData?.imgUrl}
-                alt={nickname}
+                alt={counselData?.nickname ?? nickname}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.src = '';
@@ -526,15 +525,15 @@ const MyCounselDetail = () => {
               />
             </div>
             <div>
-              <h4 className="font-bold text-gray-800">{nickname}</h4>
+              <h4 className="font-bold text-gray-800">{counselData?.nickname ?? '—'}</h4>
               <p className="text-xs text-gray-600">
-                MBTI : {counselData?.mbti} / 성별 : {counselData?.gender} / 나이 : {counselData?.age}
+                MBTI : {counselData?.mbti ?? '—'} / 성별 : {counselData?.gender ?? '—'} / 나이 : {counselData?.age ?? '—'}
               </p>
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담사 소개</h3>
-            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">{counselData?.text}</p>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담자 소개</h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">{counselData?.text ?? '—'}</p>
           </div>
         </div>
 
@@ -678,7 +677,7 @@ const MyCounselDetail = () => {
                   <div className="w-14 h-14 rounded-full bg-gray-300 overflow-hidden flex-shrink-0">
                     <img
                       src={counselData?.imgUrl}
-                      alt={nickname}
+                      alt={counselData?.nickname ?? nickname}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         e.target.src = '';
@@ -686,15 +685,15 @@ const MyCounselDetail = () => {
                     />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-800 mb-1">{nickname}</h3>
-                    <p className="text-xs text-gray-600">MBTI : {counselData?.mbti}</p>
+                    <h3 className="text-base font-bold text-gray-800 mb-1">{counselData?.nickname ?? '—'}</h3>
+                    <p className="text-xs text-gray-600">MBTI : {counselData?.mbti ?? '—'}</p>
                     <p className="text-xs text-gray-500">
                       {counselData?.gender} / {counselData?.age}
                     </p>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-800 mb-2">상담사 소개</h3>
+                  <h3 className="text-sm font-bold text-gray-800 mb-2">상담자 소개</h3>
                   <div className="bg-gray-50 rounded-xl p-3 max-h-24 overflow-hidden">
                     <p className="text-xs text-gray-700 leading-relaxed break-all line-clamp-4">{counselData?.text}</p>
                   </div>
@@ -843,7 +842,7 @@ const MyCounselDetail = () => {
             <div className="w-12 h-12 rounded-full bg-gray-300 overflow-hidden">
               <img
                 src={counselData?.imgUrl}
-                alt={nickname}
+                alt={counselData?.nickname ?? nickname}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.src = '';
@@ -851,15 +850,15 @@ const MyCounselDetail = () => {
               />
             </div>
             <div>
-              <h4 className="font-bold text-gray-800">{nickname}</h4>
+              <h4 className="font-bold text-gray-800">{counselData?.nickname ?? '—'}</h4>
               <p className="text-xs text-gray-600">
-                MBTI : {counselData?.mbti} / {counselData?.gender} / {counselData?.age}
+                MBTI : {counselData?.mbti ?? '—'} / {counselData?.gender ?? '—'} / {counselData?.age ?? '—'}
               </p>
             </div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담사 소개</h3>
-            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">{counselData?.text}</p>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">상담자 소개</h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all line-clamp-3">{counselData?.text ?? '—'}</p>
           </div>
         </div>
 
@@ -962,7 +961,7 @@ const MyCounselDetail = () => {
                   <div className="w-14 h-14 rounded-full bg-gray-300 overflow-hidden flex-shrink-0">
                     <img
                       src={counselData?.imgUrl}
-                      alt={nickname}
+                      alt={counselData?.nickname ?? nickname}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         e.target.src = '';
@@ -970,15 +969,15 @@ const MyCounselDetail = () => {
                     />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-800 mb-1">{nickname}</h3>
-                    <p className="text-xs text-gray-600">MBTI : {counselData?.mbti}</p>
+                    <h3 className="text-base font-bold text-gray-800 mb-1">{counselData?.nickname ?? '—'}</h3>
+                    <p className="text-xs text-gray-600">MBTI : {counselData?.mbti ?? '—'}</p>
                     <p className="text-xs text-gray-500">
                       {counselData?.gender} / {counselData?.age}
                     </p>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-800 mb-2">상담사 소개</h3>
+                  <h3 className="text-sm font-bold text-gray-800 mb-2">상담자 소개</h3>
                   <div className="bg-gray-50 rounded-xl p-3 max-h-24 overflow-hidden">
                     <p className="text-xs text-gray-700 leading-relaxed break-all line-clamp-4">{counselData?.text}</p>
                   </div>
