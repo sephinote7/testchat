@@ -4,11 +4,12 @@ import { supabase } from '../../../lib/supabase';
 import { useAiConsultStore } from '../../../stores/useAiConsultStore';
 import { useAuthStore } from '../../../store/auth.store';
 import { BASE_URL } from '../../../api/config';
+import { getHeaders } from '../../../api/axiosInstance';
 
 // AI 상담: testchatpy API 연동. /chat/withai 또는 /chat/withai/:cnslId
 // GET/POST 반환: msg_data.content 배열 (speaker, text, type, timestamp)
 
-// Spring 백엔드(쿠키 JWT 인증) 기반. /api/ai/chat/* 를 사용한다.
+// Spring 백엔드 JWT 인증. /api/ai/chat/* 호출 시 Authorization: Bearer 필요.
 const AI_CHAT_API_BASE = (BASE_URL || '').replace(/\/$/, '');
 
 function msgDataContentToMessages(content) {
@@ -159,8 +160,10 @@ const AIChat = () => {
     if (!cnslId || !AI_CHAT_API_BASE) return;
     (async () => {
       try {
+        const headers = getHeaders();
         const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
           credentials: 'include',
+          headers: headers.Authorization ? { Authorization: headers.Authorization } : {},
         });
         if (!res.ok) {
           setLoadingChat(false);
@@ -211,11 +214,13 @@ const AIChat = () => {
       setMessages((prev) => [...prev, tempUser]);
       setAiThinking(true);
       try {
+        const headers = getHeaders();
         const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}`, {
           method: 'POST',
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            ...(headers.Authorization && { Authorization: headers.Authorization }),
           },
           body: JSON.stringify({
             content: trimmed,
@@ -294,9 +299,11 @@ const AIChat = () => {
       // 1) msg_data로 AI 요약 생성 후 ai_msg.summary 저장 (반드시 먼저 호출)
       if (AI_CHAT_API_BASE) {
         try {
+          const headers = getHeaders();
           const res = await fetch(`${AI_CHAT_API_BASE}/api/ai/chat/${cnslId}/summary`, {
             method: 'POST',
             credentials: 'include',
+            headers: { ...(headers.Authorization && { Authorization: headers.Authorization }) },
           });
           const data = await res.json().catch(() => null);
           if (res.ok && data) {

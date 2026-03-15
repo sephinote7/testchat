@@ -33,7 +33,7 @@ const f_logo =
 
 const BoardForm = ({ mode = 'write', postId = null }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, uploadPostImage, savePostImage } = useAuth();
   const storeEmail = useAuthStore((s) => s.email);
   const storeNickname = useAuthStore((s) => s.nickname);
   const [boardType, setBoardType] = useState('전체');
@@ -48,6 +48,7 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
   const [attachments, setAttachments] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [imageInfo, setImageInfo] = useState({ imgUrl: null, imgName: null });
 
   useEffect(() => {
     if (mode !== 'edit' || !postId) return;
@@ -59,6 +60,10 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
         setContent(b.content ?? '');
         setBoardType(b.bbs_div === 'NOTI' ? '공지' : b.bbs_div === 'FREE' ? '자유' : b.bbs_div === 'MBTI' ? 'MBTI' : '전체');
         setMbtiType(b.mbti ?? '');
+        setImageInfo({
+          imgUrl: b.imgUrl ?? b.img_url ?? null,
+          imgName: b.imgName ?? b.img_name ?? null,
+        });
       })
       .catch(() => { if (!cancelled) setLoadError('글을 불러올 수 없습니다.'); });
     return () => { cancelled = true; };
@@ -72,9 +77,24 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
 
   const selectValue = useMemo(() => (showMbtiSelect ? mbtiType : ''), [mbtiType, showMbtiSelect]);
 
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
-    setAttachments([...attachments, ...files]);
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    setAttachments((prev) => [...prev, ...files]);
+    if (files.length > 0 && uploadPostImage) {
+      try {
+        const res = await uploadPostImage(files[0]);
+        setImageInfo({ imgUrl: res.img_url, imgName: res.img_name });
+      } catch (err) {
+        console.warn('이미지 업로드 실패:', err);
+        alert('이미지 업로드에 실패했습니다. 다시 시도해 주세요.');
+      }
+    }
+  };
+
+  const removeAttachment = (index) => {
+    const next = attachments.filter((_, i) => i !== index);
+    setAttachments(next);
+    if (next.length === 0) setImageInfo({ imgUrl: null, imgName: null });
   };
 
   const getFontFamily = (fontName) => {
@@ -223,10 +243,8 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                           className="w-16 h-16 object-cover rounded"
                         />
                         <button
-                          onClick={() => {
-                            const newAttachments = attachments.filter((_, i) => i !== index);
-                            setAttachments(newAttachments);
-                          }}
+                          type="button"
+                          onClick={() => removeAttachment(index)}
                           className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         >
                           ✕
@@ -308,11 +326,16 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                 className="px-4 py-2 rounded-md bg-[#2f80ed] hover:bg-[#2670d4] text-white text-sm font-normal transition-colors disabled:opacity-50"
                 onClick={async () => {
                     const bbsDiv = boardType === '공지' ? 'NOTI' : boardType === '자유' ? 'FREE' : boardType === 'MBTI' ? 'MBTI' : 'FREE';
-                    // 첨부 이미지는 현재 서버 업로드 미구현. Storage 업로드 후 img_url/img_name 포함 시 상세 보기에서 표시됨.
-                    const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
+                    const body = {
+                      bbs_div: bbsDiv,
+                      mbti: mbtiType || '',
+                      title,
+                      content,
+                      img_url: imageInfo.imgUrl || null,
+                      img_name: imageInfo.imgName || null,
+                    };
                     setSubmitting(true);
                     try {
-                      // Supabase 세션 또는 Spring 로그인(store) 사용자 사용 — Spring은 member_id=email
                       const { data: { user: supaUser } } = await supabase.auth.getUser();
                       const userIdForApi = (supaUser?.email ?? supaUser?.id) ?? storeEmail ?? null;
                       if (!userIdForApi || userIdForApi === 'anonymous') {
@@ -325,7 +348,11 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                       if (mode === 'edit' && postId) {
                         await bbsApi.update(postId, body, userIdForApi);
                       } else {
-                        await bbsApi.create(body, userIdForApi);
+                        const data = await bbsApi.create(body, userIdForApi);
+                        const newBbsId = data?.bbsId ?? data?.data?.bbsId;
+                        if (newBbsId && savePostImage && (imageInfo.imgUrl || imageInfo.imgName)) {
+                          await savePostImage(newBbsId, imageInfo.imgName, imageInfo.imgUrl).catch(() => {});
+                        }
                       }
                       setIsCompleteOpen(true);
                     } catch (e) {
@@ -431,10 +458,8 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                             className="w-20 h-20 object-cover rounded"
                           />
                           <button
-                            onClick={() => {
-                              const newAttachments = attachments.filter((_, i) => i !== index);
-                              setAttachments(newAttachments);
-                            }}
+                            type="button"
+                            onClick={() => removeAttachment(index)}
                             className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                           >
                             ✕
@@ -516,7 +541,14 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                   className="px-8 py-3 rounded-lg bg-[#2f80ed] hover:bg-[#2670d4] text-white text-base font-normal transition-colors disabled:opacity-50"
                   onClick={async () => {
                     const bbsDiv = boardType === '공지' ? 'NOTI' : boardType === '자유' ? 'FREE' : boardType === 'MBTI' ? 'MBTI' : 'FREE';
-                    const body = { bbs_div: bbsDiv, mbti: mbtiType || '', title, content };
+                    const body = {
+                      bbs_div: bbsDiv,
+                      mbti: mbtiType || '',
+                      title,
+                      content,
+                      img_url: imageInfo.imgUrl || null,
+                      img_name: imageInfo.imgName || null,
+                    };
                     setSubmitting(true);
                     try {
                       const { data: { user: supaUser } } = await supabase.auth.getUser();
@@ -531,7 +563,11 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                       if (mode === 'edit' && postId) {
                         await bbsApi.update(postId, body, userIdForApi);
                       } else {
-                        await bbsApi.create(body, userIdForApi);
+                        const data = await bbsApi.create(body, userIdForApi);
+                        const newBbsId = data?.bbsId ?? data?.data?.bbsId;
+                        if (newBbsId && savePostImage && (imageInfo.imgUrl || imageInfo.imgName)) {
+                          await savePostImage(newBbsId, imageInfo.imgName, imageInfo.imgUrl).catch(() => {});
+                        }
                       }
                       setIsCompleteOpen(true);
                     } catch (e) {
@@ -541,8 +577,8 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
                     }
                   }}
                 >
-                  {submitting ? '저장 중...' : '완료'}
-                </button>
+                {submitting ? '저장 중...' : '완료'}
+              </button>
               </div>
             </div>
           </div>

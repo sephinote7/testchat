@@ -311,6 +311,32 @@ export default function useAuth() {
     }
   };
 
+  /** 게시판 글 첨부 이미지: Supabase Storage 업로드 후 public URL 반환 */
+  const uploadPostImage = async (file) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `post/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('profile-images')
+      .upload(filePath, file, { upsert: false });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from('profile-images').getPublicUrl(filePath);
+    return { img_name: fileName, img_url: data.publicUrl };
+  };
+
+  /** 게시판 글 이미지 URL을 Supabase bbs 테이블에 반영 (Spring이 img 저장하지 않을 때 동기화용) */
+  const savePostImage = async (bbsId, imgName, imgUrl) => {
+    if (bbsId == null) return;
+    const { error } = await supabase
+      .from('bbs')
+      .update({ img_name: imgName ?? null, img_url: imgUrl ?? null })
+      .eq('bbs_id', bbsId);
+    if (error) throw error;
+  };
+
   const editInfo = async (formData) => {
     const { data } = await authApi.patch('/api/mypage/modify', formData);
     return data;
@@ -330,6 +356,8 @@ export default function useAuth() {
     kakaoSignUp,
     uploadProfileImage,
     saveProfileImage,
+    uploadPostImage,
+    savePostImage,
     editInfo,
     getUserInfo,
   };
