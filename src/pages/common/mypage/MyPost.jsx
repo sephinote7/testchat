@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
 import { getMyBbsList } from '../../../api/myBbsList';
+import { formatUtcToShortDate } from '../../../utils/dateUtils';
 
 const MyPost = () => {
   const { accessToken: token } = useAuth();
@@ -43,13 +44,10 @@ const MyPost = () => {
     fetchPosts();
   }, [fetchPosts]);
 
+  /** API created_at(UTC) → 로컬 짧은 날짜 */
   const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    const yy = String(date.getFullYear()).slice(2);
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yy}.${mm}.${dd}`;
+    const s = formatUtcToShortDate(dateStr);
+    return s === '—' ? '-' : s;
   };
 
   const handlePostClick = (post) => setSelectedPost(post);

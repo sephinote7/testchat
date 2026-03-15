@@ -1,5 +1,10 @@
+/** API created_at(UTC) → 로컬 기준 짧은 날짜. 정렬은 원본 값/Date 기준으로. */
 const toShortDate = (iso) => {
-  const d = new Date(iso);
+  if (iso == null || typeof iso !== 'string') return '—';
+  const s = iso.trim();
+  const parsed = s.endsWith('Z') ? s : (s ? s + 'Z' : '');
+  const d = new Date(parsed);
+  if (Number.isNaN(d.getTime())) return '—';
   const yy = String(d.getFullYear()).slice(2);
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');

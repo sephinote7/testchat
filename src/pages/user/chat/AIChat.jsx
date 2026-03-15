@@ -123,7 +123,7 @@ const AIChat = () => {
       try {
         const { data, error } = await supabase
           .from('cnsl_reg')
-          .select('cnsl_id, cnsl_start_time, cnsl_end_time, cnsl_stat')
+          .select('cnsl_id, cnsl_dt, cnsl_start_time, cnsl_end_time, cnsl_stat')
           .eq('cnsl_id', cnslId)
           .maybeSingle();
         if (error) {
@@ -131,21 +131,28 @@ const AIChat = () => {
           return;
         }
         if (!data) return;
-        const parseTimeToDate = (t) => {
-          if (!t) return null;
-          const s = String(t).trim();
-          // time without tz: "HH:MM:SS" (optionally with fractional seconds)
-          const m = s.match(/^(\d{2}):(\d{2}):(\d{2})/);
-          if (!m) return null;
-          const d = new Date();
-          d.setHours(Number(m[1]), Number(m[2]), Number(m[3]), 0);
-          return d;
+        // cnsl_dt(날짜) + cnsl_start_time/cnsl_end_time(시간)을 조합. 시간만 쓰면 오늘 날짜로 잡혀 자정 넘김(23:13→00:13) 시 endAt이 과거로 인식됨.
+        const parseDateTime = (dateStr, timeStr) => {
+          if (!dateStr || !timeStr) return null;
+          const datePart = String(dateStr).trim().slice(0, 10);
+          const timePart = String(timeStr).trim();
+          const timeMatch = timePart.match(/^(\d{2}):(\d{2}):(\d{2})/);
+          if (!timeMatch) return null;
+          const [_, h, m, s] = timeMatch;
+          const iso = `${datePart}T${h}:${m}:${s}`;
+          const d = new Date(iso);
+          return Number.isNaN(d.getTime()) ? null : d;
         };
+        const startAt = parseDateTime(data.cnsl_dt, data.cnsl_start_time);
+        let endAt = parseDateTime(data.cnsl_dt, data.cnsl_end_time);
+        if (startAt && endAt && endAt.getTime() <= startAt.getTime()) {
+          endAt = new Date(endAt.getTime() + 24 * 60 * 60 * 1000);
+        }
         setCnslInfo({
           id: data.cnsl_id,
           stat: data.cnsl_stat || 'C',
-          startAt: parseTimeToDate(data.cnsl_start_time),
-          endAt: parseTimeToDate(data.cnsl_end_time),
+          startAt,
+          endAt,
         });
         if ((data.cnsl_stat || 'C') === 'C') {
           setActiveCnslId(data.cnsl_id);

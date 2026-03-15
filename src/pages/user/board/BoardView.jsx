@@ -3,12 +3,10 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
 import { useAuthStore } from '../../../store/auth.store';
 import { bbsApi } from '../../../api/backendApi';
+import { formatUtcToLocalDateTime, parseApiUtc } from '../../../utils/dateUtils';
 
-const formatCommentDate = (dateStr) => {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
-};
+/** API created_at(UTC) → 로컬 날짜·시간 표시 */
+const formatCommentDate = (dateStr) => formatUtcToLocalDateTime(dateStr);
 
 const f_logo =
   'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png';
@@ -133,7 +131,7 @@ const BoardView = () => {
     if (sort === 'popular') {
       return list.sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0));
     }
-    return list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return list.sort((a, b) => (parseApiUtc(a.createdAt)?.getTime() ?? 0) - (parseApiUtc(b.createdAt)?.getTime() ?? 0));
   }, [comments, sort]);
 
   // Supabase 세션 또는 Spring 로그인(store) — Spring 로그인 시 user는 비어 있음
@@ -276,9 +274,7 @@ const BoardView = () => {
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 pb-3 border-b border-blue-300">
                 <span className="font-normal">{post?.author ?? '작성자'}</span>
                 <span className="font-normal">
-                  {post?.createdAt
-                    ? post.createdAt.replace('T', ' ').slice(0, 16)
-                    : '—'}
+                  {formatUtcToLocalDateTime(post?.createdAt)}
                 </span>
                 <span className="font-normal">조회 {post?.views ?? 0}</span>
                 <span className="font-normal">좋아요 {likeCount}</span>
@@ -545,9 +541,7 @@ const BoardView = () => {
                     {post?.author ?? '작성자'}
                   </span>
                   <span className="font-normal">
-                    {post?.createdAt
-                      ? post.createdAt.replace('T', ' ').slice(0, 16)
-                      : '—'}
+                    {formatUtcToLocalDateTime(post?.createdAt)}
                   </span>
                   <span className="font-normal">조회 {post?.views ?? 0}</span>
                   <span className="font-normal">좋아요 {likeCount}</span>
