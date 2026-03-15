@@ -102,13 +102,19 @@ export const getRecommendedPosts = async (email) => {
   }
 };
 
-// [이번 주 키워드. 엔드포인트 없거나 404/500 시 빈 키워드 반환]
+// [이번 주 키워드. 엔드포인트 없거나 404/500/요청 취소 시 빈 키워드 반환]
 export const getWeeklyKeywords = async () => {
   try {
     const { data } = await mlAuthApi.get(`/weekly-keywords`);
     return data ?? { keywords: [] };
   } catch (error) {
     const status = error?.response?.status;
+    const isAborted =
+      error?.code === 'ERR_CANCELED' ||
+      (typeof error?.message === 'string' && error.message.toLowerCase().includes('aborted'));
+    if (isAborted) {
+      return { keywords: [] };
+    }
     if (status === 401 || status === 404 || status >= 500) {
       console.warn('getWeeklyKeywords: 인증/미제공/서버 오류, 빈 키워드 반환');
       return { keywords: [] };

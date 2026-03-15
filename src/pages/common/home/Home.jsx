@@ -14,6 +14,7 @@ import {
 } from '../../../api/bbsApi';
 import { useAuthStore } from '../../../store/auth.store';
 import { bbsApi } from './../../../api/backendApi';
+import { ML_API_BASE } from '../../../axios/MlAuth';
 
 const mobileLogo = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/h_logo(m).png';
 const nomal_cnsl = 'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/nomal_cnsl.png';
@@ -28,6 +29,7 @@ const Home = () => {
   const [communityTopPosts, setCommunityTopPosts] = useState([]);
   const [keywordCloud, setKeywordCloud] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [wordcloudImageError, setWordcloudImageError] = useState(false);
 
   const navigate = useNavigate();
 
@@ -106,16 +108,21 @@ const Home = () => {
     const fetchWeeklyKeywords = async () => {
       try {
         const data = await getWeeklyKeywords();
+        if (cancelled) return;
         const raw = data?.keywords;
         const arr = Array.isArray(raw) ? raw : [];
         setKeywordCloud(arr);
       } catch (err) {
-        setKeywordCloud([]);
+        if (!cancelled) setKeywordCloud([]);
       }
     };
 
+    let cancelled = false;
     fetchPopularPosts();
     fetchWeeklyKeywords();
+    return () => {
+      cancelled = true;
+    };
   }, [communityMode, accessToken, email]); // accessToken이 변할 때(갱신 등) 다시 불러오도록 추가
 
   // TODO: DB 연동 시 실제 공지글 가져오기
@@ -253,11 +260,16 @@ const Home = () => {
             <section>
               <h4 className="text-[18px] font-bold mb-3">이번 주 키워드</h4>
               <div className="relative h-[210px] bg-white rounded-[14px] shadow-[0_10px_20px_rgba(31,41,55,0.08)] overflow-hidden flex items-center justify-center">
-                <img
-                  src="http://localhost:8000/weekly-wordcloud"
-                  className="max-w-full max-h-full"
-                  alt="주간 워드클라우드"
-                />
+                {wordcloudImageError ? (
+                  <p className="text-sm text-gray-500">워드클라우드를 불러올 수 없습니다</p>
+                ) : (
+                  <img
+                    src={`${ML_API_BASE}/weekly-wordcloud`}
+                    className="max-w-full max-h-full object-contain"
+                    alt="주간 워드클라우드"
+                    onError={() => setWordcloudImageError(true)}
+                  />
+                )}
               </div>
             </section>
 
@@ -429,7 +441,16 @@ const Home = () => {
               <h3 className="text-[#111827] mb-4">이번 주 키워드</h3>
               <div className="grid grid-cols-2 gap-5">
                 <div className="relative bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] overflow-hidden p-6 h-full min-h-[320px] flex items-center justify-center">
-                  <img src="http://localhost:8000/weekly-wordcloud" className="" />
+                  {wordcloudImageError ? (
+                    <p className="text-sm text-gray-500">워드클라우드를 불러올 수 없습니다</p>
+                  ) : (
+                    <img
+                      src={`${ML_API_BASE}/weekly-wordcloud`}
+                      className="max-w-full max-h-full object-contain"
+                      alt="주간 워드클라우드"
+                      onError={() => setWordcloudImageError(true)}
+                    />
+                  )}
                 </div>
                 <div className="bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] p-5">
                   <div className="flex items-center justify-between mb-4">

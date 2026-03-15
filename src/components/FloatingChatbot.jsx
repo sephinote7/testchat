@@ -505,9 +505,6 @@ const FloatingChatbot = () => {
   const roleName = useAuthStore((s) => s.roleName);
   const navigate = useNavigate();
 
-  // 로그인 사용자 중 SYSTEM(상담사), ADMIN(관리자)일 때는 플로팅 챗봇 미노출
-  if (roleName === 'SYSTEM' || roleName === 'ADMIN') return null;
-
   const [isOpen, setIsOpen] = useState(false);
   const {
     messages: storeMessages,
@@ -1152,6 +1149,9 @@ const FloatingChatbot = () => {
       </div>
     );
   };
+
+  // 로그인 사용자 중 SYSTEM(상담사), ADMIN(관리자)일 때는 플로팅 챗봇 미노출 (훅 호출 순서 고정 후 반환으로 React #300/#310 방지)
+  if (roleName === 'SYSTEM' || roleName === 'ADMIN') return null;
 
   return (
     <>
