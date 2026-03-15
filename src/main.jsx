@@ -11,12 +11,12 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
-    <ScrollToTop />
-    <PcNav />
     <ErrorBoundary>
+      <ScrollToTop />
+      <PcNav />
       <App />
+      <Footer />
+      <Nav />
     </ErrorBoundary>
-    <Footer />
-    <Nav />
   </BrowserRouter>,
 );

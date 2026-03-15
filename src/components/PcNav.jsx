@@ -32,7 +32,7 @@ const PcNav = () => {
     MENUS.push({ label: '마이페이지', to: '/system/mypage' });
   } else if (roleName === 'ADMIN') {
     // MENUS.push({ label: '마이페이지', to: '/admin' });
-    return;
+    return null;
   }
 
   return (

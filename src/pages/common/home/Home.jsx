@@ -270,13 +270,13 @@ const Home = () => {
                   추천순
                 </button>
               </div>
-              {communityTopPosts?.length > 0 ? (
+              {Array.isArray(communityTopPosts) && communityTopPosts.length > 0 ? (
                 <ol className="list-none p-0 m-0 flex flex-col gap-2">
-                  {communityTopPosts?.map((p, index) => (
-                    <li key={p.bbsId || p.bbs_id} className="flex items-center gap-2.5 text-[13px] text-[#1f2937]">
+                  {communityTopPosts.map((p, index) => (
+                    <li key={p.bbsId || p.bbs_id || index} className="flex items-center gap-2.5 text-[13px] text-[#1f2937]">
                       <span className="font-bold text-[#4b5563] w-[26px]">{String(index + 1).padStart(2, '0')}</span>
                       <Link to={`/board/view/${p.bbsId || p.bbs_id}`} className="truncate">
-                        {p.title}
+                        {p?.title ?? ''}
                       </Link>
                     </li>
                   ))}
@@ -440,31 +440,34 @@ const Home = () => {
                 </div>
                 {loadingNotices ? (
                   <p className="text-[#6b7280] py-6">공지사항을 불러오는 중...</p>
-                ) : notices.length === 0 ? (
+                ) : !Array.isArray(notices) || notices.length === 0 ? (
                   <p className="text-[#6b7280] py-6">등록된 공지사항이 없습니다.</p>
                 ) : (
                   <div className="space-y-3">
-                    {notices.map((notice) => (
-                      <Link
-                        key={notice.id}
-                        to={`/board/view/${notice.id}`}
-                        className="block border border-[#e5e7eb] rounded-[14px] overflow-hidden hover:shadow-md hover:border-[#2f80ed] transition-all"
-                      >
-                        <div className="h-[100px] bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe] flex items-center justify-center">
-                          <img
-                            src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=400&q=80"
-                            alt={notice.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="p-3">
-                          <p className="!font-medium text-[#111827] line-clamp-1 mb-1">{notice.title}</p>
-                          <p className="text-[#6b7280]">
-                            {notice.author} | {new Date(notice.createdAt).toLocaleDateString('ko-KR')}
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
+                    {notices.map((notice) => {
+                      const dateStr = notice?.createdAt && !isNaN(new Date(notice.createdAt).getTime())
+                        ? new Date(notice.createdAt).toLocaleDateString('ko-KR')
+                        : '-';
+                      return (
+                        <Link
+                          key={notice.id}
+                          to={`/board/view/${notice.id}`}
+                          className="block border border-[#e5e7eb] rounded-[14px] overflow-hidden hover:shadow-md hover:border-[#2f80ed] transition-all"
+                        >
+                          <div className="h-[100px] bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe] flex items-center justify-center">
+                            <img
+                              src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=400&q=80"
+                              alt={notice?.title ?? ''}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="p-3">
+                            <p className="!font-medium text-[#111827] line-clamp-1 mb-1">{notice?.title ?? ''}</p>
+                            <p className="text-[#6b7280]">{notice?.author ?? '관리자'} | {dateStr}</p>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -511,24 +514,22 @@ const Home = () => {
                     추천순
                   </button>
                 </div>
-                {communityTopPosts?.length > 0 ? (
+                {Array.isArray(communityTopPosts) && communityTopPosts.length > 0 ? (
                   <ol className="list-none p-0 m-0 flex flex-col gap-2.5">
-                    {communityTopPosts?.map((p, index) => {
-                      return (
-                        <li key={p.bbsId || p.bbs_id} className="flex items-center gap-3 text-[13px] text-[#1f2937]">
-                          <span className="font-bold text-[#4b5563] w-[28px] text-center">
-                            {String(index + 1).padStart(2, '0')}
-                          </span>
-                          <Link
-                            to={`/board/view/${p.bbsId || p.bbs_id}`}
-                            className="flex-1 truncate hover:text-[#2f80ed] font-medium transition-colors"
-                          >
-                            {p.title}
-                          </Link>
-                          <span className="text-[11px] text-[#6b7280]">👍 {p.bbsLikeCount || p.likeCnt || 0}</span>
-                        </li>
-                      );
-                    })}
+                    {communityTopPosts.map((p, index) => (
+                      <li key={p.bbsId || p.bbs_id || index} className="flex items-center gap-3 text-[13px] text-[#1f2937]">
+                        <span className="font-bold text-[#4b5563] w-[28px] text-center">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <Link
+                          to={`/board/view/${p.bbsId || p.bbs_id}`}
+                          className="flex-1 truncate hover:text-[#2f80ed] font-medium transition-colors"
+                        >
+                          {p?.title ?? ''}
+                        </Link>
+                        <span className="text-[11px] text-[#6b7280]">👍 {p?.bbsLikeCount ?? p?.likeCnt ?? 0}</span>
+                      </li>
+                    ))}
                   </ol>
                 ) : (
                   <div className="flex justify-center items-center h-64 text-[#6b7280] text-lg">{errorMessage}</div>
