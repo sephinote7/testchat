@@ -163,7 +163,7 @@ const CounselorCounselDetail = () => {
     status: counselDetail.cnslStat ?? counselDetail.cnsl_stat,
     date: counselDetail.cnslDt ?? (counselDetail.created_at ? new Date(counselDetail.created_at).toLocaleDateString('ko-KR') : ''),
     image: counselDetail.cnslerimgUrl ?? counselDetail.cnsler_img_url,
-    tags: (counselDetail.hashTags ?? counselDetail.hash_tags || '')
+    tags: ((counselDetail.hashTags ?? counselDetail.hash_tags) || '')
       ? (counselDetail.hashTags ?? counselDetail.hash_tags).split(',')
       : [],
   };
