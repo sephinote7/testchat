@@ -197,35 +197,69 @@ const BoardList = () => {
     };
   }, [page, bbsDivParam]);
 
-  // 인기글 (실시간/주간/월간/추천) — 5xx/503 시 API가 빈 배열 반환하므로 에러 대신 빈 목록 표시
+  const SERVER_ERROR_MESSAGE = '일시적으로 인기글을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.';
+
+  // 인기글 (실시간/주간/월간/추천) — 5xx/503 시 서버 오류 안내, 성공 시 빈 목록이면 "등록된 인기글이 없습니다."
   useEffect(() => {
     const fetchPopularPosts = async () => {
       setErrorMessage('');
       setPopularLoading(true);
       try {
         let data = null;
+        let serverError = false;
 
         if (popularTab === 'realtime') {
-          data = await getRealtimePopularPosts(popularTab);
+          const res = await getRealtimePopularPosts(popularTab);
+          if (res && res.serverError) {
+            data = [];
+            serverError = true;
+          } else {
+            data = Array.isArray(res) ? res : res?.list ?? res ?? [];
+          }
         } else if (popularTab === 'week') {
-          data = await getWeeklyPopularPosts(popularTab);
+          const res = await getWeeklyPopularPosts(popularTab);
+          if (res && res.serverError) {
+            data = [];
+            serverError = true;
+          } else {
+            data = Array.isArray(res) ? res : res?.list ?? res ?? [];
+          }
         } else if (popularTab === 'month') {
           if (accessToken) {
             const res = await getMonthlyPopularPosts_py();
-            data = res?.posts;
+            if (res && res.serverError) {
+              data = [];
+              serverError = true;
+            } else {
+              data = Array.isArray(res?.posts) ? res.posts : res?.posts ?? [];
+            }
           } else {
-            data = await getMonthlyPopularPosts(popularTab);
+            const res = await getMonthlyPopularPosts(popularTab);
+            if (res && res.serverError) {
+              data = [];
+              serverError = true;
+            } else {
+              data = Array.isArray(res) ? res : res?.list ?? res ?? [];
+            }
           }
         } else if (popularTab === 'recommend') {
           if (accessToken) {
             const res = await getRecommendedPosts(email);
-            data = res?.recommendations ?? res ?? [];
+            if (res && res.serverError) {
+              data = [];
+              serverError = true;
+            } else {
+              data = res?.recommendations ?? res ?? [];
+              data = Array.isArray(data) ? data : [];
+            }
           } else {
             data = [];
             setErrorMessage('해당 기능은 로그인 후 사용자 행동 패턴이 수집된 경우에만 이용할 수 있습니다.');
           }
         }
-        setPopularPosts(Array.isArray(data) ? data : data ?? []);
+
+        setPopularPosts(Array.isArray(data) ? data : []);
+        if (serverError) setErrorMessage(SERVER_ERROR_MESSAGE);
       } catch (error) {
         setPopularPosts([]);
         if (error.response) {

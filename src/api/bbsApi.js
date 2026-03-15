@@ -17,7 +17,7 @@ export const getRealtimePopularPosts = async (period) => {
     const status = error?.response?.status;
     if (status != null && status >= 500) {
       console.warn('getRealtimePopularPosts: 서버 일시 오류(5xx), 빈 목록 반환', status);
-      return [];
+      return { list: [], serverError: true };
     }
     console.error('getRealtimePopularPosts error:', error?.message ?? error);
     throw error;
@@ -38,7 +38,7 @@ export const getWeeklyPopularPosts = async (period) => {
     const status = error?.response?.status;
     if (status != null && status >= 500) {
       console.warn('getWeeklyPopularPosts: 서버 일시 오류(5xx), 빈 목록 반환', status);
-      return [];
+      return { list: [], serverError: true };
     }
     console.error('getWeeklyPopularPosts error:', error);
     throw error;
@@ -59,7 +59,7 @@ export const getMonthlyPopularPosts = async (period) => {
     const status = error?.response?.status;
     if (status != null && status >= 500) {
       console.warn('getMonthlyPopularPosts: 서버 일시 오류(5xx), 빈 목록 반환', status);
-      return [];
+      return { list: [], serverError: true };
     }
     console.error('getMonthlyPopularPosts error:', error);
     throw error;
@@ -77,7 +77,7 @@ export const getMonthlyPopularPosts_py = async () => {
     const status = error?.response?.status;
     if (status === 503 || (status != null && status >= 500)) {
       console.warn('getMonthlyPopularPosts_py: 서버/ML 일시 오류(5xx/503), 빈 목록 반환', status);
-      return { posts: [] };
+      return { posts: [], serverError: true };
     }
     console.error('getMonthlyPopularPosts_py error:', error);
     throw error;
@@ -95,7 +95,7 @@ export const getRecommendedPosts = async (email) => {
     const status = error?.response?.status;
     if (status === 404 || status === 405 || status === 503 || (status != null && status >= 500)) {
       console.warn('getRecommendedPosts: 추천 API 미제공/일시 오류(404/405/5xx/503), 빈 목록 반환', status);
-      return { recommendations: [] };
+      return { recommendations: [], serverError: true };
     }
     console.error('getRecommendedPosts error:', error);
     throw error;

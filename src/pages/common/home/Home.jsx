@@ -31,40 +31,68 @@ const Home = () => {
 
   const navigate = useNavigate();
 
+  const SERVER_ERROR_MESSAGE = '일시적으로 인기글을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.';
+
   useEffect(() => {
     const fetchPopularPosts = async () => {
+      setErrorMessage('');
       try {
-        let data = null; // 초기값을 null로 설정
+        let data = null;
+        let serverError = false;
 
         if (communityMode === 'realtime') {
-          data = await getRealtimePopularPosts(communityMode);
+          const res = await getRealtimePopularPosts(communityMode);
+          if (res && res.serverError) {
+            data = [];
+            serverError = true;
+          } else {
+            data = Array.isArray(res) ? res : res?.list ?? res ?? [];
+          }
         } else if (communityMode === 'week') {
-          data = await getWeeklyPopularPosts(communityMode);
+          const res = await getWeeklyPopularPosts(communityMode);
+          if (res && res.serverError) {
+            data = [];
+            serverError = true;
+          } else {
+            data = Array.isArray(res) ? res : res?.list ?? res ?? [];
+          }
         } else if (communityMode === 'month') {
           if (accessToken) {
             const res = await getMonthlyPopularPosts_py();
-            data = res?.posts;
+            if (res && res.serverError) {
+              data = [];
+              serverError = true;
+            } else {
+              data = Array.isArray(res?.posts) ? res.posts : res?.posts ?? [];
+            }
           } else {
-            data = await getMonthlyPopularPosts(communityMode);
+            const res = await getMonthlyPopularPosts(communityMode);
+            if (res && res.serverError) {
+              data = [];
+              serverError = true;
+            } else {
+              data = Array.isArray(res) ? res : res?.list ?? res ?? [];
+            }
           }
         } else if (communityMode === 'recommend') {
           if (accessToken) {
-            data = await getRecommendedPosts(email);
-            data = data.recommendations;
+            const res = await getRecommendedPosts(email);
+            if (res && res.serverError) {
+              data = [];
+              serverError = true;
+            } else {
+              data = res?.recommendations ?? res ?? [];
+              data = Array.isArray(data) ? data : [];
+            }
           } else {
             data = [];
             setErrorMessage('해당 기능은 로그인 후 사용자 행동 패턴이 수집된 경우에만 이용할 수 있습니다.');
           }
         }
-        // API가 배열이 아닌 객체({ content: [...] } 등)를 반환해도 크래시 방지
-        const list = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.content)
-            ? data.content
-            : Array.isArray(data?.data)
-              ? data.data
-              : [];
+
+        const list = Array.isArray(data) ? data : data?.content ?? data?.data ?? data?.list ?? [];
         setCommunityTopPosts(list);
+        if (serverError) setErrorMessage(SERVER_ERROR_MESSAGE);
       } catch (error) {
         setCommunityTopPosts([]);
         if (error.response) {
