@@ -29,6 +29,7 @@ const PointCharge = () => {
   const widgetsRef = useRef(null);
   const paymentWidgetRef = useRef(null);
   const agreementWidgetRef = useRef(null);
+  const [isRequestingPayment, setIsRequestingPayment] = useState(false);
 
   const pointOptions = [
     { points: 5000, price: 5000 },
@@ -50,11 +51,10 @@ const PointCharge = () => {
   };
 
   const handleConfirmCharge = async () => {
+    if (isRequestingPayment || !widgetsRef.current) return;
+    setIsRequestingPayment(true);
     let paymentId;
     try {
-      // ------ '결제하기' 버튼 누르면 결제창 띄우기 ------
-      // 결제를 요청하기 전에 orderId, amount를 서버에 저장하세요.
-      // 결제 과정에서 악의적으로 결제 금액이 바뀌는 것을 확인하는 용도입니다.
       const orderId = nanoid();
       paymentId = await createPayment({
         email: email,
@@ -75,9 +75,10 @@ const PointCharge = () => {
       setShowConfirmModal(false);
       setShowCompleteModal(true);
     } catch (error) {
-      // 에러 처리하기
-      await cancelPayment(paymentId);
+      if (paymentId) await cancelPayment(paymentId).catch(() => {});
       console.error(error);
+    } finally {
+      setIsRequestingPayment(false);
     }
   };
 
@@ -121,27 +122,53 @@ const PointCharge = () => {
   useEffect(() => {
     if (!widgetsRef.current || !selectedAmount || !showConfirmModal) return;
 
+    setReady(false);
+
     async function renderPaymentWidgets() {
-      // ------ 주문의 결제 금액 설정 ------
-      await widgetsRef.current.setAmount({
-        currency: 'KRW',
-        value: selectedAmount.price,
-      });
+      try {
+        if (paymentWidgetRef.current) {
+          paymentWidgetRef.current.destroy();
+          paymentWidgetRef.current = null;
+        }
+        if (agreementWidgetRef.current) {
+          agreementWidgetRef.current.destroy();
+          agreementWidgetRef.current = null;
+        }
 
-      paymentWidgetRef.current = await widgetsRef.current.renderPaymentMethods({
-        selector: '#payment-method',
-        variantKey: 'DEFAULT',
-      });
+        await widgetsRef.current.setAmount({
+          currency: 'KRW',
+          value: selectedAmount.price,
+        });
 
-      agreementWidgetRef.current = await widgetsRef.current.renderAgreement({
-        selector: '#agreement',
-        variantKey: 'AGREEMENT',
-      });
+        paymentWidgetRef.current = await widgetsRef.current.renderPaymentMethods({
+          selector: '#payment-method',
+          variantKey: 'DEFAULT',
+        });
 
-      setReady(true);
+        agreementWidgetRef.current = await widgetsRef.current.renderAgreement({
+          selector: '#agreement',
+          variantKey: 'AGREEMENT',
+        });
+
+        setReady(true);
+      } catch (e) {
+        console.error('결제 위젯 렌더 실패:', e);
+      }
     }
 
     renderPaymentWidgets();
+
+    return () => {
+      if (paymentWidgetRef.current) {
+        paymentWidgetRef.current.destroy();
+        paymentWidgetRef.current = null;
+      }
+      if (agreementWidgetRef.current) {
+        agreementWidgetRef.current.destroy();
+        agreementWidgetRef.current = null;
+      }
+      setReady(false);
+    };
   }, [showConfirmModal, selectedAmount]);
 
   // [결제 성공 시]
@@ -313,11 +340,11 @@ const PointCharge = () => {
                   <div id="agreement" />
 
                   <button
-                    className="button cursor-pointer w-full bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white text-lg font-bold py-4 rounded-xl hover:shadow-lg transition-all"
-                    disabled={!ready}
+                    className="button cursor-pointer w-full bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white text-lg font-bold py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-60 disabled:pointer-events-none"
+                    disabled={!ready || isRequestingPayment}
                     onClick={handleConfirmCharge}
                   >
-                    결제 완료하기
+                    {isRequestingPayment ? '결제 진행 중...' : '결제 완료하기'}
                   </button>
                 </div>
               </div>
