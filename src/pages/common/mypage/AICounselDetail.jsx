@@ -1,186 +1,115 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { getCnslDetail, getAiChatMessages } from '../../../api/myCnslDetail';
+import useAuth from '../../../hooks/useAuth';
+
+/** API 메시지 형식(speaker, text, timestamp) → UI 형식(sender, message, time) */
+function toDisplayMessages(content) {
+  if (!Array.isArray(content)) return [];
+  return content.map((item, i) => {
+    const d = item.timestamp ? new Date(item.timestamp) : null;
+    const timeStr = d
+      ? d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit', hour12: true })
+      : '';
+    return {
+      id: `msg-${item.timestamp ?? i}`,
+      sender: item.speaker === 'user' ? 'user' : 'ai',
+      message: item.text ?? '',
+      time: timeStr,
+    };
+  });
+}
 
 const AICounselDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { accessToken: token } = useAuth();
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  // TODO: DB 연동 시 API 호출로 대체 필요
-  // - AI 상담 상세 정보 조회: GET /api/counsels/ai/:id
-  // - 메시지 전송: POST /api/counsels/ai/:id/messages
-  // - 상담 완료: PUT /api/counsels/ai/:id/complete
-  // - 상담 상태 값:
-  //   * '상담 중' - 메시지 입력창 및 '상담 완료하기' 버튼 표시
-  //   * '상담 완료' - 메시지만 표시 (입력 불가)
+  const [headerInfo, setHeaderInfo] = useState(null); // { title, date, status }
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  // 더미 데이터 (id에 따라 다른 데이터)
-  const getCounselDetail = (counselId) => {
-    if (counselId === '1') {
-      return {
-        id: counselId,
-        title: 'AI 상담사와의 상담 내용',
-        date: '2026.01.12',
-        status: '상담 완료',
-        messages: [
-          {
-            id: 1,
-            sender: 'ai',
-            message:
-              '안녕하세요, 트로스트 고객센터입니다\n어떠에서 회원 분들을 선택하세요.\n* 고객센터 운영시간 : 평일 10시-17시\n(점심시간 12시-13시 30분, 주말 및 공휴일 제외)',
-            time: '오후 4:06',
-          },
-          {
-            id: 2,
-            sender: 'user',
-            message: '명상 / ASMR',
-            time: '오후 4:08',
-          },
-          {
-            id: 3,
-            sender: 'ai',
-            message:
-              '안녕하세요, 트로스트 고객센터입니다\n어떠에서 회원 분들을 선택하세요.\n* 고객센터 운영시간 : 평일 10시-17시\n(점심시간 12시-13시 30분, 주말 및 공휴일 제외)',
-            time: '오후 4:06',
-          },
-          {
-            id: 4,
-            sender: 'user',
-            message: '명상 / ASMR',
-            time: '오후 4:08',
-          },
-          {
-            id: 5,
-            sender: 'ai',
-            message:
-              '안녕하세요, 트로스트 고객센터입니다\n어떠에서 회원 분들을 선택하세요.\n* 고객센터 운영시간 : 평일 10시-17시\n(점심시간 12시-13시 30분, 주말 및 공휴일 제외)',
-            time: '오후 4:06',
-          },
-          {
-            id: 6,
-            sender: 'user',
-            message: '명상 / ASMR',
-            time: '오후 4:08',
-          },
-        ],
-      };
-    } else if (counselId === '2') {
-      return {
-        id: counselId,
-        title: 'AI 상담사와의 상담',
-        date: '2026.01.12',
-        status: '상담 중',
-        messages: [
-          {
-            id: 1,
-            sender: 'ai',
-            message:
-              '안녕하세요, 트로스트 고객센터입니다\n어떠에서 회원 분들을 선택하세요.\n* 고객센터 운영시간 : 평일 10시-17시\n(점심시간 12시-13시 30분, 주말 및 공휴일 제외)',
-            time: '오후 4:06',
-          },
-          {
-            id: 2,
-            sender: 'user',
-            message: '명상 / ASMR',
-            time: '오후 4:08',
-          },
-          {
-            id: 3,
-            sender: 'ai',
-            message:
-              '안녕하세요, 트로스트 고객센터입니다\n어떠에서 회원 분들을 선택하세요.\n* 고객센터 운영시간 : 평일 10시-17시\n(점심시간 12시-13시 30분, 주말 및 공휴일 제외)',
-            time: '오후 4:06',
-          },
-        ],
-      };
-    } else {
-      // 기본 데이터
-      return {
-        id: counselId,
-        title: 'AI 상담사와의 상담 내용',
-        date: '2026.01.12',
-        status: '상담 완료',
-        messages: [
-          {
-            id: 1,
-            sender: 'ai',
-            message: '안녕하세요! AI 상담사입니다. 무엇을 도와드릴까요?',
-            time: '오후 2:00',
-          },
-          {
-            id: 2,
-            sender: 'user',
-            message: '상담이 필요해서 연락드렸어요.',
-            time: '오후 2:01',
-          },
-        ],
-      };
-    }
-  };
-
-  const counselDetail = getCounselDetail(id);
-
-  // 스크롤을 맨 아래로 이동
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  // 메시지가 변경되면 스크롤 이동
   useEffect(() => {
-    scrollToBottom();
-  }, [counselDetail.messages]);
+    if (!id || !token) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const [detailRes, content] = await Promise.all([
+          getCnslDetail(Number(id)).catch(() => null),
+          getAiChatMessages(Number(id)).catch(() => []),
+        ]);
+        if (cancelled) return;
+        const title = detailRes?.cnsl_title ?? detailRes?.cnslTitle ?? 'AI 상담 내역';
+        const createdAt = detailRes?.created_at ?? detailRes?.createdAt;
+        const dateStr = createdAt
+          ? new Date(createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace(/\.$/, '')
+          : '';
+        const stat = detailRes?.cnsl_stat ?? detailRes?.cnslStat ?? '';
+        const status = typeof stat === 'string' ? stat : (stat === 'C' ? '상담 중' : stat === 'D' ? '상담 완료' : '');
+        setHeaderInfo({ title, date: dateStr, status });
+        setMessages(toDisplayMessages(Array.isArray(content) ? content : []));
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError(e?.message || '상담 내용을 불러올 수 없습니다.');
+          setMessages([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, token]);
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  };
+  useEffect(() => { scrollToBottom(); }, [messages]);
 
   const handleSendMessage = () => {
     if (newMessage.trim()) {
-      // TODO: DB 연동 시 API 호출 추가
-      // try {
-      //   const response = await fetch(`/api/counsels/ai/${id}/messages`, {
-      //     method: 'POST',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify({
-      //       message: newMessage,
-      //       userId: user.id,
-      //       timestamp: new Date().toISOString()
-      //     })
-      //   });
-      //   const aiResponse = await response.json();
-      //   // AI 응답을 messages 배열에 추가
-      //   setCounselDetail(prev => ({
-      //     ...prev,
-      //     messages: [...prev.messages, userMessage, aiResponse]
-      //   }));
-      // } catch (error) {
-      //   console.error('메시지 전송 실패:', error);
-      // }
-
-      console.log('메시지 전송:', newMessage);
       setNewMessage('');
     }
   };
 
   const handleCompleteCounsel = () => {
-    // TODO: DB 연동 시 API 호출 추가
-    // try {
-    //   await fetch(`/api/counsels/ai/${id}/complete`, {
-    //     method: 'PUT',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({
-    //       userId: user.id,
-    //       completedAt: new Date().toISOString()
-    //     })
-    //   });
-    // } catch (error) {
-    //   console.error('상담 완료 실패:', error);
-    //   return;
-    // }
-
     alert('상담이 완료되었습니다.');
     navigate('/mypage/clist');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f3f7ff] flex items-center justify-center">
+        <p className="text-gray-500">데이터를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#f3f7ff] flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-gray-600 text-center">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => navigate('/mypage/clist')}
+          className="px-6 py-2 bg-[#2563eb] text-white rounded-xl"
+        >
+          목록으로
+        </button>
+      </div>
+    );
+  }
+
+  const title = headerInfo?.title ?? 'AI 상담 내역';
+  const date = headerInfo?.date ?? '';
+  const status = headerInfo?.status ?? '';
 
   return (
     <>
@@ -212,13 +141,16 @@ const AICounselDetail = () => {
 
         {/* TITLE */}
         <div className="px-5 pb-3 flex-shrink-0 bg-[#f3f7ff]">
-          <h1 className="text-xl font-bold text-gray-800">{counselDetail.title}</h1>
+          <h1 className="text-xl font-bold text-gray-800">{title}</h1>
         </div>
 
         {/* CHAT MESSAGES - 스크롤 가능한 영역 */}
         <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-2" style={{ minHeight: 0 }}>
           <div className="space-y-4 pb-4">
-            {counselDetail.messages.map((msg) => (
+            {messages.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">저장된 대화 내용이 없습니다.</div>
+            ) : (
+            messages.map((msg) => (
               <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                   {msg.sender === 'ai' && (
@@ -242,14 +174,15 @@ const AICounselDetail = () => {
                   <span className="text-xs text-gray-500 mt-1 px-1">{msg.time}</span>
                 </div>
               </div>
-            ))}
+            ))
+            )}
             <div ref={messagesEndRef} />
           </div>
         </div>
 
         {/* BOTTOM SECTION */}
         <div className="flex-shrink-0 bg-white border-t">
-          {counselDetail.status === '상담 중' ? (
+          {status === '상담 중' ? (
             // 상담 중일 때 - 입력창 (네비게이션 바 높이 56px 고려)
             <div className="px-4 py-3 pb-20">
               <div className="flex items-center gap-2">
@@ -288,7 +221,7 @@ const AICounselDetail = () => {
         <div className="max-w-[1520px] mx-auto px-8 py-16">
           {/* HEADER */}
           <div className="flex items-center justify-between mb-8 px-[200px]">
-            <h1 className="text-[30px] font-semibold text-gray-800">{counselDetail.title}</h1>
+            <h1 className="text-[30px] font-semibold text-gray-800">{title}</h1>
             <button
               onClick={() => navigate('/mypage/clist')}
               className="px-8 py-3 rounded-xl bg-[#2563eb] text-white text-base font-normal hover:bg-[#1d4ed8] transition-colors"
@@ -315,7 +248,10 @@ const AICounselDetail = () => {
             {/* MESSAGES AREA */}
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-8 bg-[#f9fafb]" style={{ minHeight: 0 }}>
               <div className="max-w-[1200px] mx-auto space-y-6">
-                {counselDetail.messages.map((msg) => (
+                {messages.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">저장된 대화 내용이 없습니다.</div>
+                ) : (
+                messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                       <div
@@ -330,13 +266,14 @@ const AICounselDetail = () => {
                       <span className="text-sm text-gray-500 mt-2 px-2">{msg.time}</span>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </div>
 
             {/* INPUT AREA */}
-            {counselDetail.status === '상담 중' && (
+            {status === '상담 중' && (
               <div className="flex-shrink-0 bg-white border-t p-6">
                 <div className="max-w-[1200px] mx-auto">
                   <div className="flex items-center gap-4 mb-4">

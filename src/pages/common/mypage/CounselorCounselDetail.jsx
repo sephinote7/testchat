@@ -154,17 +154,18 @@ const CounselorCounselDetail = () => {
   if (loading) return <div className="text-center py-20">데이터를 불러오는 중입니다...</div>;
   if (!counselDetail) return null;
 
-  // 백엔드 데이터와 UI 연결 (변수 매핑)
+  // 백엔드 데이터와 UI 연결 (변수 매핑, snake_case/camelCase 모두 처리)
   const displayData = {
-    title: counselDetail.cnslTitle, // Dto 필드명과 일치
-    requester: counselDetail.userNickname,
-    content: counselDetail.cnslContent,
-    counselorName: counselDetail.cnslerName,
-    status: counselDetail.cnslStat,
-    date: counselDetail.cnslDt,
-    image: counselDetail.cnslerimgUrl,
-    // 문자열로 온 해시태그를 배열로 변환 (예: "태그1,태그2" -> ["태그1", "태그2"])
-    tags: counselDetail.hashTags ? counselDetail.hashTags.split(',') : [],
+    title: counselDetail.cnslTitle ?? counselDetail.cnsl_title,
+    requester: counselDetail.userNickname ?? counselDetail.user_nickname,
+    content: counselDetail.cnslContent ?? counselDetail.cnsl_content ?? '',
+    counselorName: counselDetail.cnslerName ?? counselDetail.cnsler_name,
+    status: counselDetail.cnslStat ?? counselDetail.cnsl_stat,
+    date: counselDetail.cnslDt ?? (counselDetail.created_at ? new Date(counselDetail.created_at).toLocaleDateString('ko-KR') : ''),
+    image: counselDetail.cnslerimgUrl ?? counselDetail.cnsler_img_url,
+    tags: (counselDetail.hashTags ?? counselDetail.hash_tags || '')
+      ? (counselDetail.hashTags ?? counselDetail.hash_tags).split(',')
+      : [],
   };
 
   // 상태별 배지 색상
@@ -223,7 +224,9 @@ const CounselorCounselDetail = () => {
           <div className="bg-white rounded-2xl p-5 border border-gray-200">
             <h3 className="text-base font-bold text-gray-800 mb-2">제목 : {displayData.title}</h3>
             <p className="text-sm text-gray-600 mb-4">예약자 : {displayData.requester}</p>
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{displayData.content}</p>
+            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
+            </p>
           </div>
         </div>
 
@@ -297,7 +300,9 @@ const CounselorCounselDetail = () => {
               <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
                 <h3 className="text-lg font-bold text-gray-800 mb-2">{displayData.title}</h3>
                 <p className="text-gray-500 mb-6 border-b pb-4">예약자: {displayData.requester}</p>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{displayData.content}</p>
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
+                </p>
               </div>
             </section>
 

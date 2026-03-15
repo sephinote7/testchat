@@ -14,14 +14,10 @@ const CounselList = () => {
   const pageSize = 10;
 
   const fetchData = async () => {
-    // 1. 토큰이 없으면 호출하지 않음
-
     setIsLoading(true);
     try {
-      // 2. API 호출 시 token과 activeTab을 함께 전달 (백엔드 요구사항에 따라 인자 조절)
-      // Spring Boot Pageable은 0부터 시작하므로 page - 1
-      const response = await getMyCnslList(page - 1, pageSize);
-
+      const cnslTp = activeTab === 'ai' ? '3' : activeTab === 'counselor' ? 'counselor' : null;
+      const response = await getMyCnslList(page - 1, pageSize, cnslTp);
       setCounsels(response.content || []);
       setTotalElements(response.totalElements || 0);
     } catch (error) {
@@ -80,35 +76,44 @@ const CounselList = () => {
         <div className="px-5 space-y-4">
           {isLoading ? (
             <div className="text-center py-10 text-gray-500 font-medium">로딩 중...</div>
+          ) : counsels.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 font-medium">
+              {activeTab === 'ai' ? 'AI 상담 내역이 없습니다.' : '아직 상담 내역이 없습니다.'}
+            </div>
           ) : (
-            counsels.map((counsel) => (
-              <div
-                key={counsel.cnslId}
-                onClick={() => navigate(`/mypage/counsel/counselor/${counsel.cnslId}`)}
-                className="bg-white rounded-xl p-5 border border-gray-200 cursor-pointer active:scale-[0.98] transition-all"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  {/* DTO: getCnslTitle() -> cnslTitle */}
-                  <h3 className="text-base font-semibold text-gray-800 flex-1 pr-2 line-clamp-1">
-                    {counsel.cnslTitle}
-                  </h3>
-                  <span className="text-sm text-gray-400">{formatDate(counsel.createdAt)}</span>
+            counsels.map((counsel) => {
+              const cnslTp = counsel.cnslTp ?? counsel.cnsl_tp;
+              const isAi = cnslTp === '3';
+              const detailPath = isAi ? `/mypage/counsel/ai/${counsel.cnslId ?? counsel.cnsl_id}` : `/mypage/counsel/counselor/${counsel.cnslId ?? counsel.cnsl_id}`;
+              const title = counsel.cnslTitle ?? counsel.cnsl_title;
+              const stat = counsel.cnslStat ?? counsel.cnsl_stat;
+              const createdAt = counsel.createdAt ?? counsel.created_at;
+              return (
+                <div
+                  key={counsel.cnslId ?? counsel.cnsl_id}
+                  onClick={() => navigate(detailPath)}
+                  className="bg-white rounded-xl p-5 border border-gray-200 cursor-pointer active:scale-[0.98] transition-all"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-base font-semibold text-gray-800 flex-1 pr-2 line-clamp-1">
+                      {title}
+                    </h3>
+                    <span className="text-sm text-gray-400">{formatDate(createdAt)}</span>
+                  </div>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <p>
+                      상태 : <span className="text-[#2563eb] font-bold">{stat?.split(' ')[0] || ''}</span>
+                    </p>
+                    <p>
+                      상담사 : <span className="font-medium text-gray-800">{counsel.nickname || '배정 대기'}</span>
+                    </p>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <span className="text-sm text-[#2563eb] font-bold underline underline-offset-4">상담 내용 보기</span>
+                  </div>
                 </div>
-                <div className="space-y-1 text-sm text-gray-600">
-                  {/* DTO: getCnslStat() -> cnslStat */}
-                  <p>
-                    상태 : <span className="text-[#2563eb] font-bold">{counsel.cnslStat?.split(' ')[0] || ''}</span>
-                  </p>
-                  {/* DTO: getNickname() -> nickname */}
-                  <p>
-                    상담사 : <span className="font-medium text-gray-800">{counsel.nickname || '배정 대기'}</span>
-                  </p>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <span className="text-sm text-[#2563eb] font-bold underline underline-offset-4">상담 내용 보기</span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -156,31 +161,37 @@ const CounselList = () => {
               </div>
             ) : (
               counsels.map((counsel) => {
-                console.log('test', counsel);
+                const cnslTp = counsel.cnslTp ?? counsel.cnsl_tp;
+                const isAi = cnslTp === '3';
+                const detailPath = isAi ? `/mypage/counsel/ai/${counsel.cnslId ?? counsel.cnsl_id}` : `/mypage/counsel/counselor/${counsel.cnslId ?? counsel.cnsl_id}`;
+                const title = counsel.cnslTitle ?? counsel.cnsl_title;
+                const stat = counsel.cnslStat ?? counsel.cnsl_stat;
+                const type = counsel.cnslType ?? counsel.cnsl_type;
+                const createdAt = counsel.createdAt ?? counsel.created_at;
                 return (
                   <div
-                    key={counsel.cnslId}
-                    onClick={() => navigate(`/mypage/counsel/counselor/${counsel.cnslId}`)}
+                    key={counsel.cnslId ?? counsel.cnsl_id}
+                    onClick={() => navigate(detailPath)}
                     className="bg-white rounded-2xl p-8 border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-2xl font-bold text-gray-800 group-hover:text-[#2563eb] transition-colors">
-                        {counsel.cnslTitle}
+                        {title}
                       </h3>
-                      <span className="text-lg text-gray-400 font-medium">{formatDate(counsel.createdAt)}</span>
+                      <span className="text-lg text-gray-400 font-medium">{formatDate(createdAt)}</span>
                     </div>
                     <div className="flex items-center gap-12 text-lg text-gray-600">
                       <p>
-                        상담 유형 : <span className="font-semibold text-gray-900">{counsel.cnslType}</span>
+                        상담 유형 : <span className="font-semibold text-gray-900">{type}</span>
                       </p>
                       <p>
                         상태 :{' '}
                         <span className="font-bold text-[#2563eb] px-3 py-1 bg-blue-50 rounded-full">
-                          {counsel.cnslStat?.split(' ')[0] || ''}
+                          {stat?.split(' ')[0] || ''}
                         </span>
                       </p>
                       <p>
-                        상담사 : <span className="font-semibold text-gray-900">{counsel.nickname || '시스템'}</span>
+                        상담사 : <span className="font-semibold text-gray-900">{counsel.nickname ?? '시스템'}</span>
                       </p>
                     </div>
                     <div className="flex justify-end mt-2">
