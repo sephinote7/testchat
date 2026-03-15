@@ -30,6 +30,8 @@ const Home = () => {
   const [keywordCloud, setKeywordCloud] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [wordcloudImageError, setWordcloudImageError] = useState(false);
+  const [keywordRetryTrigger, setKeywordRetryTrigger] = useState(0);
+  const [keywordLoading, setKeywordLoading] = useState(true);
 
   const navigate = useNavigate();
 
@@ -105,7 +107,15 @@ const Home = () => {
       }
     };
 
+    fetchPopularPosts();
+  }, [communityMode, accessToken, email]); // accessToken이 변할 때(갱신 등) 다시 불러오도록 추가
+
+  // 이번 주 키워드: 마운트 시 1회 + 재시도. accessToken/email 의존 제거해 effect 재실행으로 인한 Request aborted 방지
+  useEffect(() => {
+    let cancelled = false;
     let retryTimeoutId = null;
+    setKeywordLoading(true);
+
     const fetchWeeklyKeywords = async (isRetry = false) => {
       try {
         const data = await getWeeklyKeywords();
@@ -113,32 +123,33 @@ const Home = () => {
         const raw = data?.keywords;
         const arr = Array.isArray(raw) ? raw : [];
         setKeywordCloud(arr);
-        // 첫 요청에서 키워드가 비었으면 Render 콜드 스타트 후 1회만 재시도
+        if (!cancelled) setKeywordLoading(false);
         if (!isRetry && arr.length === 0 && !cancelled) {
           retryTimeoutId = setTimeout(() => {
             if (cancelled) return;
             fetchWeeklyKeywords(true);
-          }, 4000);
+          }, 5000);
         }
       } catch (err) {
-        if (!cancelled) setKeywordCloud([]);
+        if (!cancelled) {
+          setKeywordCloud([]);
+          setKeywordLoading(false);
+        }
         if (!isRetry && !cancelled) {
           retryTimeoutId = setTimeout(() => {
             if (cancelled) return;
             fetchWeeklyKeywords(true);
-          }, 4000);
+          }, 5000);
         }
       }
     };
 
-    let cancelled = false;
-    fetchPopularPosts();
     fetchWeeklyKeywords();
     return () => {
       cancelled = true;
       if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
-  }, [communityMode, accessToken, email]); // accessToken이 변할 때(갱신 등) 다시 불러오도록 추가
+  }, [keywordRetryTrigger]); // 마운트 + "다시 시도" 클릭 시 재실행
 
   // TODO: DB 연동 시 실제 공지글 가져오기
   const [notices, setNotices] = useState([]);
@@ -274,8 +285,10 @@ const Home = () => {
 
             <section>
               <h4 className="text-[18px] font-bold mb-3">이번 주 키워드</h4>
-              <div className="relative h-[210px] bg-white rounded-[14px] shadow-[0_10px_20px_rgba(31,41,55,0.08)] overflow-hidden flex items-center justify-center">
-                {wordcloudImageError ? (
+              <div className="relative h-[210px] bg-white rounded-[14px] shadow-[0_10px_20px_rgba(31,41,55,0.08)] overflow-hidden flex flex-col items-center justify-center gap-2">
+                {keywordLoading ? (
+                  <p className="text-sm text-gray-500">불러오는 중...</p>
+                ) : wordcloudImageError ? (
                   <p className="text-sm text-gray-500">워드클라우드를 불러올 수 없습니다</p>
                 ) : (
                   <img
@@ -284,6 +297,18 @@ const Home = () => {
                     alt="주간 워드클라우드"
                     onError={() => setWordcloudImageError(true)}
                   />
+                )}
+                {!keywordLoading && (!Array.isArray(keywordCloud) || keywordCloud.length === 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWordcloudImageError(false);
+                      setKeywordRetryTrigger((t) => t + 1);
+                    }}
+                    className="text-sm text-[#2563eb] font-medium hover:underline"
+                  >
+                    다시 시도
+                  </button>
                 )}
               </div>
             </section>
@@ -455,8 +480,10 @@ const Home = () => {
             <section className="mb-8">
               <h3 className="text-[#111827] mb-4">이번 주 키워드</h3>
               <div className="grid grid-cols-2 gap-5">
-                <div className="relative bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] overflow-hidden p-6 h-full min-h-[320px] flex items-center justify-center">
-                  {wordcloudImageError ? (
+                <div className="relative bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] overflow-hidden p-6 h-full min-h-[320px] flex flex-col items-center justify-center gap-2">
+                  {keywordLoading ? (
+                    <p className="text-sm text-gray-500">불러오는 중...</p>
+                  ) : wordcloudImageError ? (
                     <p className="text-sm text-gray-500">워드클라우드를 불러올 수 없습니다</p>
                   ) : (
                     <img
@@ -466,28 +493,55 @@ const Home = () => {
                       onError={() => setWordcloudImageError(true)}
                     />
                   )}
+                  {!keywordLoading && (!Array.isArray(keywordCloud) || keywordCloud.length === 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWordcloudImageError(false);
+                        setKeywordRetryTrigger((t) => t + 1);
+                      }}
+                      className="text-sm text-[#2563eb] font-medium hover:underline"
+                    >
+                      다시 시도
+                    </button>
+                  )}
                 </div>
                 <div className="bg-white rounded-[20px] shadow-[0_4px_16px_rgba(31,41,55,0.06)] p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-[#111827]">상위 키워드 TOP 10</h4>
                     <p className="text-[#6b7280]">이번 주</p>
                   </div>
-                  <ol className="space-y-2.5">
-                    {[...(Array.isArray(keywordCloud) ? keywordCloud : [])]
-                      .map((k) => (typeof k === 'object' && k != null && 'keyword' in k ? k.keyword : k))
-                      .filter(Boolean)
-                      .slice(0, 9)
-                      .concat(['포트폴리오'])
-                      .slice(0, 10)
-                      .map((t, idx) => (
-                        <li key={`${t}-${idx}`} className="flex items-center gap-3 !text-[18px]">
-                          <span className="w-7 text-right font-bold text-[#4b5563]">
-                            {String(idx + 1).padStart(2, '0')}
-                          </span>
-                          <span className="flex-1 text-[#111827] !font-medium">{t}</span>
-                        </li>
-                      ))}
-                  </ol>
+                  {keywordLoading ? (
+                    <p className="text-sm text-gray-500 py-4">불러오는 중...</p>
+                  ) : (
+                    <>
+                      <ol className="space-y-2.5">
+                        {[...(Array.isArray(keywordCloud) ? keywordCloud : [])]
+                          .map((k) => (typeof k === 'object' && k != null && 'keyword' in k ? k.keyword : k))
+                          .filter(Boolean)
+                          .slice(0, 9)
+                          .concat(['포트폴리오'])
+                          .slice(0, 10)
+                          .map((t, idx) => (
+                            <li key={`${t}-${idx}`} className="flex items-center gap-3 !text-[18px]">
+                              <span className="w-7 text-right font-bold text-[#4b5563]">
+                                {String(idx + 1).padStart(2, '0')}
+                              </span>
+                              <span className="flex-1 text-[#111827] !font-medium">{t}</span>
+                            </li>
+                          ))}
+                      </ol>
+                      {(!Array.isArray(keywordCloud) || keywordCloud.length === 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setKeywordRetryTrigger((t) => t + 1)}
+                          className="mt-3 text-sm text-[#2563eb] font-medium hover:underline"
+                        >
+                          다시 시도
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </section>
