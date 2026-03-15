@@ -103,20 +103,33 @@ export const getRecommendedPosts = async (email) => {
 };
 
 // [이번 주 키워드. 엔드포인트 없거나 404/500/요청 취소 시 빈 키워드 반환]
+// timeout: Render 콜드 스타트 대기(최대 60초) 후에도 응답 없으면 실패 처리
+const WEEKLY_KEYWORDS_TIMEOUT_MS = 60000;
+
 export const getWeeklyKeywords = async () => {
   try {
-    const { data } = await mlAuthApi.get(`/weekly-keywords`);
+    const { data } = await mlAuthApi.get(`/weekly-keywords`, {
+      timeout: WEEKLY_KEYWORDS_TIMEOUT_MS,
+    });
     return data ?? { keywords: [] };
   } catch (error) {
     const status = error?.response?.status;
+    const msg = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
     const isAborted =
       error?.code === 'ERR_CANCELED' ||
-      (typeof error?.message === 'string' && error.message.toLowerCase().includes('aborted'));
+      error?.name === 'CanceledError' ||
+      msg.includes('aborted') ||
+      msg.includes('cancel');
     if (isAborted) {
       return { keywords: [] };
     }
     if (status === 401 || status === 404 || status >= 500) {
       console.warn('getWeeklyKeywords: 인증/미제공/서버 오류, 빈 키워드 반환');
+      return { keywords: [] };
+    }
+    // ECONNABORTED = timeout; 네트워크/서버 지연 시에도 빈 키워드로 처리해 UI는 유지
+    if (error?.code === 'ECONNABORTED') {
+      console.warn('getWeeklyKeywords: 요청 시간 초과(서버 대기 중일 수 있음), 빈 키워드 반환');
       return { keywords: [] };
     }
     console.error('getWeeklyKeywords error:', error);

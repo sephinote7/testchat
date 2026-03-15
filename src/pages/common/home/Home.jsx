@@ -105,15 +105,29 @@ const Home = () => {
       }
     };
 
-    const fetchWeeklyKeywords = async () => {
+    let retryTimeoutId = null;
+    const fetchWeeklyKeywords = async (isRetry = false) => {
       try {
         const data = await getWeeklyKeywords();
         if (cancelled) return;
         const raw = data?.keywords;
         const arr = Array.isArray(raw) ? raw : [];
         setKeywordCloud(arr);
+        // 첫 요청에서 키워드가 비었으면 Render 콜드 스타트 후 1회만 재시도
+        if (!isRetry && arr.length === 0 && !cancelled) {
+          retryTimeoutId = setTimeout(() => {
+            if (cancelled) return;
+            fetchWeeklyKeywords(true);
+          }, 4000);
+        }
       } catch (err) {
         if (!cancelled) setKeywordCloud([]);
+        if (!isRetry && !cancelled) {
+          retryTimeoutId = setTimeout(() => {
+            if (cancelled) return;
+            fetchWeeklyKeywords(true);
+          }, 4000);
+        }
       }
     };
 
@@ -122,6 +136,7 @@ const Home = () => {
     fetchWeeklyKeywords();
     return () => {
       cancelled = true;
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
   }, [communityMode, accessToken, email]); // accessToken이 변할 때(갱신 등) 다시 불러오도록 추가
 
