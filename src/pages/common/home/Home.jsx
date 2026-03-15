@@ -56,8 +56,15 @@ const Home = () => {
             setErrorMessage('해당 기능은 로그인 후 사용자 행동 패턴이 수집된 경우에만 이용할 수 있습니다.');
           }
         }
-        console.log('testset', data);
-        setCommunityTopPosts(data || []);
+        // API가 배열이 아닌 객체({ content: [...] } 등)를 반환해도 크래시 방지
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.content)
+            ? data.content
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
+        setCommunityTopPosts(list);
       } catch (error) {
         setCommunityTopPosts([]);
         if (error.response) {
@@ -71,7 +78,9 @@ const Home = () => {
     const fetchWeeklyKeywords = async () => {
       try {
         const data = await getWeeklyKeywords();
-        setKeywordCloud(data?.keywords || []); // undefined 방지
+        const raw = data?.keywords;
+        const arr = Array.isArray(raw) ? raw : [];
+        setKeywordCloud(arr);
       } catch (err) {
         setKeywordCloud([]);
       }
@@ -396,8 +405,9 @@ const Home = () => {
                     <p className="text-[#6b7280]">이번 주</p>
                   </div>
                   <ol className="space-y-2.5">
-                    {[...keywordCloud]
-                      .map((k) => k.keyword)
+                    {[...(Array.isArray(keywordCloud) ? keywordCloud : [])]
+                      .map((k) => (typeof k === 'object' && k != null && 'keyword' in k ? k.keyword : k))
+                      .filter(Boolean)
                       .slice(0, 9)
                       .concat(['포트폴리오'])
                       .slice(0, 10)

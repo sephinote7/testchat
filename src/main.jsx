@@ -7,12 +7,15 @@ import Nav from './components/Nav.jsx';
 import Footer from './components/Footer';
 import PcNav from './components/PcNav.jsx';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <ScrollToTop />
     <PcNav />
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
     <Footer />
     <Nav />
   </BrowserRouter>,
