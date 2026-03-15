@@ -30,6 +30,10 @@ const PointCharge = () => {
   const paymentWidgetRef = useRef(null);
   const agreementWidgetRef = useRef(null);
   const [isRequestingPayment, setIsRequestingPayment] = useState(false);
+  /** 결제 요청 진행 중 여부 (이중 호출 방지용, 동기 ref) */
+  const paymentInProgressRef = useRef(false);
+  /** 위젯 렌더 중복 실행 방지 */
+  const renderInProgressRef = useRef(false);
 
   const pointOptions = [
     { points: 5000, price: 5000 },
@@ -51,7 +55,8 @@ const PointCharge = () => {
   };
 
   const handleConfirmCharge = async () => {
-    if (isRequestingPayment || !widgetsRef.current) return;
+    if (paymentInProgressRef.current || !widgetsRef.current) return;
+    paymentInProgressRef.current = true;
     setIsRequestingPayment(true);
     let paymentId;
     try {
@@ -76,8 +81,9 @@ const PointCharge = () => {
       setShowCompleteModal(true);
     } catch (error) {
       if (paymentId) await cancelPayment(paymentId).catch(() => {});
-      console.error(error);
+      if (error?.message !== '취소되었습니다.') console.error(error);
     } finally {
+      paymentInProgressRef.current = false;
       setIsRequestingPayment(false);
     }
   };
@@ -121,16 +127,19 @@ const PointCharge = () => {
 
   useEffect(() => {
     if (!widgetsRef.current || !selectedAmount || !showConfirmModal) return;
+    if (paymentInProgressRef.current) return;
 
     setReady(false);
 
     async function renderPaymentWidgets() {
+      if (renderInProgressRef.current) return;
+      renderInProgressRef.current = true;
       try {
-        if (paymentWidgetRef.current) {
+        if (!paymentInProgressRef.current && paymentWidgetRef.current) {
           paymentWidgetRef.current.destroy();
           paymentWidgetRef.current = null;
         }
-        if (agreementWidgetRef.current) {
+        if (!paymentInProgressRef.current && agreementWidgetRef.current) {
           agreementWidgetRef.current.destroy();
           agreementWidgetRef.current = null;
         }
@@ -153,12 +162,15 @@ const PointCharge = () => {
         setReady(true);
       } catch (e) {
         console.error('결제 위젯 렌더 실패:', e);
+      } finally {
+        renderInProgressRef.current = false;
       }
     }
 
     renderPaymentWidgets();
 
     return () => {
+      if (paymentInProgressRef.current) return;
       if (paymentWidgetRef.current) {
         paymentWidgetRef.current.destroy();
         paymentWidgetRef.current = null;
@@ -336,13 +348,15 @@ const PointCharge = () => {
 
               <div className="wrapper">
                 <div className="box_section">
-                  <div id="payment-method" />
-                  <div id="agreement" />
+                  <div id="payment-method" className="min-h-[120px]" />
+                  <div id="agreement" className="min-h-[80px]" aria-busy={!ready} />
 
                   <button
+                    type="button"
                     className="button cursor-pointer w-full bg-gradient-to-r from-[#2563eb] to-[#1e40af] text-white text-lg font-bold py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-60 disabled:pointer-events-none"
                     disabled={!ready || isRequestingPayment}
                     onClick={handleConfirmCharge}
+                    aria-busy={isRequestingPayment}
                   >
                     {isRequestingPayment ? '결제 진행 중...' : '결제 완료하기'}
                   </button>

@@ -283,24 +283,27 @@ const CounselorView = () => {
     const processPayment = async () => {
       try {
         const data = await postReservation({
-          cnsl_cate: categoryCode,
-          cnsl_tp: typeCode,
+          cnsl_cate: categoryCode != null ? String(categoryCode) : undefined,
+          cnsl_tp: typeCode != null ? String(typeCode) : undefined,
           member_id: email,
           cnsler_id: c_id,
-          cnsl_title: form.title,
-          cnsl_content: form.content,
-          cnsl_date: form.date,
-          cnsl_start_time: form.time,
+          cnsl_title: form.title?.trim() ?? '',
+          cnsl_content: form.content?.trim() ?? '',
+          cnsl_date: form.date ?? '',
+          cnsl_start_time: form.time ?? '',
         });
 
-        if (data) {
+        if (data != null) {
           setShowPayment(false);
           setReservationDone(true);
           setPaymentAgreements({ serviceAgree: false, refundAgree: false });
         }
       } catch (error) {
-        console.error('결제 실패:', error.response.data);
-        alert(error.response.data);
+        const msg = typeof error.response?.data === 'string'
+          ? error.response.data
+          : error.response?.data?.message ?? error.message ?? '상담 신청 처리에 실패했습니다.';
+        console.error('상담 신청 실패:', error.response?.data ?? error);
+        alert(msg);
       } finally {
         setShowReservation(false);
         setShowPayment(false);
