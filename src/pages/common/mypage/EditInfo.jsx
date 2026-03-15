@@ -498,7 +498,9 @@ const EditInfo = () => {
           <div className="bg-white rounded-2xl p-8 w-[400px] shadow-xl">
             <div className="flex flex-col items-center">
               {/* 로고 */}
-              <img src={logo} alt="로고" />
+              <div className="w-16 h-16 mb-4 flex items-center justify-center">
+                <img src={logo} alt="고민순삭" />
+              </div>
 
               {/* 메시지 */}
               <p className="text-lg font-semibold text-gray-800 mb-2">
@@ -523,11 +525,8 @@ const EditInfo = () => {
           <div className="bg-white rounded-2xl p-8 w-[400px] shadow-xl">
             <div className="flex flex-col items-center">
               {/* 로고 */}
-              <div className="w-16 h-16 mb-4 flex items-center justify-center">
-                <div className="w-12 h-12 bg-[#2ed3c6] rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">★</span>
-                </div>
-                <span className="text-lg font-bold ml-2">고민순삭</span>
+              <div className="w-44 h-44 mb-4 flex items-center justify-center">
+                <img src={logo} alt="고민순삭" />
               </div>
 
               {/* 메시지 */}

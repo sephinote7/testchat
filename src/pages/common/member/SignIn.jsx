@@ -181,13 +181,7 @@ const SignIn = () => {
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative z-10 w-full max-w-[340px] rounded-3xl bg-white px-8 py-10 text-center shadow-2xl">
             <div className="flex items-center justify-center gap-2 mb-6">
-              <div className="w-12 h-12 bg-[#2ed3c6] rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-xl">★</span>
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">Healing Therapy</div>
-                <div className="font-bold text-lg text-gray-800">고민순삭</div>
-              </div>
+              <img src={f_logo} alt="로고" />
             </div>
             <h3 className="text-2xl lg:text-[30px] font-bold lg:font-semibold mb-3 text-gray-800">로그인 완료</h3>
             <p className="text-sm lg:text-base text-gray-600 mb-6">정상적으로 로그인 되었습니다</p>

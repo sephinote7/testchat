@@ -28,6 +28,9 @@ const FONT_OPTIONS = ['Regular', 'Medium', 'SemiBold', 'BM HANNA Pro'];
 const HEADING_OPTIONS = ['본문', '제목1', '제목2', '제목3', '제목4'];
 const SIZE_OPTIONS = ['16px', '18px', '22px', '28px'];
 
+const f_logo =
+  'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png';
+
 const BoardForm = ({ mode = 'write', postId = null }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -550,13 +553,7 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/40">
           <div className="relative z-10 w-full max-w-[340px] lg:max-w-[400px] rounded-2xl lg:rounded-3xl bg-white px-6 lg:px-8 py-8 lg:py-10 text-center shadow-2xl">
             <div className="flex items-center justify-center gap-2 mb-4 lg:mb-6">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 bg-[#2ed3c6] rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-lg lg:text-xl">★</span>
-              </div>
-              <div>
-                <div className="text-xs lg:text-sm text-gray-600 font-normal">Healing Therapy</div>
-                <div className="font-bold text-base lg:text-lg text-gray-800">고민순삭</div>
-              </div>
+              <img src={f_logo} alt="로고" />
             </div>
             <h3 className="text-xl lg:text-[24px] font-bold lg:font-medium mb-3 lg:mb-4 text-gray-800">
               글 작성을 그만두시겠습니까?
@@ -587,13 +584,7 @@ const BoardForm = ({ mode = 'write', postId = null }) => {
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/40">
           <div className="relative z-10 w-full max-w-[340px] lg:max-w-[400px] rounded-2xl lg:rounded-3xl bg-white px-6 lg:px-8 py-8 lg:py-10 text-center shadow-2xl">
             <div className="flex items-center justify-center gap-2 mb-4 lg:mb-6">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 bg-[#2ed3c6] rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-lg lg:text-xl">★</span>
-              </div>
-              <div>
-                <div className="text-xs lg:text-sm text-gray-600 font-normal">Healing Therapy</div>
-                <div className="font-bold text-base lg:text-lg text-gray-800">고민순삭</div>
-              </div>
+              <img src={f_logo} alt="로고" />
             </div>
             <h3 className="text-xl lg:text-[24px] font-bold lg:font-medium mb-3 lg:mb-4 text-gray-800">
               {completeTitle}

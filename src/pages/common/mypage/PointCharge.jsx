@@ -10,6 +10,11 @@ import {
 } from '../../../api/walletApi';
 import { authApi } from '../../../axios/Auth';
 
+const PcLogo =
+  'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/h_logo.png';
+const f_logo =
+  'https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png';
+
 const PointCharge = () => {
   const { nickname, email } = useAuthStore();
   const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm';
@@ -268,11 +273,7 @@ const PointCharge = () => {
             >
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 lg:pb-4 lg:border-b-2 lg:border-gray-200">
                 <div className="flex flex-col items-center lg:flex-row lg:gap-4 mb-6 lg:mb-0">
-                  <img
-                    src="/vite.svg"
-                    alt="고민손삭"
-                    className="w-16 h-16 lg:w-12 lg:h-12 mb-4 lg:mb-0"
-                  />
+                  <img src={PcLogo} alt="고민순삭" />
                   <h3 className="text-xl lg:text-2xl font-bold text-gray-800">
                     포인트 충전하기
                   </h3>
@@ -328,12 +329,8 @@ const PointCharge = () => {
         {showCompleteModal && (
           <div className="fixed inset-0 bg-black/40 lg:bg-black/50 z-50 flex items-center justify-center p-4 lg:p-8">
             <div className="w-[300px] lg:max-w-[500px] lg:w-full bg-white rounded-2xl lg:rounded-3xl p-6 lg:p-10 text-center">
-              <div className="w-16 h-16 lg:w-20 lg:h-20 mx-auto mb-4 lg:mb-6">
-                <img
-                  src="/vite.svg"
-                  alt="고민손삭"
-                  className="w-full h-full object-contain"
-                />
+              <div className="w-36 h-20 lg:w-48 lg:h-24 mx-auto mb-4 lg:mb-6">
+                <img src={f_logo} className="w-full h-full object-contain" alt="고민순삭" />
               </div>
               <h3 className="text-lg lg:text-2xl font-bold text-gray-800 mb-4 lg:mb-6">
                 포인트 충전 완료
