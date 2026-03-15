@@ -197,12 +197,13 @@ const BoardList = () => {
     };
   }, [page, bbsDivParam]);
 
-  // 인기글 (실시간/주간) — 캐시 있으면 API 생략으로 즉시 표시
-  // setPopularPosts, setPopularLoading, popularTab
+  // 인기글 (실시간/주간/월간/추천) — 5xx/503 시 API가 빈 배열 반환하므로 에러 대신 빈 목록 표시
   useEffect(() => {
     const fetchPopularPosts = async () => {
+      setErrorMessage('');
+      setPopularLoading(true);
       try {
-        let data = null; // 초기값을 null로 설정
+        let data = null;
 
         if (popularTab === 'realtime') {
           data = await getRealtimePopularPosts(popularTab);
@@ -217,22 +218,23 @@ const BoardList = () => {
           }
         } else if (popularTab === 'recommend') {
           if (accessToken) {
-            data = await getRecommendedPosts(email);
-            data = data.recommendations;
+            const res = await getRecommendedPosts(email);
+            data = res?.recommendations ?? res ?? [];
           } else {
             data = [];
             setErrorMessage('해당 기능은 로그인 후 사용자 행동 패턴이 수집된 경우에만 이용할 수 있습니다.');
           }
         }
-        setPopularLoading(true);
-        setPopularPosts(data || []);
+        setPopularPosts(Array.isArray(data) ? data : data ?? []);
       } catch (error) {
         setPopularPosts([]);
         if (error.response) {
           setErrorMessage(error.response.data?.detail || '서버 오류가 발생했습니다.');
         } else if (error.request) {
           setErrorMessage('서버 응답이 없습니다. 네트워크를 확인해 주세요.');
-        } else setErrorMessage(error.message || '알 수 없는 에러가 발생했습니다. 새로고침을 해 주세요.');
+        } else {
+          setErrorMessage(error.message || '알 수 없는 에러가 발생했습니다. 새로고침을 해 주세요.');
+        }
       } finally {
         setPopularLoading(false);
       }
@@ -555,7 +557,7 @@ const BoardList = () => {
               <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 flex-shrink-0">
                 <h2 className="text-[16px] font-medium text-gray-800">커뮤니티 인기글</h2>
                 <div className="flex gap-2">
-                  {['realtime', 'week', 'month', 'recommend', 'reply'].map((tab) => (
+                  {['realtime', 'week', 'month', 'recommend'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setPopularTab(tab)}
@@ -564,10 +566,9 @@ const BoardList = () => {
                       }`}
                     >
                       {tab === 'realtime' && '실시간'}
-                      {tab === 'week' && '주 간'}
-                      {tab === 'month' && '월 간'}
+                      {tab === 'week' && '주간'}
+                      {tab === 'month' && '월간'}
                       {tab === 'recommend' && '추천순'}
-                      {tab === 'reply' && '답변'}
                     </button>
                   ))}
                 </div>
@@ -626,7 +627,7 @@ const BoardList = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex justify-center items-center h-64 text-[#6b7280] text-lg">{errorMessage}</div>
+                  <div className="flex justify-center items-center h-64 text-[#6b7280] text-lg">{errorMessage || '등록된 인기글이 없습니다.'}</div>
                 )}
               </div>
             </div>

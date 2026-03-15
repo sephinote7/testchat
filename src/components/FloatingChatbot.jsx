@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { useAuthStore } from '../store/auth.store';
 import { authApi } from '../axios/Auth';
 import { supabase } from '../lib/supabase';
 import { useChatbotStore } from '../stores/useChatbotStore';
@@ -501,7 +502,11 @@ const SITE_CONTEXT = [
 
 const FloatingChatbot = () => {
   const { user } = useAuth();
+  const roleName = useAuthStore((s) => s.roleName);
   const navigate = useNavigate();
+
+  // 로그인 사용자 중 SYSTEM(상담사), ADMIN(관리자)일 때는 플로팅 챗봇 미노출
+  if (roleName === 'SYSTEM' || roleName === 'ADMIN') return null;
 
   const [isOpen, setIsOpen] = useState(false);
   const {

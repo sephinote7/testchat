@@ -3,7 +3,7 @@ import { BASE_URL } from './config';
 import { authApi } from '../axios/Auth';
 import { mlAuthApi } from '../axios/MlAuth';
 
-// [실시간 인기글]
+// [실시간 인기글. 5xx 시 빈 배열 반환해 UI에서 "서버 오류" 대신 빈 목록 표시]
 export const getRealtimePopularPosts = async (period) => {
   try {
     const { data } = await authApi.get(`/api/bbs_popularPostRealtimeList`, {
@@ -12,19 +12,19 @@ export const getRealtimePopularPosts = async (period) => {
       },
     });
 
-    return data;
+    return Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
   } catch (error) {
     const status = error?.response?.status;
-    if (status >= 500) {
-      console.warn('getRealtimePopularPosts: 서버 일시 오류');
-    } else {
-      console.error('getRealtimePopularPosts error:', error?.message ?? error);
+    if (status != null && status >= 500) {
+      console.warn('getRealtimePopularPosts: 서버 일시 오류(5xx), 빈 목록 반환', status);
+      return [];
     }
+    console.error('getRealtimePopularPosts error:', error?.message ?? error);
     throw error;
   }
 };
 
-// [주간 인기글]
+// [주간 인기글. 5xx 시 빈 배열 반환]
 export const getWeeklyPopularPosts = async (period) => {
   try {
     const { data } = await authApi.get(`/api/bbs_popularPostWeeklyList`, {
@@ -33,14 +33,19 @@ export const getWeeklyPopularPosts = async (period) => {
       },
     });
 
-    return data;
+    return Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
   } catch (error) {
+    const status = error?.response?.status;
+    if (status != null && status >= 500) {
+      console.warn('getWeeklyPopularPosts: 서버 일시 오류(5xx), 빈 목록 반환', status);
+      return [];
+    }
     console.error('getWeeklyPopularPosts error:', error);
     throw error;
   }
 };
 
-// [월간 인기글]
+// [월간 인기글. 5xx 시 빈 배열 반환]
 export const getMonthlyPopularPosts = async (period) => {
   try {
     const { data } = await authApi.get(`/api/bbs_popularPostMonthlyList`, {
@@ -49,21 +54,32 @@ export const getMonthlyPopularPosts = async (period) => {
       },
     });
 
-    return data;
+    return Array.isArray(data) ? data : data?.content ?? data?.data ?? [];
   } catch (error) {
-    console.error('getWeeklyPopularPosts error:', error);
+    const status = error?.response?.status;
+    if (status != null && status >= 500) {
+      console.warn('getMonthlyPopularPosts: 서버 일시 오류(5xx), 빈 목록 반환', status);
+      return [];
+    }
+    console.error('getMonthlyPopularPosts error:', error);
     throw error;
   }
 };
 
-// [월간 인기글 (파이썬)]
+// [월간 인기글 (파이썬). 5xx/503 시 빈 목록 반환]
 export const getMonthlyPopularPosts_py = async () => {
   try {
     const { data } = await mlAuthApi.get(`/monthly-top`);
 
-    return data;
+    const posts = data?.posts ?? data?.content ?? data?.data;
+    return Array.isArray(posts) ? { posts } : { posts: [] };
   } catch (error) {
-    console.error('getMonthlyPopularPosts error:', error);
+    const status = error?.response?.status;
+    if (status === 503 || (status != null && status >= 500)) {
+      console.warn('getMonthlyPopularPosts_py: 서버/ML 일시 오류(5xx/503), 빈 목록 반환', status);
+      return { posts: [] };
+    }
+    console.error('getMonthlyPopularPosts_py error:', error);
     throw error;
   }
 };
