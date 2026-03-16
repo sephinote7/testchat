@@ -78,39 +78,19 @@ const CounselorCounselDetail = () => {
   };
 
   const handleCancelClick = () => {
-    if (canEditOrCancel()) {
-      // TODO: DB 연동 시 API 호출 추가
-      // try {
-      //   await fetch(`/api/counsels/${id}/cancel`, {
-      //     method: 'PUT',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify({
-      //       userId: user.id,
-      //       status: '상담 예약 취소'
-      //     })
-      //   });
-      // } catch (error) {
-      //   console.error('상담 취소 실패:', error);
-      //   return;
-      // }
-
-      setShowCancelCompleteModal(true);
-    } else {
+    if (!canEditOrCancel()) {
       setShowCannotEditModal(true);
+      return;
     }
+    fetchCancel();
   };
 
   const handleEditClick = () => {
-    if (canEditOrCancel()) {
-      // TODO: DB 연동 시 수정 페이지로 이동 또는 모달 표시
-      // navigate(`/mypage/counsel/counselor/${id}/edit`);
-      // 또는
-      // setShowEditModal(true); // 수정 모달 구현 필요
-
-      setShowEditCompleteModal(true);
-    } else {
+    if (!canEditOrCancel()) {
       setShowCannotEditModal(true);
+      return;
     }
+    fetchUpdate();
   };
 
   const handleReviewClick = () => {
@@ -154,6 +134,53 @@ const CounselorCounselDetail = () => {
     setShowReviewModal(false);
     setShowReviewCompleteModal(false);
     setShowCannotReviewModal(false);
+  };
+
+  // 상담 취소 API 호출
+  const fetchCancel = async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/cnslReg_cancel/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        alert(msg || '상담 취소에 실패했습니다.');
+        return;
+      }
+      setShowCancelCompleteModal(true);
+    } catch (error) {
+      console.error('상담 취소 실패:', error);
+      alert('상담 취소 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 상담 수정 API 호출 (간단히 현재 제목/내용을 다시 패치)
+  const fetchUpdate = async () => {
+    if (!id || !counselDetail) return;
+    try {
+      const body = {
+        cnsl_title: counselDetail.cnslTitle ?? counselDetail.cnsl_title ?? undefined,
+        cnsl_content: counselDetail.cnslContent ?? counselDetail.cnsl_content ?? undefined,
+      };
+      const res = await fetch(`/api/cnslReg_update/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        alert(msg || '상담 수정에 실패했습니다.');
+        return;
+      }
+      setShowEditCompleteModal(true);
+    } catch (error) {
+      console.error('상담 수정 실패:', error);
+      alert('상담 수정 중 오류가 발생했습니다.');
+    }
   };
 
   // API 호출 (Spring 우선, 404 시 Supabase cnsl_reg + chat_msg fallback)
