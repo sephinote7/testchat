@@ -389,22 +389,6 @@ const CounselorCounselDetail = () => {
           console.error('Supabase 메타데이터 조회 실패:', metaErr);
         }
 
-        // 상담 라우터 자동 진입 (채팅/화상, 수락(B), 시작 시간 경과 시)
-        try {
-          const tp = data.cnslTp || data.cnsl_tp;
-          const stat = data.cnslStat || data.cnsl_stat;
-          if ((tp === '4' || tp === '5') && stat === 'B' && cnslMeta?.cnsl_date && cnslMeta?.cnsl_start_time) {
-            const start = new Date(`${cnslMeta.cnsl_date}T${String(cnslMeta.cnsl_start_time).slice(0, 8)}`);
-            if (start <= new Date()) {
-              if (tp === '4') navigate(`/chat/cnslchat/${id}`);
-              else if (tp === '5') navigate(`/chat/visualchat/${id}`);
-              return;
-            }
-          }
-        } catch (e) {
-          console.error('상담 자동 라우팅 판단 실패:', e);
-        }
-
         // Spring에 상담 내용이 비어 있으면 Supabase chat_msg(summary + msg_data)로 보완
         const content = data?.cnslContent ?? data?.cnsl_content ?? '';
         if (!String(content).trim()) {
@@ -461,22 +445,6 @@ const CounselorCounselDetail = () => {
             cnsl_date: regRow.cnsl_dt,
             cnsl_start_time: regRow.cnsl_start_time,
           });
-
-          // fallback 경로에서도 자동 라우팅 처리
-          try {
-            const tp = regRow.cnsl_tp;
-            const statCode = regRow.cnsl_stat;
-            if ((tp === '4' || tp === '5') && statCode === 'B' && regRow.cnsl_dt && regRow.cnsl_start_time) {
-              const start = new Date(`${regRow.cnsl_dt}T${String(regRow.cnsl_start_time).slice(0, 8)}`);
-              if (start <= new Date()) {
-                if (tp === '4') navigate(`/chat/cnslchat/${id}`);
-                else if (tp === '5') navigate(`/chat/visualchat/${id}`);
-                return;
-              }
-            }
-          } catch (e) {
-            console.error('상담 자동 라우팅 판단 실패(fallback):', e);
-          }
         } catch (supabaseErr) {
           console.error('Supabase fallback 실패:', supabaseErr);
           setCounselDetail(null);
@@ -554,6 +522,18 @@ const CounselorCounselDetail = () => {
         return 'bg-gray-100 text-gray-700';
       default:
         return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  // 상담 시작하기 (회원 상세 페이지 → 채팅/화상 라우터)
+  const handleStartCounsel = () => {
+    const tp = counselDetail.cnslTp ?? counselDetail.cnsl_tp;
+    const statCode = counselDetail.cnslStat ?? counselDetail.cnsl_stat;
+    if (statCode !== 'B') return;
+    if (tp === '4') {
+      navigate(`/chat/cnslchat/${id}`);
+    } else if (tp === '5') {
+      navigate(`/chat/visualchat/${id}`);
     }
   };
 
@@ -767,7 +747,7 @@ const CounselorCounselDetail = () => {
         </div>
 
         {/* 모바일 하단 액션 버튼 */}
-        <div className="px-5 pb-10">
+        <div className="px-5 pb-10 space-y-3">
           {(statusLabel === 'A' || statusLabel === 'B') && (
             <div className="flex gap-3">
               {statusLabel === 'A' && (
@@ -785,6 +765,16 @@ const CounselorCounselDetail = () => {
                 상담 취소
               </button>
             </div>
+          )}
+          {/* 상담 시작하기 버튼: cnsl_stat = B 이고 cnsl_tp = 4/5 인 경우 */}
+          {statusLabel === 'B' && (counselDetail.cnslTp === '4' || counselDetail.cnslTp === '5' || counselDetail.cnsl_tp === '4' || counselDetail.cnsl_tp === '5') && (
+            <button
+              type="button"
+              onClick={handleStartCounsel}
+              className="w-full bg-[#2563eb] text-white py-3 rounded-xl font-semibold"
+            >
+              상담 시작하기
+            </button>
           )}
         </div>
       </div>
@@ -883,9 +873,9 @@ const CounselorCounselDetail = () => {
               </section>
             )}
 
-            <div className="flex justify-center gap-4 pt-6">
+            <div className="flex flex-col items-center gap-4 pt-6">
               {(statusLabel === 'A' || statusLabel === 'B') && (
-                <>
+                <div className="flex justify-center gap-4">
                   {statusLabel === 'A' && (
                     <button
                       onClick={handleEditClick}
@@ -900,7 +890,17 @@ const CounselorCounselDetail = () => {
                   >
                     상담 예약 취소
                   </button>
-                </>
+                </div>
+              )}
+              {/* 상담 시작하기 버튼: cnsl_stat = B 이고 cnsl_tp = 4/5 인 경우 */}
+              {statusLabel === 'B' && (counselDetail.cnslTp === '4' || counselDetail.cnslTp === '5' || counselDetail.cnsl_tp === '4' || counselDetail.cnsl_tp === '5') && (
+                <button
+                  type="button"
+                  onClick={handleStartCounsel}
+                  className="px-10 py-3 bg-[#2563eb] text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+                >
+                  상담 시작하기
+                </button>
               )}
             </div>
           </div>

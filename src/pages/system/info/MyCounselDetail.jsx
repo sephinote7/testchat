@@ -103,31 +103,14 @@ const MyCounselDetail = () => {
 
   const statusInfo = getStatusLabel(counselData?.status);
 
-  // 상담 시작하기 (상담 예정 → 진행중)
-  const handleStartCounsel = async () => {
-    // TODO: DB 연동 시 API 호출
-    // const response = await fetch(`/api/counselors/me/counsels/${id}/start`, {
-    //   method: 'POST',
-    //   headers: { 'Authorization': `Bearer ${token}` }
-    // });
-    // const data = await response.json();
-
-    // 상태 변경
-    setCounselData({ ...counselData, status: 'inProgress' });
-
-    // 초기 메시지 추가
-    setMessages([
-      {
-        id: 1,
-        sender: 'counselor',
-        senderName: nickname,
-        text: `안녕하세요 ${nickname}님!\n#코인만담 #파이어족 되기 #워라밸잡기`,
-        time: new Date().toLocaleTimeString('ko-KR', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      },
-    ]);
+  // 상담 시작하기 버튼: cnsl_tp 4/5에 따라 해당 상담 라우터로 이동
+  const handleStartCounsel = () => {
+    const tp = counselData?.cnslTp || counselData?.cnsl_tp;
+    if (tp === '4') {
+      navigate(`/chat/cnslchat/${id}`);
+    } else if (tp === '5') {
+      navigate(`/chat/visualchat/${id}`);
+    }
   };
 
   // 상담 수락
