@@ -31,6 +31,25 @@ function getContentFromChatMsg(msgRow) {
   return text || '';
 }
 
+/** chat_msg.msg_data.content → 채팅 UI 표시용 메시지 배열 */
+function getTranscriptFromChatMsg(msgRow) {
+  const content = msgRow?.msg_data?.content;
+  if (!Array.isArray(content)) return [];
+  return content
+    .filter((m) => m && (m.text != null || m.speaker != null || m.timestamp != null))
+    .map((m, idx) => {
+      const speaker = String(m.speaker || m.role || '').toLowerCase();
+      const isUser = speaker === 'user' || speaker === 'member';
+      return {
+        id: `t-${m.timestamp ?? idx}`,
+        role: isUser ? 'USER' : 'SYSTEM',
+        text: m.text != null ? String(m.text) : '',
+        timestamp: m.timestamp ?? null,
+      };
+    })
+    .filter((m) => m.text.trim().length > 0);
+}
+
 const CounselorCounselDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -40,6 +59,7 @@ const CounselorCounselDetail = () => {
   // 상태 관리
   const [counselDetail, setCounselDetail] = useState(null); // 초기값 null
   const [contentFromSupabase, setContentFromSupabase] = useState(null); // Spring에 cnsl_content 없을 때 chat_msg 요약
+  const [chatTranscript, setChatTranscript] = useState([]); // 완료된 채팅 상담 내역 표시용
   const [cnslMeta, setCnslMeta] = useState(null); // cnsler_id, cnsl_date, cnsl_start_time
   const [loading, setLoading] = useState(true);
 
@@ -367,6 +387,7 @@ const CounselorCounselDetail = () => {
     const fetchDetail = async () => {
       setLoading(true);
       setContentFromSupabase(null);
+      setChatTranscript([]);
       try {
         const data = await getCnslDetail(cnslIdNum);
         setCounselDetail(data);
@@ -401,6 +422,8 @@ const CounselorCounselDetail = () => {
             .maybeSingle();
           const text = getContentFromChatMsg(msgRow);
           if (text) setContentFromSupabase(text);
+          const transcript = getTranscriptFromChatMsg(msgRow);
+          if (transcript.length) setChatTranscript(transcript);
         }
       } catch (error) {
         console.error('데이터 로드 실패 (Spring):', error);
@@ -432,6 +455,8 @@ const CounselorCounselDetail = () => {
               .eq('cnsl_id', cnslIdNum)
               .maybeSingle();
             content = getContentFromChatMsg(msgRow);
+            const transcript = getTranscriptFromChatMsg(msgRow);
+            if (transcript.length) setChatTranscript(transcript);
           }
           const detail = {
             cnsl_title: regRow.cnsl_title,
@@ -499,6 +524,36 @@ const CounselorCounselDetail = () => {
           statusLabel
         ] ?? statusLabel
       : statusLabel;
+
+  const tpRaw = counselDetail.cnslTp ?? counselDetail.cnsl_tp ?? cnslMeta?.cnsl_tp;
+  const cnslTp = tpRaw != null ? String(tpRaw).trim() : '';
+  const isChatCounsel = cnslTp === '4';
+  const isCompletedCounsel = rawStatusCode === 'D' || statusDisplay === '상담 완료';
+  const shouldShowChatTranscript = isChatCounsel && isCompletedCounsel && chatTranscript.length > 0;
+
+  const renderChatTranscript = () => (
+    <div className="mt-4 rounded-2xl bg-white border border-gray-200 p-4">
+      <h4 className="text-sm font-bold text-gray-800 mb-3">채팅 내역</h4>
+      <div className="space-y-2 max-h-[380px] overflow-y-auto">
+        {chatTranscript.map((m) => {
+          const isUser = m.role === 'USER';
+          return (
+            <div key={m.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed border whitespace-pre-wrap ${
+                  isUser
+                    ? 'bg-[#e9f7ff] border-[#b8dcff] text-[#1d4ed8]'
+                    : 'bg-[#f0fffd] border-[#b7f2ec] text-[#0f766e]'
+                }`}
+              >
+                {m.text}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   // 백엔드 데이터와 UI 연결 (변수 매핑, snake_case/camelCase 모두 처리)
   const rawContent = counselDetail.cnslContent ?? counselDetail.cnsl_content ?? '';
@@ -749,9 +804,13 @@ const CounselorCounselDetail = () => {
                 </span>
               )}
             </p>
-            <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-              {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
-            </p>
+            {shouldShowChatTranscript ? (
+              renderChatTranscript()
+            ) : (
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
+              </p>
+            )}
           </div>
         </div>
 
@@ -846,9 +905,13 @@ const CounselorCounselDetail = () => {
                     </span>
                   )}
                 </p>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
-                </p>
+                {shouldShowChatTranscript ? (
+                  renderChatTranscript()
+                ) : (
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
+                  </p>
+                )}
               </div>
             </section>
 
