@@ -375,7 +375,7 @@ const CounselorCounselDetail = () => {
         try {
           const { data: regRow } = await supabase
             .from('cnsl_reg')
-            .select('cnsl_id, cnsler_id, cnsl_dt, cnsl_start_time')
+            .select('cnsl_id, cnsler_id, cnsl_dt, cnsl_start_time, cnsl_stat, cnsl_tp')
             .eq('cnsl_id', cnslIdNum)
             .maybeSingle();
           if (regRow) {
@@ -383,6 +383,8 @@ const CounselorCounselDetail = () => {
               cnsler_id: regRow.cnsler_id,
               cnsl_date: regRow.cnsl_dt,
               cnsl_start_time: regRow.cnsl_start_time,
+              cnsl_stat: regRow.cnsl_stat,
+              cnsl_tp: regRow.cnsl_tp,
             });
           }
         } catch (metaErr) {
@@ -406,7 +408,7 @@ const CounselorCounselDetail = () => {
         try {
           const { data: regRow, error: regErr } = await supabase
             .from('cnsl_reg')
-            .select('cnsl_id, cnsl_title, cnsl_content, cnsl_stat, cnsl_dt, cnsl_start_time, created_at, member_id, cnsler_id')
+            .select('cnsl_id, cnsl_title, cnsl_content, cnsl_stat, cnsl_dt, cnsl_start_time, cnsl_tp, created_at, member_id, cnsler_id')
             .eq('cnsl_id', cnslIdNum)
             .maybeSingle();
           if (regErr || !regRow) {
@@ -444,6 +446,8 @@ const CounselorCounselDetail = () => {
             cnsler_id: regRow.cnsler_id,
             cnsl_date: regRow.cnsl_dt,
             cnsl_start_time: regRow.cnsl_start_time,
+            cnsl_stat: regRow.cnsl_stat,
+            cnsl_tp: regRow.cnsl_tp,
           });
         } catch (supabaseErr) {
           console.error('Supabase fallback 실패:', supabaseErr);
@@ -475,9 +479,20 @@ const CounselorCounselDetail = () => {
     );
   }
 
+  // 상태 코드(원시 코드)와 라벨 분리
+  const rawStatusCode =
+    (counselDetail.cnslStat && String(counselDetail.cnslStat).length === 1
+      ? counselDetail.cnslStat
+      : null) ||
+    (counselDetail.cnsl_stat && String(counselDetail.cnsl_stat).length === 1
+      ? counselDetail.cnsl_stat
+      : null) ||
+    cnslMeta?.cnsl_stat ||
+    '';
+
   // 상태 코드 → 한글 라벨 (Spring은 코드만 올 수 있음)
   const statusLabel =
-    counselDetail.cnslStat ?? counselDetail.cnsl_stat ?? '';
+    counselDetail.cnslStat ?? counselDetail.cnsl_stat ?? rawStatusCode ?? '';
   const statusDisplay =
     statusLabel.length === 1
       ? { A: '상담 예약 대기', B: '상담 예약 (완료)', C: '상담 진행 중', D: '상담 완료', E: '상담 종료 중' }[
@@ -528,8 +543,9 @@ const CounselorCounselDetail = () => {
   // 상담 시작하기 (회원 상세 페이지 → 채팅/화상 라우터)
   const handleStartCounsel = () => {
     const tp = counselDetail.cnslTp ?? counselDetail.cnsl_tp;
-    const statCode = counselDetail.cnslStat ?? counselDetail.cnsl_stat;
-    if (statCode !== 'B') return;
+    const statCode = rawStatusCode;
+    // 코드 B 또는 라벨이 '상담 예약 (완료)' 인 경우에만 시작 허용
+    if (!(statCode === 'B' || statusDisplay === '상담 예약 (완료)')) return;
     if (tp === '4') {
       navigate(`/chat/cnslchat/${id}`);
     } else if (tp === '5') {
@@ -748,9 +764,9 @@ const CounselorCounselDetail = () => {
 
         {/* 모바일 하단 액션 버튼 */}
         <div className="px-5 pb-10 space-y-3">
-          {(statusLabel === 'A' || statusLabel === 'B') && (
+          {(rawStatusCode === 'A' || rawStatusCode === 'B') && (
             <div className="flex gap-3">
-              {statusLabel === 'A' && (
+              {rawStatusCode === 'A' && (
                 <button
                   onClick={handleEditClick}
                   className="flex-1 bg-white border-2 border-[#2563eb] text-[#2563eb] py-3 rounded-xl font-semibold"
@@ -766,8 +782,14 @@ const CounselorCounselDetail = () => {
               </button>
             </div>
           )}
-          {/* 상담 시작하기 버튼: cnsl_stat = B 이고 cnsl_tp = 4/5 인 경우 */}
-          {statusLabel === 'B' && (counselDetail.cnslTp === '4' || counselDetail.cnslTp === '5' || counselDetail.cnsl_tp === '4' || counselDetail.cnsl_tp === '5') && (
+          {/* 상담 시작하기 버튼: 상태 코드 B 또는 '상담 예약 (완료)' 이고, cnsl_tp = 4/5 인 경우 */}
+          {(rawStatusCode === 'B' || statusDisplay === '상담 예약 (완료)') &&
+            (counselDetail.cnslTp === '4' ||
+              counselDetail.cnslTp === '5' ||
+              counselDetail.cnsl_tp === '4' ||
+              counselDetail.cnsl_tp === '5' ||
+              cnslMeta?.cnsl_tp === '4' ||
+              cnslMeta?.cnsl_tp === '5') && (
             <button
               type="button"
               onClick={handleStartCounsel}
@@ -874,9 +896,9 @@ const CounselorCounselDetail = () => {
             )}
 
             <div className="flex flex-col items-center gap-4 pt-6">
-              {(statusLabel === 'A' || statusLabel === 'B') && (
+            {(rawStatusCode === 'A' || rawStatusCode === 'B') && (
                 <div className="flex justify-center gap-4">
-                  {statusLabel === 'A' && (
+                  {rawStatusCode === 'A' && (
                     <button
                       onClick={handleEditClick}
                       className="px-10 py-3 border-2 border-[#2563eb] text-[#2563eb] rounded-xl font-bold hover:bg-blue-50 transition-colors"
@@ -892,8 +914,14 @@ const CounselorCounselDetail = () => {
                   </button>
                 </div>
               )}
-              {/* 상담 시작하기 버튼: cnsl_stat = B 이고 cnsl_tp = 4/5 인 경우 */}
-              {statusLabel === 'B' && (counselDetail.cnslTp === '4' || counselDetail.cnslTp === '5' || counselDetail.cnsl_tp === '4' || counselDetail.cnsl_tp === '5') && (
+              {/* 상담 시작하기 버튼: 상태 코드 B 또는 '상담 예약 (완료)' 이고, cnsl_tp = 4/5 인 경우 */}
+              {(rawStatusCode === 'B' || statusDisplay === '상담 예약 (완료)') &&
+                (counselDetail.cnslTp === '4' ||
+                  counselDetail.cnslTp === '5' ||
+                  counselDetail.cnsl_tp === '4' ||
+                  counselDetail.cnsl_tp === '5' ||
+                  cnslMeta?.cnsl_tp === '4' ||
+                  cnslMeta?.cnsl_tp === '5') && (
                 <button
                   type="button"
                   onClick={handleStartCounsel}

@@ -28,13 +28,8 @@ const MyCounselHistory = () => {
     fetchCounsels();
   }, [activeTab, currentPage]);
 
-  // 탭별 필터링
-  const filteredCounsels = counselHistory.filter((item) => {
-    if (activeTab === 'B') return item.statusText === '상담 예정';
-    if (activeTab === 'C') return item.statusText === '상담 진행 중';
-    if (activeTab === 'D') return item.statusText === '상담 완료';
-    return true;
-  });
+  // 백엔드에서 status 파라미터로 이미 필터링되므로 별도 statusText 필터는 적용하지 않음
+  const filteredCounsels = counselHistory;
 
   const totalPages = Math.ceil(filteredCounsels.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
