@@ -459,12 +459,14 @@ const CounselorCounselDetail = () => {
         <div className="px-5 pb-10">
           {(statusLabel === 'A' || statusLabel === 'B') && (
             <div className="flex gap-3">
-              <button
-                onClick={handleEditClick}
-                className="flex-1 bg-white border-2 border-[#2563eb] text-[#2563eb] py-3 rounded-xl font-semibold"
-              >
-                상담 수정
-              </button>
+              {statusLabel === 'A' && (
+                <button
+                  onClick={handleEditClick}
+                  className="flex-1 bg-white border-2 border-[#2563eb] text-[#2563eb] py-3 rounded-xl font-semibold"
+                >
+                  상담 수정
+                </button>
+              )}
               <button
                 onClick={handleCancelClick}
                 className="flex-1 bg-[#2563eb] text-white py-3 rounded-xl font-semibold"
@@ -565,12 +567,14 @@ const CounselorCounselDetail = () => {
             <div className="flex justify-center gap-4 pt-6">
               {(statusLabel === 'A' || statusLabel === 'B') && (
                 <>
-                  <button
-                    onClick={handleEditClick}
-                    className="px-10 py-3 border-2 border-[#2563eb] text-[#2563eb] rounded-xl font-bold hover:bg-blue-50 transition-colors"
-                  >
-                    상담 일정 수정
-                  </button>
+                  {statusLabel === 'A' && (
+                    <button
+                      onClick={handleEditClick}
+                      className="px-10 py-3 border-2 border-[#2563eb] text-[#2563eb] rounded-xl font-bold hover:bg-blue-50 transition-colors"
+                    >
+                      상담 일정 수정
+                    </button>
+                  )}
                   <button
                     onClick={handleCancelClick}
                     className="px-10 py-3 bg-[#2563eb] text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
