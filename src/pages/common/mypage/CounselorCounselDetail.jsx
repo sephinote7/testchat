@@ -615,9 +615,18 @@ const CounselorCounselDetail = () => {
       {/* 상담 일정 수정 완료 모달 */}
       {showEditCompleteModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4 text-center">
-            <h3 className="text-xl font-bold text-gray-800 mb-1">상담 일정이 수정되었습니다</h3>
-            <p className="text-sm text-gray-600 mb-4">변경된 내용이 정상적으로 반영되었습니다.</p>
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8 space-y-5 text-center">
+            {/* 로고 (Footer 로고 스타일과 유사) */}
+            <div className="flex flex-col items-center mb-2">
+              <img
+                src="https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png"
+                alt="고민순삭 로고"
+                className="w-32 h-auto mb-2"
+              />
+              <p className="text-[11px] text-gray-500">AI 융합 고민 상담 서비스</p>
+            </div>
+            <h3 className="text-xl font-bold text-gray-800">상담 일정 수정완료</h3>
+            <p className="text-sm text-gray-600 mb-2">변경된 내용이 정상적으로 반영되었습니다.</p>
             <div className="flex gap-3">
               <button
                 type="button"
