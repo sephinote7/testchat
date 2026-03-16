@@ -395,7 +395,7 @@ const CounselorCounselDetail = () => {
 
         {/* 모바일 하단 액션 버튼 */}
         <div className="px-5 pb-10">
-          {displayData.status === '상담 예약 (완료)' && (
+          {(statusLabel === 'A' || statusLabel === 'B') && (
             <div className="flex gap-3">
               <button
                 onClick={handleEditClick}
@@ -501,7 +501,7 @@ const CounselorCounselDetail = () => {
             )}
 
             <div className="flex justify-center gap-4 pt-6">
-              {displayData.status === '상담 예약 (완료)' && (
+              {(statusLabel === 'A' || statusLabel === 'B') && (
                 <>
                   <button
                     onClick={handleEditClick}
