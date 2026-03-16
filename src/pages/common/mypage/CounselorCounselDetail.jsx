@@ -186,7 +186,7 @@ const CounselorCounselDetail = () => {
         }
       } catch (error) {
         console.error('데이터 로드 실패 (Spring):', error);
-        // 404 등 실패 시 Supabase에서 상담 내역 조회 (상담 신청인 본인만 노출)
+        // 404 등 실패 시 Supabase에서 상담 내역 조회
         try {
           const { data: regRow, error: regErr } = await supabase
             .from('cnsl_reg')
@@ -197,8 +197,8 @@ const CounselorCounselDetail = () => {
             setCounselDetail(null);
             return;
           }
-          // 상담 신청인(member_id)만 본인 건 조회 가능
-          if (currentUserEmail && regRow.member_id && regRow.member_id !== currentUserEmail) {
+          // 상담 신청인(member_id)과 로그인 사용자가 다르면 비공개 (이메일이 있을 때만 검사)
+          if (currentUserEmail && regRow.member_id && String(regRow.member_id).trim() !== String(currentUserEmail).trim()) {
             setCounselDetail(null);
             return;
           }
@@ -233,7 +233,21 @@ const CounselorCounselDetail = () => {
 
   // 로딩 중 처리
   if (loading) return <div className="text-center py-20">데이터를 불러오는 중입니다...</div>;
-  if (!counselDetail) return null;
+  // 로드 실패 시 안내 (Spring 404 + Supabase 미존재 또는 권한 없음)
+  if (!counselDetail) {
+    return (
+      <div className="min-h-screen bg-[#f3f7ff] flex flex-col items-center justify-center p-6">
+        <p className="text-gray-700 mb-4">상담 내역을 불러올 수 없습니다.</p>
+        <button
+          type="button"
+          onClick={() => navigate('/mypage/clist')}
+          className="px-6 py-2 bg-[#2563eb] text-white rounded-lg"
+        >
+          목록으로
+        </button>
+      </div>
+    );
+  }
 
   // 상태 코드 → 한글 라벨 (Spring은 코드만 올 수 있음)
   const statusLabel =

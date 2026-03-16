@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../../../hooks/useAuth';
+import { useAuthStore } from '../../../store/auth.store';
 import { getMyCnslList } from '../../../api/myCnsl';
+import { supabase } from '../../../lib/supabase';
 
 const CounselList = () => {
   const { accessToken: token } = useAuth();
+  const currentUserEmail = useAuthStore((s) => s.email);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('ai');
   const [counsels, setCounsels] = useState([]);
@@ -18,8 +21,39 @@ const CounselList = () => {
     try {
       const cnslTp = activeTab === 'ai' ? '3' : activeTab === 'counselor' ? 'counselor' : null;
       const response = await getMyCnslList(page - 1, pageSize, cnslTp);
-      setCounsels(response.content || []);
-      setTotalElements(response.totalElements || 0);
+      let list = Array.isArray(response.content) ? response.content : [];
+      // AI 탭: Spring에 없는 건 Supabase cnsl_reg에서 보완 (최신순 유지)
+      if (activeTab === 'ai' && currentUserEmail) {
+        const { data: supabaseRows } = await supabase
+          .from('cnsl_reg')
+          .select('cnsl_id, cnsl_title, cnsl_stat, created_at, cnsl_tp')
+          .eq('member_id', currentUserEmail)
+          .eq('cnsl_tp', '3')
+          .order('created_at', { ascending: false });
+        const springIds = new Set(list.map((c) => String(c.cnslId ?? c.cnsl_id)));
+        const fromSupabase = (supabaseRows || [])
+          .filter((r) => !springIds.has(String(r.cnsl_id)))
+          .map((r) => ({
+            cnslId: r.cnsl_id,
+            cnsl_id: r.cnsl_id,
+            cnslTp: '3',
+            cnsl_tp: '3',
+            cnslTitle: r.cnsl_title,
+            cnsl_title: r.cnsl_title,
+            cnslStat: r.cnsl_stat,
+            cnsl_stat: r.cnsl_stat,
+            createdAt: r.created_at,
+            created_at: r.created_at,
+            nickname: null,
+          }));
+        list = [...list, ...fromSupabase].sort((a, b) => {
+          const tA = new Date(a.createdAt ?? a.created_at ?? 0).getTime();
+          const tB = new Date(b.createdAt ?? b.created_at ?? 0).getTime();
+          return tB - tA;
+        });
+      }
+      setCounsels(list);
+      setTotalElements(Math.max(response.totalElements ?? 0, list.length));
     } catch (error) {
       console.error('데이터 로드 실패:', error);
       setCounsels([]);
@@ -31,7 +65,7 @@ const CounselList = () => {
   useEffect(() => {
     // 3. 토큰이 로드된 후에 데이터를 가져오도록 설정
     fetchData();
-  }, [activeTab, page, token]); // token 의존성 추가
+  }, [activeTab, page, token, currentUserEmail]);
 
   const totalPages = Math.max(1, Math.ceil(totalElements / pageSize));
 

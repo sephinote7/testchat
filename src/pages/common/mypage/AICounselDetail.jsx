@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { getCnslDetail, getAiChatMessages } from '../../../api/myCnslDetail';
 import useAuth from '../../../hooks/useAuth';
+import { supabase } from '../../../lib/supabase';
 
 /** API 메시지 형식(speaker, text, timestamp) → UI 형식(sender, message, time) */
 function toDisplayMessages(content) {
@@ -43,10 +44,23 @@ const AICounselDetail = () => {
       setLoading(true);
       setLoadError(null);
       try {
-        const [detailRes, content] = await Promise.all([
-          getCnslDetail(Number(id)).catch(() => null),
-          getAiChatMessages(Number(id)).catch(() => []),
-        ]);
+        let detailRes = await getCnslDetail(Number(id)).catch(() => null);
+        // Spring 404 시 Supabase cnsl_reg에서 상세 보완
+        if (!detailRes) {
+          const { data: regRow } = await supabase
+            .from('cnsl_reg')
+            .select('cnsl_id, cnsl_title, cnsl_stat, created_at')
+            .eq('cnsl_id', Number(id))
+            .maybeSingle();
+          if (regRow) {
+            detailRes = {
+              cnsl_title: regRow.cnsl_title,
+              created_at: regRow.created_at,
+              cnsl_stat: regRow.cnsl_stat,
+            };
+          }
+        }
+        const content = await getAiChatMessages(Number(id)).catch(() => []);
         if (cancelled) return;
         const title = detailRes?.cnsl_title ?? detailRes?.cnslTitle ?? 'AI 상담 내역';
         const createdAt = detailRes?.created_at ?? detailRes?.createdAt;
