@@ -6,7 +6,7 @@ import useAuth from '../../../hooks/useAuth';
 const EditCounselorAbout = () => {
   const navigate = useNavigate();
   const { accessToken } = useAuthStore();
-  const { getUserInfo } = useAuth();
+  const { getUserInfo, editInfo } = useAuth();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [formData, setFormData] = useState({
