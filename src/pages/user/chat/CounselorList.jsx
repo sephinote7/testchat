@@ -265,9 +265,10 @@ const CounselorList = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[15px] font-bold text-[#111827]">{item?.nickname} 상담사</span>
                     </div>
+                    <p className="text-[12px] text-[#6b7280] mb-0.5">상담 건수 : {item?.cnslCnt ?? 0}건</p>
                     <div className="flex items-center gap-1 text-[12px] text-[#f59e0b] mb-1">
                       <div className="flex flex-row text-point items-center">{renderStars(item?.avgEvalPt || 0)}</div>
-                      <span className="text-[#6b7280]">({item?.cnslCnt})</span>
+                      <span className="text-[#6b7280]">({item?.reviewCnt ?? 0})</span>
                     </div>
                     {/* <p className="text-[12px] text-[#6b7280] mb-2">{item?.tags?.map((tag) => `#${tag}`).join(' ')}</p> */}
                     <p className="text-[12px] text-[#374151]">{item?.text}</p>
@@ -450,11 +451,12 @@ const CounselorList = () => {
                         <div className="flex items-center gap-3 mb-3">
                           <span className="text-2xl font-bold text-gray-800">{item?.nickname} 상담사</span>
                         </div>
+                        <p className="text-base text-gray-600 mb-1">상담 건수 : {item?.cnslCnt ?? 0}건</p>
                         <div className="flex items-center gap-2 text-lg text-[#f59e0b] mb-3">
                           <div className="flex flex-row text-point items-center">
                             {renderStars(item?.avgEvalPt || 0)}
                           </div>
-                          <span className="text-gray-600">({item?.cnslCnt})</span>
+                          <span className="text-gray-600">({item?.reviewCnt ?? 0})</span>
                         </div>
                         {/* <p className="text-base text-gray-600 mb-4">{item?.tags.map((tag) => `#${tag}`).join(' ')}</p> */}
                         <p className="text-base text-gray-700 mb-6 leading-relaxed">{item?.text}</p>

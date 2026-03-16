@@ -341,7 +341,7 @@ const CounselorView = () => {
               <p className="text-[12px] text-[#6b7280] mt-1">상담 건수 : {counselor?.cnslCnt ?? 0}건</p>
               <div className="flex items-center gap-1 text-[12px] text-[#f59e0b] mt-2">
                 <div className="flex flex-row text-point items-center">{renderStars(counselor?.avgEvalPt || 0)}</div>
-                <span className="text-[#6b7280]">({counselor?.cnslCnt})</span>
+                <span className="text-[#6b7280]">({counselor?.reviewCnt ?? 0})</span>
               </div>
             </div>
           </div>
@@ -765,7 +765,7 @@ const CounselorView = () => {
                     <div className="flex flex-row text-point items-center">
                       {renderStars(counselor?.avgEvalPt || 0)}
                     </div>
-                    <span className="text-gray-700 font-semibold">({counselor?.cnslCnt})</span>
+                    <span className="text-gray-700 font-semibold">({counselor?.reviewCnt ?? 0})</span>
                   </div>
                 </div>
                 <button
