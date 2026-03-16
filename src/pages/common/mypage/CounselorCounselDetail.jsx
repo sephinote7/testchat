@@ -266,6 +266,8 @@ const CounselorCounselDetail = () => {
     requester: counselDetail.userNickname ?? counselDetail.user_nickname,
     content: (rawContent && String(rawContent).trim()) ? rawContent : (contentFromSupabase ?? ''),
     counselorName: counselDetail.cnslerName ?? counselDetail.cnsler_name,
+    intro: counselDetail.cnslerText ?? counselDetail.cnsler_text ?? '',
+    career: counselDetail.cnslerProfile ?? counselDetail.cnsler_profile ?? '',
     status: statusDisplay,
     date: counselDetail.cnslDt ?? (counselDetail.created_at ? new Date(counselDetail.created_at).toLocaleDateString('ko-KR') : ''),
     image: counselDetail.cnslerimgUrl ?? counselDetail.cnsler_img_url,
@@ -383,7 +385,7 @@ const CounselorCounselDetail = () => {
 
       {/* PC VIEW */}
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff] py-16">
-        <div className="max-w-[1200px] mx-auto px-8">
+        <div className="max-w-[1520px] mx-auto px-8">
           <div className="flex justify-between items-end mb-8">
             <div>
               <h1 className="text-3xl font-bold text-gray-800 mb-2">상담 예약 상세</h1>
@@ -438,6 +440,34 @@ const CounselorCounselDetail = () => {
                 </div>
               </div>
             </section>
+
+            {/* 상담사 소개 / 자격 및 경력 (CounselorView 레이아웃 참고, 간략 버전) */}
+            {(displayData.intro?.trim() || displayData.career?.trim()) && (
+              <section className="grid grid-cols-2 gap-8">
+                {displayData.intro?.trim() && (
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <h3 className="text-xl font-bold mb-3 text-gray-800 border-b border-gray-200 pb-2">
+                      상담사 소개
+                    </h3>
+                    <p className="text-base text-gray-700 leading-relaxed whitespace-pre-line">
+                      {displayData.intro}
+                    </p>
+                  </div>
+                )}
+                {displayData.career?.trim() && (
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <h3 className="text-xl font-bold mb-3 text-gray-800 border-b border-gray-200 pb-2">
+                      자격 및 경력
+                    </h3>
+                    <ul className="text-base text-gray-700 list-disc space-y-2 whitespace-pre-line pl-5">
+                      {displayData.career.split('\n').map((line, idx) => (
+                        <li key={idx}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
 
             <div className="flex justify-center gap-4 pt-6">
               {displayData.status === '상담 예약 (완료)' && (

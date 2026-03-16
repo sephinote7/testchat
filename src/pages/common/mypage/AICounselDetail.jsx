@@ -39,7 +39,7 @@ const AICounselDetail = () => {
   const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    if (!id || !token) {
+    if (!id) {
       setLoading(false);
       return;
     }
@@ -102,7 +102,7 @@ const AICounselDetail = () => {
     return () => {
       cancelled = true;
     };
-  }, [id, token]);
+  }, [id]);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current)
