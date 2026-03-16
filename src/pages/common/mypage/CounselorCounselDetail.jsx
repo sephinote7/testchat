@@ -159,7 +159,7 @@ const CounselorCounselDetail = () => {
   // API 호출 (Spring 우선, 404 시 Supabase cnsl_reg + chat_msg fallback)
   useEffect(() => {
     const cnslIdNum = id ? Number(id) : null;
-    if (!token || !id || !cnslIdNum) return;
+    if (!id || !cnslIdNum) return;
 
     const statToLabel = (s) => {
       if (!s) return '';
