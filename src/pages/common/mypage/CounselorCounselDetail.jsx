@@ -70,6 +70,7 @@ const CounselorCounselDetail = () => {
 
   // 예약 수정/취소 가능 여부 (1일 전까지)
   const canEditOrCancel = () => {
+    if (!counselDetail || !counselDetail.created_at) return true;
     const reservationDate = new Date(counselDetail.created_at);
     const today = new Date();
     const diffTime = reservationDate - today;
@@ -151,6 +152,8 @@ const CounselorCounselDetail = () => {
         return;
       }
       setShowCancelCompleteModal(true);
+      alert('상담 예약이 취소되었습니다.');
+      navigate('/mypage/clist');
     } catch (error) {
       console.error('상담 취소 실패:', error);
       alert('상담 취소 중 오류가 발생했습니다.');
@@ -177,6 +180,7 @@ const CounselorCounselDetail = () => {
         return;
       }
       setShowEditCompleteModal(true);
+      alert('상담 일정이 수정되었습니다.');
     } catch (error) {
       console.error('상담 수정 실패:', error);
       alert('상담 수정 중 오류가 발생했습니다.');
