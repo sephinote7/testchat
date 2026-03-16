@@ -105,11 +105,17 @@ const MyCounselDetail = () => {
 
   // 상담 시작하기 버튼: cnsl_tp 4/5에 따라 해당 상담 라우터로 이동
   const handleStartCounsel = () => {
-    const tp = counselData?.cnslTp || counselData?.cnsl_tp;
+    const tpRaw = counselData?.cnslTp ?? counselData?.cnsl_tp ?? counselData?.cnslTpNm;
+    const tp = tpRaw != null ? String(tpRaw).trim() : '';
+
+    console.log('system handleStartCounsel', { id, tpRaw, tp, counselData });
+
     if (tp === '4') {
       navigate(`/chat/cnslchat/${id}`);
     } else if (tp === '5') {
       navigate(`/chat/visualchat/${id}`);
+    } else {
+      console.warn('알 수 없는 상담 타입(system), navigate 생략', { tpRaw, tp });
     }
   };
 
