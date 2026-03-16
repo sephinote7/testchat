@@ -122,11 +122,14 @@ const CounselorCounselDetail = () => {
     setShowCannotReviewModal(false);
   };
 
+  // 백엔드 API 베이스 URL (Vite 환경 변수 사용, 없으면 상대 경로 사용)
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
   // 상담 취소 API 호출
   const fetchCancel = async () => {
     if (!id) return;
     try {
-      const res = await fetch(`/api/cnslReg_cancel/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/cnslReg_cancel/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -153,7 +156,7 @@ const CounselorCounselDetail = () => {
         cnsl_title: counselDetail.cnslTitle ?? counselDetail.cnsl_title ?? undefined,
         cnsl_content: counselDetail.cnslContent ?? counselDetail.cnsl_content ?? undefined,
       };
-      const res = await fetch(`/api/cnslReg_update/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/cnslReg_update/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
