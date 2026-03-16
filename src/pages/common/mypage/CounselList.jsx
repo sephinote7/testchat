@@ -75,6 +75,15 @@ const CounselList = () => {
     return dateString.split('T')[0].replace(/-/g, '.');
   };
 
+  // 전문가 상담 내역 상태 색상 (상담사 리스트 /system/info/counsel-history-list 참고)
+  // 상담 이전(예약 대기·예약 완료·진행 중·종료 중) → 주황, 상담 완료 → 녹색
+  const getStatusStyle = (stat) => {
+    const s = (stat ?? '').toString().trim();
+    const isCompleted = s === 'D' || s === '상담 완료' || s.includes('상담 완료');
+    if (isCompleted) return { text: 'text-green-600', bg: 'bg-green-100' };
+    return { text: 'text-[#ff8d28]', bg: 'bg-orange-100' };
+  };
+
   return (
     <>
       {/* MOBILE */}
@@ -136,7 +145,10 @@ const CounselList = () => {
                   </div>
                   <div className="space-y-1 text-sm text-gray-600">
                     <p>
-                      상태 : <span className="text-[#2563eb] font-bold">{stat?.split(' ')[0] || ''}</span>
+                      상태 :{' '}
+                      <span className={`font-bold ${getStatusStyle(stat).text}`}>
+                        {stat?.split(' ')[0] || (stat ?? '')}
+                      </span>
                     </p>
                     <p>
                       상담사 : <span className="font-medium text-gray-800">{counsel.nickname || '배정 대기'}</span>
@@ -220,8 +232,8 @@ const CounselList = () => {
                       </p>
                       <p>
                         상태 :{' '}
-                        <span className="font-bold text-[#2563eb] px-3 py-1 bg-blue-50 rounded-full">
-                          {stat?.split(' ')[0] || ''}
+                        <span className={`font-bold px-3 py-1 rounded-full ${getStatusStyle(stat).text} ${getStatusStyle(stat).bg}`}>
+                          {stat?.split(' ')[0] || (stat ?? '')}
                         </span>
                       </p>
                       <p>

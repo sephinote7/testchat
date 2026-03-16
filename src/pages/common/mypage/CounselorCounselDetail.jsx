@@ -568,6 +568,23 @@ const CounselorCounselDetail = () => {
 
   // 백엔드 데이터와 UI 연결 (변수 매핑, snake_case/camelCase 모두 처리)
   const rawContent = counselDetail.cnslContent ?? counselDetail.cnsl_content ?? '';
+  // 예약 일시 = 상담 시작 예정 시간(cnsl_dt + cnsl_start_time). 예약한 당시 시간(created_at)이 아님.
+  const scheduledDateRaw = cnslMeta?.cnsl_date ?? counselDetail.cnsl_dt ?? counselDetail.cnslDt;
+  const scheduledDateStr =
+    scheduledDateRaw != null && scheduledDateRaw !== ''
+      ? (() => {
+          try {
+            const d = new Date(scheduledDateRaw);
+            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ko-KR');
+          } catch {
+            return String(scheduledDateRaw).split('T')[0].replace(/-/g, '. ');
+          }
+        })()
+      : '';
+  const displayDate =
+    scheduledDateStr ||
+    counselDetail.cnslDt ||
+    (counselDetail.created_at ? new Date(counselDetail.created_at).toLocaleDateString('ko-KR') : '');
   const displayData = {
     title: counselDetail.cnslTitle ?? counselDetail.cnsl_title,
     requester: counselDetail.userNickname ?? counselDetail.user_nickname,
@@ -576,14 +593,14 @@ const CounselorCounselDetail = () => {
     intro: counselDetail.cnslerText ?? counselDetail.cnsler_text ?? '',
     career: counselDetail.cnslerProfile ?? counselDetail.cnsler_profile ?? '',
     status: statusDisplay,
-    date: counselDetail.cnslDt ?? (counselDetail.created_at ? new Date(counselDetail.created_at).toLocaleDateString('ko-KR') : ''),
+    date: displayDate,
     image: counselDetail.cnslerimgUrl ?? counselDetail.cnsler_img_url,
     tags: ((counselDetail.hashTags ?? counselDetail.hash_tags) || '')
       ? (counselDetail.hashTags ?? counselDetail.hash_tags).split(',')
       : [],
   };
 
-  // 예약 일시 표기용 (날짜 + 시:분)
+  // 예약 일시 표기용: 상담 시작 예정 일시 (날짜 + 시:분)
   const displayDateTime =
     displayData.date &&
     (cnslMeta?.cnsl_start_time
