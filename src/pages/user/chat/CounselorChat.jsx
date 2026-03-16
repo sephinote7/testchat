@@ -112,28 +112,15 @@ const CounselorChat = () => {
           return;
         }
 
-        const stat =
-          String(cnslRow.cnsl_stat || 'A')
+        // 상태 코드 정규화
+        let stat =
+          String(cnslRow.cnsl_stat || 'B')
             .trim()
-            .toUpperCase() || 'A';
-        if (stat === 'A') {
-          const { data: inProgressRows } = await supabase
-            .from('cnsl_reg')
-            .select('cnsl_id, member_id, cnsler_id')
-            .eq('cnsl_tp', '4')
-            .eq('cnsl_stat', 'C');
-          const inProgressItem = inProgressRows?.find(
-            (r) =>
-              (String(r.member_id || '') === currentEmail || String(r.cnsler_id || '') === currentEmail) &&
-              Number(r.cnsl_id) !== cnslIdNum,
-          );
-          if (inProgressItem?.cnsl_id) {
-            setLoading(false);
-            navigate(`/chat/cnslchat/${inProgressItem.cnsl_id}`, { replace: true });
-            return;
-          }
+            .toUpperCase() || 'B';
+        // 채팅에서는 A(대기) / B(예약 완료)를 모두 "상담 진행 가능(C)" 으로 취급
+        if (stat === 'A' || stat === 'B') {
+          stat = 'C';
         }
-
         setCnslStat(stat);
         const member_id = cnslRow.member_id || '';
         const cnsler_id = cnslRow.cnsler_id || '';
@@ -405,15 +392,9 @@ const CounselorChat = () => {
     }
   };
 
-  const handleStartCounseling = async () => {
-    if (me?.role !== 'SYSTEM' || cnslStat !== 'A' || isStarting) return;
-    setIsStarting(true);
-    try {
-      await updateCnslStatApi('C');
-    } finally {
-      setIsStarting(false);
-    }
-  };
+  // 텍스트 채팅에서는 별도의 A→C 전환 플로우가 필요 없으므로,
+  // 상담 시작 버튼은 더 이상 사용하지 않는다. (기능은 남겨두되 no-op 처리)
+  const handleStartCounseling = async () => {};
 
   const handleEndCounseling = async () => {
     if (cnslStat !== 'C' || isEnding) return;
@@ -563,8 +544,10 @@ const CounselorChat = () => {
   const peer = other || { nickname: '상담사', profile: '' };
   const infoToShow = other;
   const infoLabel = other?.role === 'SYSTEM' ? '상담사 정보' : '상담자 정보';
-  const isInputDisabled = cnslStat !== 'C' || isEnding;
-  const isBeforeStart = cnslStat === 'A';
+  // 채팅 입력은 C(진행 중) 뿐 아니라, 종료 중(E) / 종료(D)가 아닐 때 모두 허용
+  const isInputDisabled = cnslStat === 'D' || cnslStat === 'E' || isEnding;
+  // 헤더 문구 및 안내용 플래그: 종료 상태만 구분
+  const isBeforeStart = false;
   const isEnded = cnslStat === 'D';
   const isEndingState = cnslStat === 'E' || isEnding; // E=종료 중 (양쪽 동기화)
 

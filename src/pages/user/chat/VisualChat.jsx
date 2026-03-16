@@ -341,6 +341,13 @@ const VisualChat = () => {
           cnsler_id = cnslRow.cnsler_id;
         }
 
+        console.log('[VC init] chat side resolve', {
+          chatId,
+          currentEmail,
+          member_id,
+          cnsler_id,
+        });
+
         // 2.5) cnsl_stat 확인: D(완료)면 재진입 차단. A,C(진행중)만 진입 허용
         const { data: cnslRegRow } = await supabase
           .from('cnsl_reg')
@@ -362,6 +369,14 @@ const VisualChat = () => {
         // 3) 로그인 사용자가 이 상담방에 속해 있는지 확인 (이메일 기준)
         const isMemberSide = member_id === currentEmail;
         const isCnslerSide = cnsler_id === currentEmail;
+
+        console.log('[VC init] role mapping', {
+          currentEmail,
+          member_id,
+          cnsler_id,
+          isMemberSide,
+          isCnslerSide,
+        });
 
         if (!isMemberSide && !isCnslerSide) {
           setErrorMsg('해당 상담방에 대한 접근 권한이 없습니다.');
@@ -409,6 +424,11 @@ const VisualChat = () => {
           finalMe.role = 'SYSTEM';
           finalOther.role = 'USER';
         }
+
+        console.log('[VC init] final roles', {
+          me: finalMe,
+          other: finalOther,
+        });
 
         setMe(finalMe);
         setOther(finalOther);
@@ -724,17 +744,36 @@ const VisualChat = () => {
     const peer = new Peer(myId, peerConfig);
     peerRef.current = peer;
 
+    console.log('[VC peer init]', {
+      sideRole: me.role,
+      myEmail: me.email,
+      otherEmail: other.email,
+      myPeerId: myId,
+    });
+
     peer.on('open', () => {
+      console.log('[VC peer open]', { sideRole: me.role, myPeerId: myId });
       setPeerError('');
     });
 
     peer.on('call', async (call) => {
       currentCallRef.current = call;
+      console.log('[VC USER onCall]', {
+        sideRole: me.role,
+        myEmail: me.email,
+        otherEmail: other.email,
+        myPeerId: myId,
+      });
       try {
         // 음성 없는 통화 방지를 위해 반드시 video+audio 모두 확보
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
+        });
+        console.log('[VC USER getUserMedia success]', {
+          sideRole: me.role,
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
         });
         setMediaStream(stream);
         setIsCallActive(true);
@@ -778,6 +817,11 @@ const VisualChat = () => {
           }
         }
         call.on('stream', (remote) => {
+          console.log('[VC onStream]', {
+            sideRole: me.role,
+            hasVideo: remote.getVideoTracks().length,
+            hasAudio: remote.getAudioTracks().length,
+          });
           setRemoteStream(remote);
           tryStartCompositeRecordingOnce(
             mediaStreamRef,
@@ -917,6 +961,16 @@ const VisualChat = () => {
         audio: true,
       });
       canRecordAudio = true;
+
+      console.log('[VC SYSTEM startCall]', {
+        sideRole: me.role,
+        myEmail: me.email,
+        otherEmail: other.email,
+        myPeerId: sanitizePeerId(me.email),
+        remotePeerId: sanitizePeerId(other.email),
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+      });
 
       setMediaStream(stream);
       setRemoteStream(null);
