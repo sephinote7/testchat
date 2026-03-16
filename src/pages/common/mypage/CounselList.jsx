@@ -238,6 +238,45 @@ const CounselList = () => {
               })
             )}
           </div>
+
+          {/* 페이지네이션 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-10">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
+              >
+                &lt;
+              </button>
+              {Array.from({ length: totalPages }).map((_, idx) => {
+                const num = idx + 1;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setPage(num)}
+                    className={`w-8 h-8 flex items-center justify-center rounded ${
+                      page === num
+                        ? 'bg-[#2563eb] text-white'
+                        : 'text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
+              >
+                &gt;
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </>

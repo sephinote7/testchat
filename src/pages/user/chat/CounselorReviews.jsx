@@ -42,6 +42,55 @@ const CounselorReviews = () => {
     return '⭐'.repeat(full);
   };
 
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    const pages = [];
+    const maxVisiblePages = 10;
+    let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i += 1) {
+      pages.push(
+        <button
+          key={i}
+          type="button"
+          onClick={() => setPage(i)}
+          className={`w-8 h-8 flex items-center justify-center rounded ${
+            page === i ? 'bg-[#2563eb] text-white' : 'text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          {i}
+        </button>,
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-center gap-2 mt-8">
+        <button
+          type="button"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
+        >
+          &lt;
+        </button>
+        {pages}
+        <button
+          type="button"
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={page === totalPages}
+          className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
+        >
+          &gt;
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full min-h-screen bg-[#f3f7ff]">
       <div className="max-w-[1520px] mx-auto px-8 py-16">
@@ -62,11 +111,11 @@ const CounselorReviews = () => {
           ) : reviews.length === 0 ? (
             <div className="text-center text-gray-500 py-20">아직 등록된 리뷰가 없습니다.</div>
           ) : (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="space-y-4">
               {reviews.map((r, idx) => (
                 <div
                   key={r.reviewId ?? idx}
-                  className="border border-gray-200 rounded-xl p-6 bg-gray-50"
+                  className="border border-gray-200 rounded-2xl p-6 bg-white"
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-[#f59e0b] text-lg">
@@ -84,43 +133,7 @@ const CounselorReviews = () => {
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-8">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-              >
-                이전
-              </button>
-              {Array.from({ length: totalPages }).map((_, i) => {
-                const num = i + 1;
-                return (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => setPage(num)}
-                    className={`w-8 h-8 rounded-full text-sm ${
-                      num === page
-                        ? 'bg-[#2563eb] text-white'
-                        : 'bg-white text-gray-700 border border-gray-300'
-                    }`}
-                  >
-                    {num}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
-              >
-                다음
-              </button>
-            </div>
-          )}
+          {renderPagination()}
         </div>
       </div>
     </div>
