@@ -49,10 +49,19 @@ const CounselorCounselDetail = () => {
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showReviewCompleteModal, setShowReviewCompleteModal] = useState(false);
   const [showCannotReviewModal, setShowCannotReviewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // 리뷰 데이터
   const [rating, setRating] = useState(0);
   const [reviewContent, setReviewContent] = useState('');
+
+  // 상담 수정 폼 (모달 내부용)
+  const [editForm, setEditForm] = useState({
+    date: '',
+    time: '',
+    title: '',
+    content: '',
+  });
 
   // TODO: DB 연동 시 API 호출로 대체 필요
   // - 상담 상세 정보 조회: GET /api/counsels/counselor/:id
@@ -76,8 +85,19 @@ const CounselorCounselDetail = () => {
   };
 
   const handleEditClick = () => {
+    if (!cnslMeta) {
+      console.warn('수정 메타데이터가 없습니다.');
+      return;
+    }
     console.log('handleEditClick', id);
-    fetchUpdate();
+    // 기존 값으로 수정 폼 초기화
+    setEditForm({
+      date: cnslMeta.cnsl_date || '',
+      time: cnslMeta.cnsl_start_time || '',
+      title: displayData.title || '',
+      content: displayData.content || '',
+    });
+    setShowEditModal(true);
   };
 
   const handleReviewClick = () => {
@@ -121,6 +141,16 @@ const CounselorCounselDetail = () => {
     setShowReviewModal(false);
     setShowReviewCompleteModal(false);
     setShowCannotReviewModal(false);
+  };
+
+  // 상담 수정 모달 내 "수정 완료" 버튼 클릭
+  const handleEditSubmit = () => {
+    if (!editForm.title.trim() || !editForm.content.trim()) {
+      alert('제목과 내용을 입력해 주세요.');
+      return;
+    }
+    // 날짜/시간은 기존 값 유지가 기본이므로 필수는 아님
+    fetchUpdate();
   };
 
   // 백엔드 API 베이스 URL (Vite 환경 변수 사용, 없으면 상대 경로 사용)
@@ -193,10 +223,10 @@ const CounselorCounselDetail = () => {
       const body = {
         // 백엔드 CnslModiReqDto 요구 필드 5개 모두 전달
         cnsler_id: cnslMeta?.cnsler_id ?? undefined,
-        cnsl_title: counselDetail.cnslTitle ?? counselDetail.cnsl_title ?? undefined,
-        cnsl_content: counselDetail.cnslContent ?? counselDetail.cnsl_content ?? undefined,
-        cnsl_date: cnslMeta?.cnsl_date ?? undefined,
-        cnsl_start_time: cnslMeta?.cnsl_start_time ?? undefined,
+        cnsl_title: editForm.title?.trim() || undefined,
+        cnsl_content: editForm.content?.trim() || undefined,
+        cnsl_date: editForm.date || undefined,
+        cnsl_start_time: editForm.time || undefined,
       };
       const res = await fetch(`${API_BASE_URL}/api/cnslReg_update/${id}`, {
         method: 'PATCH',
@@ -246,8 +276,9 @@ const CounselorCounselDetail = () => {
           return;
         }
       }
+      // 성공 시: 수정 모달 닫고 완료 모달만 띄움
+      setShowEditModal(false);
       setShowEditCompleteModal(true);
-      alert('상담 일정이 수정되었습니다.');
     } catch (error) {
       console.error('상담 수정 실패:', error);
       alert('상담 수정 중 오류가 발생했습니다.');
@@ -420,6 +451,84 @@ const CounselorCounselDetail = () => {
 
   return (
     <>
+      {/* 상담 일정 수정 모달 */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-gray-800">상담 일정 수정</h2>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* 날짜 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">예약 날짜</label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563eb]"
+                value={editForm.date || ''}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, date: e.target.value }))}
+              />
+            </div>
+
+            {/* 시간 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">예약 시간</label>
+              <input
+                type="time"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563eb]"
+                value={editForm.time || ''}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, time: e.target.value }))}
+              />
+            </div>
+
+            {/* 제목 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">제목</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563eb]"
+                value={editForm.title}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+
+            {/* 내용 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">상담 내용</label>
+              <textarea
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm h-28 resize-none focus:outline-none focus:border-[#2563eb]"
+                value={editForm.content}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, content: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleEditSubmit}
+                className="flex-1 bg-[#2563eb] text-white rounded-lg py-2 text-sm font-semibold hover:bg-[#1d4ed8]"
+              >
+                수정 완료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE VIEW */}
       <div className="lg:hidden w-full max-w-[390px] min-h-screen mx-auto bg-[#f3f7ff] pb-24">
         {/* HEADER */}
