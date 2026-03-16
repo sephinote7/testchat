@@ -389,6 +389,22 @@ const CounselorCounselDetail = () => {
           console.error('Supabase 메타데이터 조회 실패:', metaErr);
         }
 
+        // 상담 라우터 자동 진입 (채팅/화상, 수락(B), 시작 시간 경과 시)
+        try {
+          const tp = data.cnslTp || data.cnsl_tp;
+          const stat = data.cnslStat || data.cnsl_stat;
+          if ((tp === '4' || tp === '5') && stat === 'B' && cnslMeta?.cnsl_date && cnslMeta?.cnsl_start_time) {
+            const start = new Date(`${cnslMeta.cnsl_date}T${String(cnslMeta.cnsl_start_time).slice(0, 8)}`);
+            if (start <= new Date()) {
+              if (tp === '4') navigate(`/chat/cnslchat/${id}`);
+              else if (tp === '5') navigate(`/chat/visualchat/${id}`);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('상담 자동 라우팅 판단 실패:', e);
+        }
+
         // Spring에 상담 내용이 비어 있으면 Supabase chat_msg(summary + msg_data)로 보완
         const content = data?.cnslContent ?? data?.cnsl_content ?? '';
         if (!String(content).trim()) {
@@ -431,19 +447,36 @@ const CounselorCounselDetail = () => {
               .maybeSingle();
             content = getContentFromChatMsg(msgRow);
           }
-          setCounselDetail({
+          const detail = {
             cnsl_title: regRow.cnsl_title,
             cnsl_content: content,
             user_nickname: '',
             cnsler_name: '',
             cnsl_stat: statToLabel(regRow.cnsl_stat),
             created_at: regRow.created_at,
-          });
+          };
+          setCounselDetail(detail);
           setCnslMeta({
             cnsler_id: regRow.cnsler_id,
             cnsl_date: regRow.cnsl_dt,
             cnsl_start_time: regRow.cnsl_start_time,
           });
+
+          // fallback 경로에서도 자동 라우팅 처리
+          try {
+            const tp = regRow.cnsl_tp;
+            const statCode = regRow.cnsl_stat;
+            if ((tp === '4' || tp === '5') && statCode === 'B' && regRow.cnsl_dt && regRow.cnsl_start_time) {
+              const start = new Date(`${regRow.cnsl_dt}T${String(regRow.cnsl_start_time).slice(0, 8)}`);
+              if (start <= new Date()) {
+                if (tp === '4') navigate(`/chat/cnslchat/${id}`);
+                else if (tp === '5') navigate(`/chat/visualchat/${id}`);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('상담 자동 라우팅 판단 실패(fallback):', e);
+          }
         } catch (supabaseErr) {
           console.error('Supabase fallback 실패:', supabaseErr);
           setCounselDetail(null);
