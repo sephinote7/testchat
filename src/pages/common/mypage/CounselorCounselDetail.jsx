@@ -501,6 +501,13 @@ const CounselorCounselDetail = () => {
       : [],
   };
 
+  // 예약 일시 표기용 (날짜 + 시:분)
+  const displayDateTime =
+    displayData.date &&
+    (cnslMeta?.cnsl_start_time
+      ? `${displayData.date} ${String(cnslMeta.cnsl_start_time).slice(0, 5)}`
+      : displayData.date);
+
   // 상태별 배지 색상
   const getStatusColor = () => {
     switch (displayData.status) {
@@ -687,7 +694,15 @@ const CounselorCounselDetail = () => {
         <div className="px-5 mb-6">
           <div className="bg-white rounded-2xl p-5 border border-gray-200">
             <h3 className="text-base font-bold text-gray-800 mb-2">제목 : {displayData.title}</h3>
-            <p className="text-sm text-gray-600 mb-4">예약자 : {displayData.requester}</p>
+            <p className="text-sm text-gray-600 mb-4">
+              예약자 : {displayData.requester}
+              {displayDateTime && (
+                <span className="ml-1 text-gray-500">
+                  {' '}
+                  / 예약일시 : {displayDateTime}
+                </span>
+              )}
+            </p>
             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
               {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
             </p>
@@ -765,7 +780,15 @@ const CounselorCounselDetail = () => {
               </h2>
               <div className="bg-gray-50 rounded-2xl p-8 border border-gray-100">
                 <h3 className="text-lg font-bold text-gray-800 mb-2">{displayData.title}</h3>
-                <p className="text-gray-500 mb-6 border-b pb-4">예약자: {displayData.requester}</p>
+                <p className="text-gray-500 mb-6 border-b pb-4">
+                  예약자: {displayData.requester}
+                  {displayDateTime && (
+                    <span className="ml-2 text-gray-400">
+                      {' '}
+                      / 예약일시 : {displayDateTime}
+                    </span>
+                  )}
+                </p>
                 <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                   {displayData.content?.trim() ? displayData.content : '저장된 상담 내용이 없습니다.'}
                 </p>
