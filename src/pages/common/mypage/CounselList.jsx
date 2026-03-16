@@ -75,12 +75,17 @@ const CounselList = () => {
     return dateString.split('T')[0].replace(/-/g, '.');
   };
 
-  // 전문가 상담 내역 상태 색상 (상담사 리스트 /system/info/counsel-history-list 참고)
-  // 상담 이전(예약 대기·예약 완료·진행 중·종료 중) → 주황, 상담 완료 → 녹색
+  // 전문가 상담 내역 상태별 글자/배경 색상
+  // 상담신청(파랑), 상담이전(주황), 상담완료(녹색), 상담취소(빨강)
   const getStatusStyle = (stat) => {
     const s = (stat ?? '').toString().trim();
-    const isCompleted = s === 'D' || s === '상담 완료' || s.includes('상담 완료');
-    if (isCompleted) return { text: 'text-green-600', bg: 'bg-green-100' };
+    // 상담취소 → 빨강
+    if (s.includes('취소') || s === 'X' || s === 'F') return { text: 'text-red-600', bg: 'bg-red-100' };
+    // 상담완료 → 녹색
+    if (s === 'D' || s.includes('완료')) return { text: 'text-green-600', bg: 'bg-green-100' };
+    // 상담신청(예약 대기) → 파랑
+    if (s === 'A' || s.includes('신청') || s.includes('예약 대기')) return { text: 'text-[#2563eb]', bg: 'bg-blue-100' };
+    // 상담이전(예약 완료·진행 중·종료 중 등) → 주황
     return { text: 'text-[#ff8d28]', bg: 'bg-orange-100' };
   };
 
