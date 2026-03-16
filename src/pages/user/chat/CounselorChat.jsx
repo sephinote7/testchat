@@ -113,14 +113,11 @@ const CounselorChat = () => {
         }
 
         // 상태 코드 정규화
+        // A=대기, B=예약 완료, C=진행중, E=종료중, D=완료
         let stat =
-          String(cnslRow.cnsl_stat || 'B')
+          String(cnslRow.cnsl_stat || 'A')
             .trim()
-            .toUpperCase() || 'B';
-        // 채팅에서는 A(대기) / B(예약 완료)를 모두 "상담 진행 가능(C)" 으로 취급
-        if (stat === 'A' || stat === 'B') {
-          stat = 'C';
-        }
+            .toUpperCase() || 'A';
         setCnslStat(stat);
         const member_id = cnslRow.member_id || '';
         const cnsler_id = cnslRow.cnsler_id || '';
@@ -392,9 +389,19 @@ const CounselorChat = () => {
     }
   };
 
-  // 텍스트 채팅에서는 별도의 A→C 전환 플로우가 필요 없으므로,
-  // 상담 시작 버튼은 더 이상 사용하지 않는다. (기능은 남겨두되 no-op 처리)
-  const handleStartCounseling = async () => {};
+  const handleStartCounseling = async () => {
+    if (cnslStat === 'C' || isStarting || me?.role !== 'SYSTEM') return;
+    setIsStarting(true);
+    try {
+      const ok = await updateCnslStatApi('C');
+      if (!ok) setEndError('상담 시작 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } catch (err) {
+      console.warn('상담 시작 실패:', err);
+      setEndError('상담 시작 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsStarting(false);
+    }
+  };
 
   const handleEndCounseling = async () => {
     if (cnslStat !== 'C' || isEnding) return;
@@ -544,10 +551,10 @@ const CounselorChat = () => {
   const peer = other || { nickname: '상담사', profile: '' };
   const infoToShow = other;
   const infoLabel = other?.role === 'SYSTEM' ? '상담사 정보' : '상담자 정보';
-  // 채팅 입력은 C(진행 중) 뿐 아니라, 종료 중(E) / 종료(D)가 아닐 때 모두 허용
-  const isInputDisabled = cnslStat === 'D' || cnslStat === 'E' || isEnding;
-  // 헤더 문구 및 안내용 플래그: 종료 상태만 구분
-  const isBeforeStart = false;
+  // 채팅 입력은 C(진행 중)에서만 허용
+  const isInputDisabled = cnslStat !== 'C' || cnslStat === 'E' || cnslStat === 'D' || isEnding || isStarting;
+  // 헤더/안내용 플래그
+  const isBeforeStart = cnslStat === 'A' || cnslStat === 'B';
   const isEnded = cnslStat === 'D';
   const isEndingState = cnslStat === 'E' || isEnding; // E=종료 중 (양쪽 동기화)
 
@@ -615,9 +622,28 @@ const CounselorChat = () => {
             <div className="flex-1 min-h-0 flex flex-col overflow-y-auto p-3">
               {infoToShow && (
                 <>
-                  <h2 className="text-base font-semibold text-gray-800 mb-1">{infoLabel}</h2>
-                  <p className="text-sm font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
-                  {infoToShow.mbti && <p className="text-xs text-[#6b7280]">MBTI: {infoToShow.mbti}</p>}
+                  <h2 className="text-base font-semibold text-gray-800 mb-2">{infoLabel}</h2>
+                  <div className="flex items-center gap-3 mb-2">
+                    {infoToShow.imgUrl ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
+                        <img
+                          src={infoToShow.imgUrl}
+                          alt={infoToShow.nickname || infoToShow.email || '프로필'}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#e5edff] text-[#2563eb] flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {(infoToShow.nickname || infoToShow.email || '?').slice(0, 1)}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
+                      {infoToShow.mbti && (
+                        <p className="text-xs text-[#6b7280] mt-0.5">MBTI: {infoToShow.mbti}</p>
+                      )}
+                    </div>
+                  </div>
                   {(infoToShow.persona || infoToShow.profile) && (
                     <div className="mt-1 overflow-y-auto text-xs text-[#374151] leading-relaxed">
                       {infoToShow.persona || infoToShow.profile}
@@ -640,8 +666,10 @@ const CounselorChat = () => {
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 종료 중...</p>
               ) : isStarting ? (
                 <p className="text-sm text-[#6b7280] py-4 text-center">상담 시작 중...</p>
-              ) : isBeforeStart && me?.role === 'USER' ? (
-                <p className="text-sm text-[#6b7280] py-4 text-center">상담 시작까지 조금 기다려 주세요.</p>
+              ) : isBeforeStart ? (
+                <p className="text-sm text-[#6b7280] py-4 text-center">
+                  {me?.role === 'SYSTEM' ? '상담 시작 버튼을 눌러 상담을 시작해 주세요.' : '상담사가 상담을 시작할 때까지 기다려 주세요.'}
+                </p>
               ) : chatMessages.length === 0 ? (
                 <p className="text-xs text-[#9ca3af]">메시지를 입력해 주세요.</p>
               ) : (
@@ -739,10 +767,29 @@ const CounselorChat = () => {
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 text-sm text-[#374151]">
                   {infoToShow && (
                     <>
-                      <p className="font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
-                      {infoToShow.mbti && <p className="text-[#6b7280] mt-1">MBTI: {infoToShow.mbti}</p>}
+                      <div className="flex items-center gap-3 mb-2">
+                        {infoToShow.imgUrl ? (
+                          <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
+                            <img
+                              src={infoToShow.imgUrl}
+                              alt={infoToShow.nickname || infoToShow.email || '프로필'}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-[#e5edff] text-[#2563eb] flex items-center justify-center text-base font-bold flex-shrink-0">
+                            {(infoToShow.nickname || infoToShow.email || '?').slice(0, 1)}
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">{infoToShow.nickname || infoToShow.email}</p>
+                          {infoToShow.mbti && (
+                            <p className="text-[#6b7280] mt-1 text-sm">MBTI: {infoToShow.mbti}</p>
+                          )}
+                        </div>
+                      </div>
                       {(infoToShow.persona || infoToShow.profile) && (
-                        <p className="mt-2 leading-relaxed whitespace-pre-line">
+                        <p className="mt-1 leading-relaxed whitespace-pre-line">
                           {infoToShow.persona || infoToShow.profile}
                         </p>
                       )}
@@ -766,8 +813,10 @@ const CounselorChat = () => {
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 종료 중...</p>
                 ) : isStarting ? (
                   <p className="text-base text-[#6b7280] py-8 text-center">상담 시작 중...</p>
-                ) : isBeforeStart && me?.role === 'USER' ? (
-                  <p className="text-base text-[#6b7280] py-8 text-center">상담 시작까지 조금 기다려 주세요.</p>
+                ) : isBeforeStart ? (
+                  <p className="text-base text-[#6b7280] py-8 text-center">
+                    {me?.role === 'SYSTEM' ? '상담 시작 버튼을 눌러 상담을 시작해 주세요.' : '상담사가 상담을 시작할 때까지 기다려 주세요.'}
+                  </p>
                 ) : chatMessages.length === 0 ? (
                   <p className="text-sm text-[#9ca3af]">메시지를 입력해 주세요.</p>
                 ) : (

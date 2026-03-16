@@ -1500,19 +1500,34 @@ const VisualChat = () => {
                 </div>
               )}
               <div className="shrink-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={`inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold ${
-                      peerRoleLabel === 'SYSTEM'
-                        ? 'bg-[#eef2ff] text-[#4f46e5]'
-                        : 'bg-[#ecfdf5] text-[#047857]'
-                    }`}
-                  >
-                    {roleDisplayLabel(peerRoleLabel)}
-                  </span>
-                  <span className="font-semibold text-2xl text-gray-800">
-                    {peer.nickname}
-                  </span>
+                <div className="flex items-center gap-3 mb-2">
+                  {peer.imgUrl ? (
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
+                      <img
+                        src={peer.imgUrl}
+                        alt={peer.nickname || peer.email || '프로필'}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#e5edff] text-[#2563eb] flex items-center justify-center text-sm font-bold flex-shrink-0">
+                      {(peer.nickname || peer.email || '?').slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center justify-center px-2 py-[2px] rounded-full text-[10px] font-semibold ${
+                        peerRoleLabel === 'SYSTEM'
+                          ? 'bg-[#eef2ff] text-[#4f46e5]'
+                          : 'bg-[#ecfdf5] text-[#047857]'
+                      }`}
+                    >
+                      {roleDisplayLabel(peerRoleLabel)}
+                    </span>
+                    <span className="font-semibold text-2xl text-gray-800">
+                      {peer.nickname}
+                    </span>
+                  </div>
                 </div>
                 {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
                   <p className="text-[12px] mt-1 leading-relaxed whitespace-pre-line text-[#374151]">
@@ -1681,19 +1696,34 @@ const VisualChat = () => {
                   ) : null}
                   {/* 상담자/상담사 정보 - 1:1 비율, 최소 높이로 내용 잘림 방지 */}
                   <div className="flex-1 min-h-[180px] flex flex-col overflow-hidden">
-                    <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-2 shrink-0">
-                      <span
-                        className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
-                          peerRoleLabel === 'SYSTEM'
-                            ? 'bg-[#eef2ff] text-[#4f46e5]'
-                            : 'bg-[#ecfdf5] text-[#047857]'
-                        }`}
-                      >
-                        {roleDisplayLabel(peerRoleLabel)}
-                      </span>
-                      <span className="font-semibold text-2xl text-gray-800">
-                        {peer.nickname}
-                      </span>
+                    <div className="px-4 py-3 border-b border-[#e5e7eb] flex items-center gap-3 shrink-0">
+                      {peer.imgUrl ? (
+                        <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
+                          <img
+                            src={peer.imgUrl}
+                            alt={peer.nickname || peer.email || '프로필'}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-[#e5edff] text-[#2563eb] flex items-center justify-center text-base font-bold flex-shrink-0">
+                          {(peer.nickname || peer.email || '?').slice(0, 1)}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center justify-center px-2.5 py-[3px] rounded-full text-[11px] font-semibold ${
+                            peerRoleLabel === 'SYSTEM'
+                              ? 'bg-[#eef2ff] text-[#4f46e5]'
+                              : 'bg-[#ecfdf5] text-[#047857]'
+                          }`}
+                        >
+                          {roleDisplayLabel(peerRoleLabel)}
+                        </span>
+                        <span className="font-semibold text-2xl text-gray-800">
+                          {peer.nickname}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-3 text-sm text-[#374151]">
                       {peerRoleLabel === 'SYSTEM' && systemMember.profile && (
