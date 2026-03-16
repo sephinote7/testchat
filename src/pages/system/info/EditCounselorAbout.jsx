@@ -47,7 +47,9 @@ const EditCounselorAbout = () => {
   };
 
   const removeCertification = (index) => {
-    const newCertifications = formData.certifications.filter((_, i) => i !== index);
+    const newCertifications = formData.certifications.filter(
+      (_, i) => i !== index,
+    );
     setFormData({ ...formData, certifications: newCertifications });
   };
 
@@ -56,8 +58,16 @@ const EditCounselorAbout = () => {
     setFormData({ ...formData, otherInfo: newOtherInfo });
   };
 
-  const handleSubmit = () => {
-    setShowSuccessModal(true);
+  const handleSubmit = async () => {
+    try {
+      await editInfo({
+        profile: formData.profile || null,
+      });
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('프로필 수정 오류: ', error);
+      alert('프로필 수정에 실패했습니다: ' + error.message);
+    }
   };
 
   const handleModalAction = (action) => {
@@ -103,7 +113,9 @@ const EditCounselorAbout = () => {
             <select
               className="px-3 py-2 border border-gray-300 rounded text-sm sm:text-base"
               value={formData.fontStyle}
-              onChange={(e) => setFormData({ ...formData, fontStyle: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, fontStyle: e.target.value })
+              }
             >
               <option value="본문">본문</option>
               <option value="제목">제목</option>
@@ -113,7 +125,9 @@ const EditCounselorAbout = () => {
             <select
               className="px-3 py-2 border border-gray-300 rounded text-sm sm:text-base"
               value={formData.fontSize}
-              onChange={(e) => setFormData({ ...formData, fontSize: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, fontSize: e.target.value })
+              }
             >
               <option value="10px">10px</option>
               <option value="12px">12px</option>
@@ -132,8 +146,18 @@ const EditCounselorAbout = () => {
                 formData.textAlign === 'left' ? 'bg-blue-100' : 'bg-gray-100'
               } hover:bg-blue-50 transition`}
             >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h16" />
+              <svg
+                className="w-5 h-5 sm:w-6 sm:h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h10M4 18h16"
+                />
               </svg>
             </button>
             <button
@@ -142,8 +166,18 @@ const EditCounselorAbout = () => {
                 formData.textAlign === 'center' ? 'bg-blue-100' : 'bg-gray-100'
               } hover:bg-blue-50 transition`}
             >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg
+                className="w-5 h-5 sm:w-6 sm:h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
             <button
@@ -152,8 +186,18 @@ const EditCounselorAbout = () => {
                 formData.textAlign === 'right' ? 'bg-blue-100' : 'bg-gray-100'
               } hover:bg-blue-50 transition`}
             >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M10 12h10M4 18h16" />
+              <svg
+                className="w-5 h-5 sm:w-6 sm:h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M10 12h10M4 18h16"
+                />
               </svg>
             </button>
           </div>
@@ -169,7 +213,12 @@ const EditCounselorAbout = () => {
             style={{
               textAlign: formData.textAlign,
               fontSize: formData.fontSize,
-              fontWeight: formData.fontStyle === '제목' ? 'bold' : formData.fontStyle === '부제목' ? '600' : 'normal',
+              fontWeight:
+                formData.fontStyle === '제목'
+                  ? 'bold'
+                  : formData.fontStyle === '부제목'
+                    ? '600'
+                    : 'normal',
             }}
             value={formData.profile}
             onChange={(e) =>
@@ -217,12 +266,20 @@ const EditCounselorAbout = () => {
                     />
                   </svg>
                 </div>
-                <div className="text-sm sm:text-base text-gray-600">Healing Theraphy</div>
-                <div className="text-lg sm:text-xl font-bold text-gray-800">고민순삭</div>
+                <div className="text-sm sm:text-base text-gray-600">
+                  Healing Theraphy
+                </div>
+                <div className="text-lg sm:text-xl font-bold text-gray-800">
+                  고민순삭
+                </div>
               </div>
 
-              <h3 className="text-xl sm:text-2xl font-bold mb-2">정보 수정 완료</h3>
-              <p className="text-gray-600 mb-6 text-sm sm:text-base">정보 수정이 완료되었습니다!</p>
+              <h3 className="text-xl sm:text-2xl font-bold mb-2">
+                정보 수정 완료
+              </h3>
+              <p className="text-gray-600 mb-6 text-sm sm:text-base">
+                정보 수정이 완료되었습니다!
+              </p>
 
               <div className="w-full space-y-3 sm:space-y-0 sm:flex sm:gap-3">
                 <button
