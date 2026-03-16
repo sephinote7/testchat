@@ -39,6 +39,7 @@ const CounselorCounselDetail = () => {
   // 상태 관리
   const [counselDetail, setCounselDetail] = useState(null); // 초기값 null
   const [contentFromSupabase, setContentFromSupabase] = useState(null); // Spring에 cnsl_content 없을 때 chat_msg 요약
+  const [cnslMeta, setCnslMeta] = useState(null); // cnsler_id, cnsl_date, cnsl_start_time
   const [loading, setLoading] = useState(true);
 
   // 모달 상태
@@ -190,8 +191,12 @@ const CounselorCounselDetail = () => {
     if (!id || !counselDetail) return;
     try {
       const body = {
+        // 백엔드 CnslModiReqDto 요구 필드 5개 모두 전달
+        cnsler_id: cnslMeta?.cnsler_id ?? undefined,
         cnsl_title: counselDetail.cnslTitle ?? counselDetail.cnsl_title ?? undefined,
         cnsl_content: counselDetail.cnslContent ?? counselDetail.cnsl_content ?? undefined,
+        cnsl_date: cnslMeta?.cnsl_date ?? undefined,
+        cnsl_start_time: cnslMeta?.cnsl_start_time ?? undefined,
       };
       const res = await fetch(`${API_BASE_URL}/api/cnslReg_update/${id}`, {
         method: 'PATCH',
@@ -266,6 +271,25 @@ const CounselorCounselDetail = () => {
       try {
         const data = await getCnslDetail(cnslIdNum);
         setCounselDetail(data);
+
+        // Supabase cnsl_reg에서 메타데이터(cnsler_id, cnsl_date, cnsl_start_time) 조회
+        try {
+          const { data: regRow } = await supabase
+            .from('cnsl_reg')
+            .select('cnsl_id, cnsler_id, cnsl_dt, cnsl_start_time')
+            .eq('cnsl_id', cnslIdNum)
+            .maybeSingle();
+          if (regRow) {
+            setCnslMeta({
+              cnsler_id: regRow.cnsler_id,
+              cnsl_date: regRow.cnsl_dt,
+              cnsl_start_time: regRow.cnsl_start_time,
+            });
+          }
+        } catch (metaErr) {
+          console.error('Supabase 메타데이터 조회 실패:', metaErr);
+        }
+
         // Spring에 상담 내용이 비어 있으면 Supabase chat_msg(summary + msg_data)로 보완
         const content = data?.cnslContent ?? data?.cnsl_content ?? '';
         if (!String(content).trim()) {
@@ -283,7 +307,7 @@ const CounselorCounselDetail = () => {
         try {
           const { data: regRow, error: regErr } = await supabase
             .from('cnsl_reg')
-            .select('cnsl_id, cnsl_title, cnsl_content, cnsl_stat, created_at, member_id, cnsler_id')
+            .select('cnsl_id, cnsl_title, cnsl_content, cnsl_stat, cnsl_dt, cnsl_start_time, created_at, member_id, cnsler_id')
             .eq('cnsl_id', cnslIdNum)
             .maybeSingle();
           if (regErr || !regRow) {
@@ -291,7 +315,11 @@ const CounselorCounselDetail = () => {
             return;
           }
           // 상담 신청인(member_id)과 로그인 사용자가 다르면 비공개 (이메일이 있을 때만 검사)
-          if (currentUserEmail && regRow.member_id && String(regRow.member_id).trim() !== String(currentUserEmail).trim()) {
+          if (
+            currentUserEmail &&
+            regRow.member_id &&
+            String(regRow.member_id).trim() !== String(currentUserEmail).trim()
+          ) {
             setCounselDetail(null);
             return;
           }
@@ -311,6 +339,11 @@ const CounselorCounselDetail = () => {
             cnsler_name: '',
             cnsl_stat: statToLabel(regRow.cnsl_stat),
             created_at: regRow.created_at,
+          });
+          setCnslMeta({
+            cnsler_id: regRow.cnsler_id,
+            cnsl_date: regRow.cnsl_dt,
+            cnsl_start_time: regRow.cnsl_start_time,
           });
         } catch (supabaseErr) {
           console.error('Supabase fallback 실패:', supabaseErr);
