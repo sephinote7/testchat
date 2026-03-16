@@ -338,6 +338,7 @@ const CounselorView = () => {
               )}
               <h2 className="mt-3 text-[18px] font-bold text-[#111827]">{counselor?.nickname} 상담사</h2>
               {/* <p className="text-[12px] text-[#6b7280]">{counselor?.tags.map((tag) => `#${tag}`).join(' ')}</p> */}
+              <p className="text-[12px] text-[#6b7280] mt-1">상담 건수 : {counselor?.cnslCnt ?? 0}건</p>
               <div className="flex items-center gap-1 text-[12px] text-[#f59e0b] mt-2">
                 <div className="flex flex-row text-point items-center">{renderStars(counselor?.avgEvalPt || 0)}</div>
                 <span className="text-[#6b7280]">({counselor?.cnslCnt})</span>
@@ -759,6 +760,7 @@ const CounselorView = () => {
                 <div className="flex-1">
                   <h1 className="text-4xl font-bold text-gray-800 mb-2">{counselor?.nickname} 상담사</h1>
                   {/* <p className="text-lg text-gray-600 mb-4">{counselor?.tags.map((tag) => `#${tag}`).join(' ')}</p> */}
+                  <p className="text-base text-gray-600 mb-2">상담 건수 : {counselor?.cnslCnt ?? 0}건</p>
                   <div className="flex items-center gap-3 text-xl">
                     <div className="flex flex-row text-point items-center">
                       {renderStars(counselor?.avgEvalPt || 0)}

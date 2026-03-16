@@ -2,12 +2,38 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getCnslDetail } from '../../../api/myCnslDetail';
 import useAuth from '../../../hooks/useAuth';
+import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
+
+/** chat_msg.summary 또는 msg_data.content에서 상담 내용 텍스트 추출 */
+function getContentFromChatMsg(msgRow) {
+  if (!msgRow) return '';
+  let text = '';
+  if (msgRow.summary) {
+    try {
+      const parsed = typeof msgRow.summary === 'string' ? JSON.parse(msgRow.summary) : msgRow.summary;
+      text = (parsed?.summary ?? parsed?.summary_line ?? '').trim() || '';
+    } catch {
+      text = String(msgRow.summary).trim();
+    }
+  }
+  if (!text && msgRow.msg_data?.content && Array.isArray(msgRow.msg_data.content)) {
+    const lines = msgRow.msg_data.content
+      .filter((m) => m?.text)
+      .map((m) => {
+        const who = m.speaker === 'user' || m.role === 'user' ? '신청인' : '상담사';
+        return `[${who}] ${String(m.text).trim()}`;
+      });
+    text = lines.join('\n');
+  }
+  return text || '';
+}
 
 const CounselorCounselDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { accessToken: token } = useAuth();
+  const currentUserEmail = useAuthStore((s) => s.email);
 
   // 상태 관리
   const [counselDetail, setCounselDetail] = useState(null); // 초기값 null
@@ -147,27 +173,20 @@ const CounselorCounselDetail = () => {
       try {
         const data = await getCnslDetail(cnslIdNum);
         setCounselDetail(data);
-        // Spring에 상담 내용이 비어 있으면 Supabase chat_msg 요약으로 보완
+        // Spring에 상담 내용이 비어 있으면 Supabase chat_msg(summary + msg_data)로 보완
         const content = data?.cnslContent ?? data?.cnsl_content ?? '';
         if (!String(content).trim()) {
           const { data: msgRow } = await supabase
             .from('chat_msg')
-            .select('summary')
+            .select('summary, msg_data')
             .eq('cnsl_id', cnslIdNum)
             .maybeSingle();
-          if (msgRow?.summary) {
-            try {
-              const parsed = typeof msgRow.summary === 'string' ? JSON.parse(msgRow.summary) : msgRow.summary;
-              const text = parsed?.summary ?? parsed?.summary_line ?? String(msgRow.summary);
-              setContentFromSupabase(text?.trim() || null);
-            } catch {
-              setContentFromSupabase(String(msgRow.summary).trim() || null);
-            }
-          }
+          const text = getContentFromChatMsg(msgRow);
+          if (text) setContentFromSupabase(text);
         }
       } catch (error) {
         console.error('데이터 로드 실패 (Spring):', error);
-        // 404 등 실패 시 Supabase에서 상담 내역 조회
+        // 404 등 실패 시 Supabase에서 상담 내역 조회 (상담 신청인 본인만 노출)
         try {
           const { data: regRow, error: regErr } = await supabase
             .from('cnsl_reg')
@@ -178,19 +197,19 @@ const CounselorCounselDetail = () => {
             setCounselDetail(null);
             return;
           }
-          const { data: msgRow } = await supabase
-            .from('chat_msg')
-            .select('summary')
-            .eq('cnsl_id', cnslIdNum)
-            .maybeSingle();
+          // 상담 신청인(member_id)만 본인 건 조회 가능
+          if (currentUserEmail && regRow.member_id && regRow.member_id !== currentUserEmail) {
+            setCounselDetail(null);
+            return;
+          }
           let content = regRow.cnsl_content?.trim() ?? '';
-          if (!content && msgRow?.summary) {
-            try {
-              const parsed = typeof msgRow.summary === 'string' ? JSON.parse(msgRow.summary) : msgRow.summary;
-              content = parsed?.summary ?? parsed?.summary_line ?? String(msgRow.summary);
-            } catch {
-              content = String(msgRow.summary);
-            }
+          if (!content) {
+            const { data: msgRow } = await supabase
+              .from('chat_msg')
+              .select('summary, msg_data')
+              .eq('cnsl_id', cnslIdNum)
+              .maybeSingle();
+            content = getContentFromChatMsg(msgRow);
           }
           setCounselDetail({
             cnsl_title: regRow.cnsl_title,
@@ -210,7 +229,7 @@ const CounselorCounselDetail = () => {
     };
 
     fetchDetail();
-  }, [id, token]);
+  }, [id, token, currentUserEmail]);
 
   // 로딩 중 처리
   if (loading) return <div className="text-center py-20">데이터를 불러오는 중입니다...</div>;
