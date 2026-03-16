@@ -393,6 +393,7 @@ const CounselorCounselDetail = () => {
         setCounselDetail(data);
 
         // Supabase cnsl_reg에서 메타데이터(cnsler_id, cnsl_date, cnsl_start_time) 조회
+        let regRowForLogic = null;
         try {
           const { data: regRow } = await supabase
             .from('cnsl_reg')
@@ -400,6 +401,7 @@ const CounselorCounselDetail = () => {
             .eq('cnsl_id', cnslIdNum)
             .maybeSingle();
           if (regRow) {
+            regRowForLogic = regRow;
             setCnslMeta({
               cnsler_id: regRow.cnsler_id,
               cnsl_date: regRow.cnsl_dt,
@@ -412,9 +414,14 @@ const CounselorCounselDetail = () => {
           console.error('Supabase 메타데이터 조회 실패:', metaErr);
         }
 
+        // 채팅 상담(4) + 완료(D)인 경우에는 상담 내용 유무와 상관없이 채팅 내역을 표시한다.
+        const tp = regRowForLogic?.cnsl_tp != null ? String(regRowForLogic.cnsl_tp).trim() : '';
+        const stat = regRowForLogic?.cnsl_stat != null ? String(regRowForLogic.cnsl_stat).trim().toUpperCase() : '';
+        const shouldLoadTranscript = tp === '4' && stat === 'D';
+
         // Spring에 상담 내용이 비어 있으면 Supabase chat_msg(summary + msg_data)로 보완
         const content = data?.cnslContent ?? data?.cnsl_content ?? '';
-        if (!String(content).trim()) {
+        if (shouldLoadTranscript || !String(content).trim()) {
           const { data: msgRow } = await supabase
             .from('chat_msg')
             .select('summary, msg_data')
@@ -448,13 +455,17 @@ const CounselorCounselDetail = () => {
             return;
           }
           let content = regRow.cnsl_content?.trim() ?? '';
-          if (!content) {
+          const tp = regRow?.cnsl_tp != null ? String(regRow.cnsl_tp).trim() : '';
+          const stat = regRow?.cnsl_stat != null ? String(regRow.cnsl_stat).trim().toUpperCase() : '';
+          const shouldLoadTranscript = tp === '4' && stat === 'D';
+
+          if (shouldLoadTranscript || !content) {
             const { data: msgRow } = await supabase
               .from('chat_msg')
               .select('summary, msg_data')
               .eq('cnsl_id', cnslIdNum)
               .maybeSingle();
-            content = getContentFromChatMsg(msgRow);
+            if (!content) content = getContentFromChatMsg(msgRow);
             const transcript = getTranscriptFromChatMsg(msgRow);
             if (transcript.length) setChatTranscript(transcript);
           }
