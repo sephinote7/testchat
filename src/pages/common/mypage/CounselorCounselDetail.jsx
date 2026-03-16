@@ -69,7 +69,6 @@ const CounselorCounselDetail = () => {
   };
 
   const handleCancelClick = () => {
-    // 프론트에서는 단순히 API 호출만 위임 (가능 여부는 백엔드에서 최종 검증)
     console.log('handleCancelClick', id);
     fetchCancel();
   };
@@ -149,15 +148,8 @@ const CounselorCounselDetail = () => {
         } catch {
           // ignore
         }
-        console.error('상담 취소 실패 응답:', {
-          status: res.status,
-          body: errorBody,
-        });
-        if (res.status === 401) {
-          alert('로그인이 필요합니다. 다시 로그인 후 이용해 주세요.');
-        } else {
-          alert('상담 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-        }
+        console.error('상담 취소 실패 응답:', { status: res.status, body: errorBody });
+        alert('상담 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
       setShowCancelCompleteModal(true);
@@ -198,15 +190,8 @@ const CounselorCounselDetail = () => {
         } catch {
           // ignore
         }
-        console.error('상담 수정 실패 응답:', {
-          status: res.status,
-          body: errorBody,
-        });
-        if (res.status === 401) {
-          alert('로그인이 필요합니다. 다시 로그인 후 이용해 주세요.');
-        } else {
-          alert('상담 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-        }
+        console.error('상담 수정 실패 응답:', { status: res.status, body: errorBody });
+        alert('상담 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
       setShowEditCompleteModal(true);
