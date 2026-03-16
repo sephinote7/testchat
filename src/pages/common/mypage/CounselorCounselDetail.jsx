@@ -131,7 +131,10 @@ const CounselorCounselDetail = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/cnslReg_cancel/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: 'include',
       });
       if (!res.ok) {
@@ -158,7 +161,10 @@ const CounselorCounselDetail = () => {
       };
       const res = await fetch(`${API_BASE_URL}/api/cnslReg_update/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify(body),
       });

@@ -130,6 +130,33 @@ const CounselorList = () => {
     fetchCounselors();
   }, [selectedCategories, selectedMethods, selectedPriceRanges, page]);
 
+  // 상담 방식(전화/채팅/화상/방문/게시판) 클라이언트 사이드 보정 필터
+  const filteredCounselors = useMemo(() => {
+    if (!Array.isArray(counselors) || counselors.length === 0) return [];
+    if (selectedMethods.length === 0) return counselors;
+
+    const hasMethod = (item, methodId) => {
+      switch (methodId) {
+        case 'board':
+          return !!item?.cnsl1Price;
+        case 'phone':
+          return !!item?.cnsl2Price;
+        case 'chat':
+          return !!item?.cnsl4Price;
+        case 'video':
+          return !!item?.cnsl5Price;
+        case 'visit':
+          return !!item?.cnsl6Price;
+        default:
+          return true;
+      }
+    };
+
+    return counselors.filter((item) =>
+      selectedMethods.some((m) => hasMethod(item, m)),
+    );
+  }, [counselors, selectedMethods]);
+
   // 필터 토글 함수들
   const toggleCategory = (cat) => {
     setSelectedCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
@@ -425,12 +452,12 @@ const CounselorList = () => {
             <div>
               {/* 상담사 목록 */}
               <section className="flex flex-col gap-6">
-                {counselors.length === 0 ? (
+                {filteredCounselors.length === 0 ? (
                   <div className="text-lg text-gray-600 text-center py-20 bg-white rounded-2xl shadow-sm">
                     선택한 필터에 해당하는 상담사가 없습니다.
                   </div>
                 ) : (
-                  counselors?.map((item) => (
+                  filteredCounselors?.map((item) => (
                     <Link
                       key={item?.memberId}
                       to={`/chat/counselor/${item?.memberId}`}
