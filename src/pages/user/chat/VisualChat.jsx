@@ -479,6 +479,73 @@ const VisualChat = () => {
       };
     });
 
+  // PeerJS call 객체에 원격 스트림 핸들러 결합 (stream 이벤트 + RTCPeerConnection track 이벤트 폴백)
+  const attachRemoteStreamHandlers = (call) => {
+    if (!call) return;
+
+    // 기존 PeerJS stream 이벤트 (정상 동작하는 환경용)
+    call.on('stream', (remote) => {
+      console.log('[VC onStream]', {
+        sideRole: me?.role,
+        hasVideo: remote.getVideoTracks().length,
+        hasAudio: remote.getAudioTracks().length,
+      });
+      setRemoteStream(remote);
+      tryStartCompositeRecordingOnce(
+        mediaStreamRef,
+        remoteStreamRef,
+        videoRecordedChunksRef,
+        compositeDrawIdRef,
+        compositeCanvasRef,
+        videoRecorderRef,
+        hadVideoRecordingRef,
+      );
+    });
+
+    // 일부 브라우저/환경에서 stream 이벤트가 안 뜨는 경우를 대비해
+    // RTCPeerConnection의 ontrack 기반 폴백을 추가
+    try {
+      const pc = call.peerConnection || call._pc || null;
+      if (pc && !pc._vcTrackBound) {
+        pc._vcTrackBound = true;
+        pc.ontrack = (ev) => {
+          try {
+            const baseStream =
+              (ev.streams && ev.streams[0]) || new MediaStream([ev.track]);
+            console.log('[VC ontrack]', {
+              sideRole: me?.role,
+              kind: ev.track.kind,
+              hasVideo: baseStream.getVideoTracks().length,
+              hasAudio: baseStream.getAudioTracks().length,
+            });
+            setRemoteStream((prev) => {
+              if (!prev) return baseStream;
+              const merged = new MediaStream();
+              prev.getTracks().forEach((t) => merged.addTrack(t));
+              if (!merged.getTracks().includes(ev.track)) {
+                merged.addTrack(ev.track);
+              }
+              return merged;
+            });
+            tryStartCompositeRecordingOnce(
+              mediaStreamRef,
+              remoteStreamRef,
+              videoRecordedChunksRef,
+              compositeDrawIdRef,
+              compositeCanvasRef,
+              videoRecorderRef,
+              hadVideoRecordingRef,
+            );
+          } catch (e) {
+            console.warn('VC ontrack 처리 중 오류:', e);
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('VC attachRemoteStreamHandlers: peerConnection 접근 실패', e);
+    }
+  };
+
   // Supabase chat_msg.msg_data(JSONB)에 저장된 채팅 내역 로드
   const fetchFromSupabase = async () => {
     const cnslIdNum = parseInt(chatId, 10);
@@ -781,6 +848,9 @@ const VisualChat = () => {
         setRemoteStream(null);
         call.answer(stream);
         updateCnslStatRef.current?.('C');
+
+        // 원격 스트림 핸들러 부착 (stream + track 폴백)
+        attachRemoteStreamHandlers(call);
         // STT용 오디오는 화상 스트림과 분리해서 캡처를 시도한다.
         let recordStream = stream;
         try {
@@ -816,23 +886,7 @@ const VisualChat = () => {
             console.warn('오디오 녹음 시작 실패, 녹음 생략:', e);
           }
         }
-        call.on('stream', (remote) => {
-          console.log('[VC onStream]', {
-            sideRole: me.role,
-            hasVideo: remote.getVideoTracks().length,
-            hasAudio: remote.getAudioTracks().length,
-          });
-          setRemoteStream(remote);
-          tryStartCompositeRecordingOnce(
-            mediaStreamRef,
-            remoteStreamRef,
-            videoRecordedChunksRef,
-            compositeDrawIdRef,
-            compositeCanvasRef,
-            videoRecorderRef,
-            hadVideoRecordingRef,
-          );
-        });
+        // 기존 stream 핸들러는 attachRemoteStreamHandlers에서 처리
         call.on('close', () => {
           setRemoteStream(null);
           runCallEndCleanupRef.current?.();
@@ -990,7 +1044,8 @@ const VisualChat = () => {
             const call = peer.call(remoteId, stream);
             if (call) {
               currentCallRef.current = call;
-              call.on('stream', (remote) => setRemoteStream(remote));
+              // 원격 스트림 핸들러 부착 (stream + track 폴백)
+              attachRemoteStreamHandlers(call);
               call.on('close', () => {
                 setRemoteStream(null);
                 runCallEndCleanupRef.current?.();
