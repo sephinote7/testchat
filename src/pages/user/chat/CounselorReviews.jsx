@@ -44,48 +44,40 @@ const CounselorReviews = () => {
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
-    const pages = [];
-    const maxVisiblePages = 10;
-    let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-    if (endPage - startPage < maxVisiblePages - 1) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i += 1) {
-      pages.push(
-        <button
-          key={i}
-          type="button"
-          onClick={() => setPage(i)}
-          className={`w-8 h-8 flex items-center justify-center rounded ${
-            page === i ? 'bg-[#2563eb] text-white' : 'text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          {i}
-        </button>,
-      );
-    }
-
     return (
-      <div className="flex items-center justify-center gap-2 mt-8">
+      <div className="flex items-center justify-center gap-3 pt-8 text-base text-gray-800">
         <button
           type="button"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          className="px-6 py-3 rounded-lg border-2 border-gray-300 disabled:opacity-40 hover:bg-gray-50 transition-colors font-medium"
+          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
           disabled={page === 1}
-          className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
         >
-          &lt;
+          이전
         </button>
-        {pages}
+        {Array.from({ length: Math.min(10, totalPages) }).map((_, idx) => {
+          const pageNumber = idx + 1;
+          return (
+            <button
+              key={pageNumber}
+              type="button"
+              onClick={() => setPage(pageNumber)}
+              className={`w-12 h-12 rounded-lg border-2 text-base font-medium transition-colors ${
+                pageNumber === page
+                  ? 'bg-[#2f80ed] border-[#2f80ed] text-white'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {pageNumber}
+            </button>
+          );
+        })}
         <button
           type="button"
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          className="px-6 py-3 rounded-lg border-2 border-gray-300 disabled:opacity-40 hover:bg-gray-50 transition-colors font-medium"
+          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
           disabled={page === totalPages}
-          className="w-8 h-8 flex items-center justify-center text-gray-600 disabled:text-gray-300"
         >
-          &gt;
+          다음
         </button>
       </div>
     );

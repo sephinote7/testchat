@@ -240,7 +240,7 @@ const SignUp = () => {
 
             <div>
               <label className="block text-sm lg:text-base font-semibold lg:font-normal mb-2 text-gray-700">
-                생년월일
+                생년월일 (선택)
               </label>
               <input
                 type="text"
@@ -250,9 +250,10 @@ const SignUp = () => {
                 placeholder="생년월일을 입력해 주세요 ex)20110308"
                 className="w-full h-11 lg:h-12 rounded-xl border border-gray-300 bg-white px-4 text-sm lg:text-base lg:font-normal focus:outline-none focus:border-[#2f80ed] focus:ring-2 focus:ring-[#2f80ed]/20"
                 disabled={loading}
-                required
               />
-              <p className="mt-1 text-xs lg:text-sm text-red-600">생년월일은 '-'를 제외한 8자리 입력해주세요</p>
+              <p className="mt-1 text-xs lg:text-sm text-gray-500">
+                선택 입력 항목입니다. 입력 시 '-'를 제외한 8자리로 입력해 주세요.
+              </p>
             </div>
 
             <div>
