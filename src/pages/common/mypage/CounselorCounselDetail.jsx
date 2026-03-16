@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getCnslDetail } from '../../../api/myCnslDetail';
+import { getAvailableSlots } from '../../../api/cnslApi';
 import useAuth from '../../../hooks/useAuth';
 import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
@@ -62,6 +63,13 @@ const CounselorCounselDetail = () => {
     title: '',
     content: '',
   });
+  const [editBookedSlots, setEditBookedSlots] = useState([]);
+
+  // 정각 기준 1시간 단위 슬롯 (00:00 ~ 23:00)
+  const EDIT_TIME_SLOTS = useMemo(
+    () => Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`),
+    [],
+  );
 
   // TODO: DB 연동 시 API 호출로 대체 필요
   // - 상담 상세 정보 조회: GET /api/counsels/counselor/:id
@@ -93,7 +101,7 @@ const CounselorCounselDetail = () => {
     // 기존 값으로 수정 폼 초기화
     setEditForm({
       date: cnslMeta.cnsl_date || '',
-      time: cnslMeta.cnsl_start_time || '',
+      time: (cnslMeta.cnsl_start_time || '').slice(0, 5) || '',
       title: displayData.title || '',
       content: displayData.content || '',
     });
@@ -152,6 +160,60 @@ const CounselorCounselDetail = () => {
     // 날짜/시간은 기존 값 유지가 기본이므로 필수는 아님
     fetchUpdate();
   };
+
+  // 선택 불가 시간 계산 (오늘 과거 시간 + 이미 예약된 시간)
+  const disabledTimeSet = useMemo(() => {
+    const disabled = new Set();
+    const dateStr = editForm.date;
+    if (!dateStr) return disabled;
+
+    const now = new Date();
+    const target = new Date(`${dateStr}T00:00:00`);
+
+    // 오늘 날짜인 경우, 현재 시간 이전 슬롯 비활성화
+    if (target.toDateString() === now.toDateString()) {
+      const currentHour = now.getHours();
+      EDIT_TIME_SLOTS.forEach((slot) => {
+        const slotHour = Number(slot.split(':')[0]);
+        if (slotHour <= currentHour) {
+          disabled.add(slot);
+        }
+      });
+    }
+
+    // 예약된 슬롯 비활성화 (cnsl_start_time 기준)
+    if (editBookedSlots && Array.isArray(editBookedSlots)) {
+      editBookedSlots.forEach((slot) => {
+        const t = slot?.cnslStartTime || slot?.cnsl_start_time;
+        if (t) {
+          const hh = String(t).slice(0, 2);
+          const key = `${hh}:00`;
+          disabled.add(key);
+        }
+      });
+    }
+
+    return disabled;
+  }, [EDIT_TIME_SLOTS, editForm.date, editBookedSlots]);
+
+  // 상담사 스케줄(예약된 시간) 조회 - 수정 모달 열리거나 날짜 변경 시
+  useEffect(() => {
+    const fetchSlots = async () => {
+      if (!showEditModal) return;
+      if (!cnslMeta?.cnsler_id || !editForm.date) return;
+      try {
+        const slots = await getAvailableSlots({
+          cnsler_id: cnslMeta.cnsler_id,
+          cnsl_dt: editForm.date,
+        });
+        setEditBookedSlots(slots || []);
+      } catch (error) {
+        console.error('예약된 시간 불러오기 실패(수정 모달):', error);
+        setEditBookedSlots([]);
+      }
+    };
+    fetchSlots();
+  }, [showEditModal, cnslMeta?.cnsler_id, editForm.date]);
 
   // 백엔드 API 베이스 URL (Vite 환경 변수 사용, 없으면 상대 경로 사용)
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -220,13 +282,19 @@ const CounselorCounselDetail = () => {
   const fetchUpdate = async () => {
     if (!id || !counselDetail) return;
     try {
+      // time input 값(HH:mm)을 백엔드 LocalTime 형식(HH:mm:ss)으로 보정
+      const timeForPayload =
+        editForm.time && editForm.time.length === 5
+          ? `${editForm.time}:00`
+          : editForm.time || cnslMeta?.cnsl_start_time || undefined;
+
       const body = {
         // 백엔드 CnslModiReqDto 요구 필드 5개 모두 전달
         cnsler_id: cnslMeta?.cnsler_id ?? undefined,
         cnsl_title: editForm.title?.trim() || undefined,
         cnsl_content: editForm.content?.trim() || undefined,
-        cnsl_date: editForm.date || undefined,
-        cnsl_start_time: editForm.time || undefined,
+        cnsl_date: editForm.date || cnslMeta?.cnsl_date || undefined,
+        cnsl_start_time: timeForPayload,
       };
       const res = await fetch(`${API_BASE_URL}/api/cnslReg_update/${id}`, {
         method: 'PATCH',
@@ -477,15 +545,30 @@ const CounselorCounselDetail = () => {
               />
             </div>
 
-            {/* 시간 */}
+            {/* 시간 (정각 기준, 스케줄 기반 비활성화) */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">예약 시간</label>
-              <input
-                type="time"
+              <select
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563eb]"
                 value={editForm.time || ''}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, time: e.target.value }))}
-              />
+              >
+                <option value="">시간을 선택해 주세요 (정각 기준)</option>
+                {EDIT_TIME_SLOTS.map((slot) => {
+                  const disabled = disabledTimeSet.has(slot);
+                  return (
+                    <option
+                      key={slot}
+                      value={slot}
+                      disabled={disabled}
+                      className={disabled ? 'text-gray-400 bg-gray-100' : ''}
+                    >
+                      {slot}
+                      {disabled ? ' (선택 불가)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             {/* 제목 */}
@@ -523,6 +606,35 @@ const CounselorCounselDetail = () => {
                 className="flex-1 bg-[#2563eb] text-white rounded-lg py-2 text-sm font-semibold hover:bg-[#1d4ed8]"
               >
                 수정 완료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상담 일정 수정 완료 모달 */}
+      {showEditCompleteModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 space-y-4 text-center">
+            <h3 className="text-xl font-bold text-gray-800 mb-1">상담 일정이 수정되었습니다</h3>
+            <p className="text-sm text-gray-600 mb-4">변경된 내용이 정상적으로 반영되었습니다.</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/mypage/clist')}
+                className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm hover:bg-gray-50"
+              >
+                목록으로
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditCompleteModal(false);
+                  window.location.reload();
+                }}
+                className="flex-1 bg-[#2563eb] text-white rounded-lg py-2 text-sm font-semibold hover:bg-[#1d4ed8]"
+              >
+                확인
               </button>
             </div>
           </div>
