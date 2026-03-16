@@ -4,6 +4,7 @@ import { getCnslDetail } from '../../../api/myCnslDetail';
 import useAuth from '../../../hooks/useAuth';
 import { useAuthStore } from '../../../store/auth.store';
 import { supabase } from '../../../lib/supabase';
+import { refreshAccessToken } from '../../../axios/Auth';
 
 /** chat_msg.summary 또는 msg_data.content에서 상담 내용 텍스트 추출 */
 function getContentFromChatMsg(msgRow) {
@@ -137,20 +138,43 @@ const CounselorCounselDetail = () => {
         credentials: 'include',
       });
       if (!res.ok) {
-        let errorBody = null;
-        try {
-          const text = await res.text();
-          try {
-            errorBody = text ? JSON.parse(text) : null;
-          } catch {
-            errorBody = text || null;
+        // 401이면 accessToken 자동 갱신 후 한 번 재시도
+        if (res.status === 401) {
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            const retryRes = await fetch(`${API_BASE_URL}/api/cnslReg_cancel/${id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${newToken}`,
+              },
+              credentials: 'include',
+            });
+            if (!retryRes.ok) {
+              console.error('상담 취소 재시도 실패:', retryRes.status);
+              alert('상담 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+              return;
+            }
+          } else {
+            alert('로그인 정보가 만료되었습니다. 다시 로그인 후 이용해 주세요.');
+            return;
           }
-        } catch {
-          // ignore
+        } else {
+          let errorBody = null;
+          try {
+            const text = await res.text();
+            try {
+              errorBody = text ? JSON.parse(text) : null;
+            } catch {
+              errorBody = text || null;
+            }
+          } catch {
+            // ignore
+          }
+          console.error('상담 취소 실패 응답:', { status: res.status, body: errorBody });
+          alert('상담 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          return;
         }
-        console.error('상담 취소 실패 응답:', { status: res.status, body: errorBody });
-        alert('상담 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-        return;
       }
       setShowCancelCompleteModal(true);
       alert('상담 예약이 취소되었습니다.');
@@ -179,20 +203,43 @@ const CounselorCounselDetail = () => {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        let errorBody = null;
-        try {
-          const text = await res.text();
-          try {
-            errorBody = text ? JSON.parse(text) : null;
-          } catch {
-            errorBody = text || null;
+        if (res.status === 401) {
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            const retryRes = await fetch(`${API_BASE_URL}/api/cnslReg_update/${id}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${newToken}`,
+              },
+              credentials: 'include',
+              body: JSON.stringify(body),
+            });
+            if (!retryRes.ok) {
+              console.error('상담 수정 재시도 실패:', retryRes.status);
+              alert('상담 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+              return;
+            }
+          } else {
+            alert('로그인 정보가 만료되었습니다. 다시 로그인 후 이용해 주세요.');
+            return;
           }
-        } catch {
-          // ignore
+        } else {
+          let errorBody = null;
+          try {
+            const text = await res.text();
+            try {
+              errorBody = text ? JSON.parse(text) : null;
+            } catch {
+              errorBody = text || null;
+            }
+          } catch {
+            // ignore
+          }
+          console.error('상담 수정 실패 응답:', { status: res.status, body: errorBody });
+          alert('상담 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          return;
         }
-        console.error('상담 수정 실패 응답:', { status: res.status, body: errorBody });
-        alert('상담 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-        return;
       }
       setShowEditCompleteModal(true);
       alert('상담 일정이 수정되었습니다.');
