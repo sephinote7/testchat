@@ -542,14 +542,31 @@ const CounselorCounselDetail = () => {
 
   // 상담 시작하기 (회원 상세 페이지 → 채팅/화상 라우터)
   const handleStartCounsel = () => {
-    const tp = counselDetail.cnslTp ?? counselDetail.cnsl_tp;
+    const tpRaw = counselDetail.cnslTp ?? counselDetail.cnsl_tp ?? cnslMeta?.cnsl_tp;
+    const tp = tpRaw != null ? String(tpRaw).trim() : '';
     const statCode = rawStatusCode;
+
+    console.log('handleStartCounsel click', {
+      id,
+      tpRaw,
+      tp,
+      statCode,
+      statusDisplay,
+      cnslMeta,
+    });
+
     // 코드 B 또는 라벨이 '상담 예약 (완료)' 인 경우에만 시작 허용
-    if (!(statCode === 'B' || statusDisplay === '상담 예약 (완료)')) return;
+    if (!(statCode === 'B' || statusDisplay === '상담 예약 (완료)')) {
+      console.warn('상담 시작 불가 상태', { statCode, statusDisplay });
+      return;
+    }
+
     if (tp === '4') {
       navigate(`/chat/cnslchat/${id}`);
     } else if (tp === '5') {
       navigate(`/chat/visualchat/${id}`);
+    } else {
+      console.warn('알 수 없는 상담 타입, navigate 생략', { tpRaw, tp });
     }
   };
 
@@ -762,8 +779,8 @@ const CounselorCounselDetail = () => {
           </div>
         </div>
 
-        {/* 모바일 하단 액션 버튼 */}
-        <div className="px-5 pb-10 space-y-3">
+        {/* 모바일 하단 액션 버튼 (한 줄 배치) */}
+        <div className="px-5 pb-10">
           {(rawStatusCode === 'A' || rawStatusCode === 'B') && (
             <div className="flex gap-3">
               {rawStatusCode === 'A' && (
@@ -774,29 +791,24 @@ const CounselorCounselDetail = () => {
                   상담 수정
                 </button>
               )}
+
+              {rawStatusCode === 'B' && (
+                <button
+                  type="button"
+                  onClick={handleStartCounsel}
+                  className="flex-1 bg-[#2563eb] text-white py-3 rounded-xl font-semibold"
+                >
+                  상담 시작하기
+                </button>
+              )}
+
               <button
                 onClick={handleCancelClick}
-                className="flex-1 bg-[#2563eb] text-white py-3 rounded-xl font-semibold"
+                className="flex-1 bg-white border border-[#2563eb] text-[#2563eb] py-3 rounded-xl font-semibold"
               >
-                상담 취소
+                상담 예약 취소
               </button>
             </div>
-          )}
-          {/* 상담 시작하기 버튼: 상태 코드 B 또는 '상담 예약 (완료)' 이고, cnsl_tp = 4/5 인 경우 */}
-          {(rawStatusCode === 'B' || statusDisplay === '상담 예약 (완료)') &&
-            (counselDetail.cnslTp === '4' ||
-              counselDetail.cnslTp === '5' ||
-              counselDetail.cnsl_tp === '4' ||
-              counselDetail.cnsl_tp === '5' ||
-              cnslMeta?.cnsl_tp === '4' ||
-              cnslMeta?.cnsl_tp === '5') && (
-            <button
-              type="button"
-              onClick={handleStartCounsel}
-              className="w-full bg-[#2563eb] text-white py-3 rounded-xl font-semibold"
-            >
-              상담 시작하기
-            </button>
           )}
         </div>
       </div>
@@ -895,9 +907,9 @@ const CounselorCounselDetail = () => {
               </section>
             )}
 
-            <div className="flex flex-col items-center gap-4 pt-6">
-            {(rawStatusCode === 'A' || rawStatusCode === 'B') && (
-                <div className="flex justify-center gap-4">
+            <div className="flex justify-center pt-6">
+              {(rawStatusCode === 'A' || rawStatusCode === 'B') && (
+                <div className="flex gap-4">
                   {rawStatusCode === 'A' && (
                     <button
                       onClick={handleEditClick}
@@ -906,29 +918,24 @@ const CounselorCounselDetail = () => {
                       상담 일정 수정
                     </button>
                   )}
+
+                  {rawStatusCode === 'B' && (
+                    <button
+                      type="button"
+                      onClick={handleStartCounsel}
+                      className="px-10 py-3 bg-[#2563eb] text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+                    >
+                      상담 시작하기
+                    </button>
+                  )}
+
                   <button
                     onClick={handleCancelClick}
-                    className="px-10 py-3 bg-[#2563eb] text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+                    className="px-10 py-3 bg-white border border-[#2563eb] text-[#2563eb] rounded-xl font-bold hover:bg-blue-50 transition-colors"
                   >
                     상담 예약 취소
                   </button>
                 </div>
-              )}
-              {/* 상담 시작하기 버튼: 상태 코드 B 또는 '상담 예약 (완료)' 이고, cnsl_tp = 4/5 인 경우 */}
-              {(rawStatusCode === 'B' || statusDisplay === '상담 예약 (완료)') &&
-                (counselDetail.cnslTp === '4' ||
-                  counselDetail.cnslTp === '5' ||
-                  counselDetail.cnsl_tp === '4' ||
-                  counselDetail.cnsl_tp === '5' ||
-                  cnslMeta?.cnsl_tp === '4' ||
-                  cnslMeta?.cnsl_tp === '5') && (
-                <button
-                  type="button"
-                  onClick={handleStartCounsel}
-                  className="px-10 py-3 bg-[#2563eb] text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
-                >
-                  상담 시작하기
-                </button>
               )}
             </div>
           </div>

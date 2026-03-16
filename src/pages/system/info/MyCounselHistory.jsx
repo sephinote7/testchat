@@ -16,27 +16,25 @@ const MyCounselHistory = () => {
   useEffect(() => {
     const fetchCounsels = async () => {
       const data = await fetchCounselsByStatus({
-        page: 0,
-        size: 10,
+        // 백엔드 페이징 사용 (0-based)
+        page: currentPage - 1,
+        size: itemsPerPage,
         status: activeTab,
         cnslerId: email,
       });
 
-      console.log('test', data.content);
-      setCounselHistory(data.content);
+      console.log('counsel history page data', data);
+      setCounselHistory(data);
     };
     fetchCounsels();
   }, [activeTab, currentPage]);
 
   // 백엔드에서 status 파라미터로 이미 필터링되므로 별도 statusText 필터는 적용하지 않음
-  const filteredCounsels = counselHistory;
+  const filteredCounsels = counselHistory?.content || [];
 
-  const totalPages = Math.ceil(filteredCounsels.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = filteredCounsels.slice(
-    startIndex,
-    startIndex + itemsPerPage,
-  );
+  // Spring Page 응답의 totalPages 사용 (없으면 최소 1페이지)
+  const totalPages = counselHistory?.totalPages || 1;
+  const currentItems = filteredCounsels;
 
   // 탭 변경 시 페이지 초기화
   const handleTabChange = (tab) => {
