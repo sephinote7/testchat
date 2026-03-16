@@ -239,8 +239,8 @@ const CounselList = () => {
             )}
           </div>
 
-          {/* 페이지네이션 - 상담사 리스트와 동일 레이아웃 */}
-          {totalPages > 1 && (
+          {/* 페이지네이션 - 상담사 리스트와 동일 레이아웃 (1페이지만 있어도 노출) */}
+          {totalPages >= 1 && (
             <div className="flex items-center justify-center gap-3 pt-8 text-base text-gray-800">
               <button
                 type="button"
