@@ -78,8 +78,37 @@ const MyCounselHistory = () => {
   };
 
   const handleViewDetail = (item) => {
-    // 모든 상담은 상세 페이지로 이동
-    // MyCounselDetail.jsx에서 상태에 따라 다른 화면 렌더링
+    // 상담 시작 시간이 지났고, 수락 상태(B)이며, cnsl_tp가 4(채팅) 또는 5(화상)인 경우
+    try {
+      const now = new Date();
+      // dtTime: "YY.MM.DD HH:MM" 형식이므로 변환
+      const raw = item.dtTime; // 예: "25.03.18 17:00"
+      if (raw) {
+        const [datePart, timePart] = String(raw).split(' ');
+        const [yy, mm, dd] = datePart.split('.').map((v) => parseInt(v, 10));
+        const year = 2000 + (isNaN(yy) ? 0 : yy);
+        const month = isNaN(mm) ? 1 : mm;
+        const day = isNaN(dd) ? 1 : dd;
+        const start = new Date(year, month - 1, day, ...timePart.split(':').map((v) => parseInt(v, 10)));
+
+        const isStarted = start <= now;
+        const isAccepted = item.statusText === '상담 예정' || item.statusText === '상담 진행 중';
+        const tp = item.cnslTp || item.cnsl_tp;
+
+        if (isStarted && isAccepted && (tp === '4' || tp === '5')) {
+          if (tp === '4') {
+            navigate(`/chat/cnslchat/${item.cnslId}`);
+          } else if (tp === '5') {
+            navigate(`/chat/visualchat/${item.cnslId}`);
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('상담 시작 시간 파싱 실패:', e);
+    }
+
+    // 기본: 상담 상세 페이지로 이동
     navigate(`/system/info/counsel/${item.cnslId}`);
   };
 
