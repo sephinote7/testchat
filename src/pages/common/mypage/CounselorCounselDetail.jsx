@@ -68,29 +68,14 @@ const CounselorCounselDetail = () => {
     return stat === '상담 완료' || stat === 'D';
   };
 
-  // 예약 수정/취소 가능 여부 (1일 전까지)
-  const canEditOrCancel = () => {
-    if (!counselDetail || !counselDetail.created_at) return true;
-    const reservationDate = new Date(counselDetail.created_at);
-    const today = new Date();
-    const diffTime = reservationDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 1;
-  };
-
   const handleCancelClick = () => {
-    if (!canEditOrCancel()) {
-      setShowCannotEditModal(true);
-      return;
-    }
+    // 프론트에서는 단순히 API 호출만 위임 (가능 여부는 백엔드에서 최종 검증)
+    console.log('handleCancelClick', id);
     fetchCancel();
   };
 
   const handleEditClick = () => {
-    if (!canEditOrCancel()) {
-      setShowCannotEditModal(true);
-      return;
-    }
+    console.log('handleEditClick', id);
     fetchUpdate();
   };
 
