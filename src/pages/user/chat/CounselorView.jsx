@@ -845,7 +845,16 @@ const CounselorView = () => {
 
           {/* 상담 리뷰 */}
           <section className="bg-white rounded-2xl p-8 shadow-sm mt-8">
-            <h3 className="text-2xl font-bold mb-6 text-gray-800 border-b-2 border-gray-200 pb-3">상담 리뷰</h3>
+            <div className="flex items-center justify-between mb-6 border-b-2 border-gray-200 pb-3">
+              <h3 className="text-2xl font-bold text-gray-800">상담 리뷰</h3>
+              <button
+                type="button"
+                onClick={() => navigate(`/chat/counselor/${c_id}/reviews`)}
+                className="text-[#2563eb] text-sm font-medium hover:text-[#1d4ed8]"
+              >
+                전체 보기 +
+              </button>
+            </div>
             {reviews.length > 0 ? (
               <div className="grid grid-cols-3 gap-6 cursor-pointer">
                 {reviews.map((v, i) => (

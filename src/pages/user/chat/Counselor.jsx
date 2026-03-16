@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import CounselorList from "./CounselorList";
 import CounselorView from "./CounselorView";
+import CounselorReviews from "./CounselorReviews";
 import CounselorChat from "./CounselorChat";
 import useAuth from "../../../hooks/useAuth";
 
@@ -100,6 +101,7 @@ const Counselor = () => {
     <Routes>
       <Route index element={<CounselorList />} />
       <Route path=":c_id" element={<CounselorView />} />
+      <Route path=":c_id/reviews" element={<CounselorReviews />} />
     </Routes>
   );
 };
