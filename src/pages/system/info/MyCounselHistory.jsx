@@ -246,10 +246,17 @@ const MyCounselHistory = () => {
       <div className="hidden lg:block w-full min-h-screen bg-[#f3f7ff]">
         <div className="max-w-[1520px] mx-auto px-8 py-16">
           {/* HEADER */}
-          <div className="mb-12">
+          <div className="mb-12 flex items-center justify-between">
             <h1 className="text-4xl font-bold text-gray-800">
               내 상담 내역 관리
             </h1>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="cursor-pointer px-8 py-3 rounded-xl bg-[#2563eb] text-white text-base font-normal hover:bg-[#1d4ed8] transition-colors"
+            >
+              뒤로 가기
+            </button>
           </div>
 
           {/* 탭 */}

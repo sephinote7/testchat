@@ -75,7 +75,7 @@ const EditCounselorInfo = () => {
     fetchCounselorInfo();
   }, [accessToken]);
 
-  const availableTags = ['커리어', '취업', '고민'];
+  const availableTags = ['커리어', '취업'];
 
   const handleTagSelect = (e) => {
     const value = e.target.value;
@@ -447,25 +447,16 @@ const EditCounselorInfo = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl lg:rounded-3xl p-6 lg:p-10 max-w-sm lg:max-w-md w-full">
             <div className="flex flex-col items-center text-center">
-              {/* 로고 */}
-              <div className="mb-6 lg:mb-8">
-                <div className="w-16 h-16 lg:w-20 lg:h-20 bg-blue-100 rounded-xl lg:rounded-2xl flex items-center justify-center mb-3">
-                  <svg
-                    className="w-10 h-10 lg:w-12 lg:h-12 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                    />
-                  </svg>
+              {/* 로고 (Footer 로고 스타일과 통일) */}
+              <div className="mb-6 lg:mb-8 flex flex-col items-center">
+                <img
+                  src="https://crrxqwzygpifxmzxszdz.supabase.co/storage/v1/object/public/site_img/f_logo.png"
+                  alt="고민순삭 로고"
+                  className="w-32 h-auto mb-2"
+                />
+                <div className="text-[11px] lg:text-sm text-gray-500">
+                  AI 융합 고민 상담 서비스
                 </div>
-                <div className="text-sm lg:text-base text-gray-600">Healing Theraphy</div>
-                <div className="text-lg lg:text-2xl font-bold text-gray-800">고민순삭</div>
               </div>
 
               <h3 className="text-xl lg:text-2xl font-bold mb-3 lg:mb-4">정보 수정이 완료되었습니다</h3>
