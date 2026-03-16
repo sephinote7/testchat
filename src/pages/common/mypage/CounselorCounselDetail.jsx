@@ -137,7 +137,7 @@ const CounselorCounselDetail = () => {
         credentials: 'include',
       });
       if (!res.ok) {
-        let errorBody: any = null;
+        let errorBody = null;
         try {
           const text = await res.text();
           try {
@@ -179,7 +179,7 @@ const CounselorCounselDetail = () => {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        let errorBody: any = null;
+        let errorBody = null;
         try {
           const text = await res.text();
           try {
