@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { acceptCounsel, fetchCounselDetail, rejectCounsel } from '../../../api/counselApi';
 import { useAuthStore } from '../../../store/auth.store';
+import { supabase } from '../../../lib/supabase';
 import CounselDecisionModal from './CounselDecisionModal';
 
 const MyCounselDetail = () => {
@@ -104,8 +105,35 @@ const MyCounselDetail = () => {
   const statusInfo = getStatusLabel(counselData?.status);
 
   // 상담 시작하기 버튼: cnsl_tp 4/5에 따라 해당 상담 라우터로 이동
-  const handleStartCounsel = () => {
-    const tpRaw = counselData?.cnslTp ?? counselData?.cnsl_tp ?? counselData?.cnslTpNm;
+  const handleStartCounsel = async () => {
+    let tpRaw = counselData?.cnslTp ?? counselData?.cnsl_tp ?? counselData?.cnslTpNm;
+
+    // 한글 타입명 또는 기타 필드에서 매핑 (채팅/화상)
+    if (!tpRaw) {
+      const typeName = counselData?.type ?? counselData?.cnslTpNm;
+      if (typeName === '채팅') tpRaw = '4';
+      else if (typeName === '화상') tpRaw = '5';
+    }
+
+    // 여전히 값이 없으면 Supabase cnsl_reg에서 cnsl_tp 조회 (최후 fallback)
+    if (!tpRaw) {
+      try {
+        const cnslIdNum = id ? Number(id) : null;
+        if (cnslIdNum) {
+          const { data: regRow, error } = await supabase
+            .from('cnsl_reg')
+            .select('cnsl_tp')
+            .eq('cnsl_id', cnslIdNum)
+            .maybeSingle();
+          if (!error && regRow) {
+            tpRaw = regRow.cnsl_tp;
+          }
+        }
+      } catch (e) {
+        console.error('system handleStartCounsel: Supabase cnsl_tp 조회 실패', e);
+      }
+    }
+
     const tp = tpRaw != null ? String(tpRaw).trim() : '';
 
     console.log('system handleStartCounsel', { id, tpRaw, tp, counselData });
