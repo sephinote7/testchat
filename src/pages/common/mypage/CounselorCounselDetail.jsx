@@ -138,8 +138,26 @@ const CounselorCounselDetail = () => {
         credentials: 'include',
       });
       if (!res.ok) {
-        const msg = await res.text().catch(() => '');
-        alert(msg || '상담 취소에 실패했습니다.');
+        let errorBody: any = null;
+        try {
+          const text = await res.text();
+          try {
+            errorBody = text ? JSON.parse(text) : null;
+          } catch {
+            errorBody = text || null;
+          }
+        } catch {
+          // ignore
+        }
+        console.error('상담 취소 실패 응답:', {
+          status: res.status,
+          body: errorBody,
+        });
+        if (res.status === 401) {
+          alert('로그인이 필요합니다. 다시 로그인 후 이용해 주세요.');
+        } else {
+          alert('상담 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        }
         return;
       }
       setShowCancelCompleteModal(true);
@@ -169,8 +187,26 @@ const CounselorCounselDetail = () => {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const msg = await res.text().catch(() => '');
-        alert(msg || '상담 수정에 실패했습니다.');
+        let errorBody: any = null;
+        try {
+          const text = await res.text();
+          try {
+            errorBody = text ? JSON.parse(text) : null;
+          } catch {
+            errorBody = text || null;
+          }
+        } catch {
+          // ignore
+        }
+        console.error('상담 수정 실패 응답:', {
+          status: res.status,
+          body: errorBody,
+        });
+        if (res.status === 401) {
+          alert('로그인이 필요합니다. 다시 로그인 후 이용해 주세요.');
+        } else {
+          alert('상담 수정에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        }
         return;
       }
       setShowEditCompleteModal(true);
