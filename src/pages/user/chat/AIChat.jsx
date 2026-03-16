@@ -151,6 +151,11 @@ const AIChat = () => {
         if (startAt && endAt && endAt.getTime() <= startAt.getTime()) {
           endAt = new Date(endAt.getTime() + 24 * 60 * 60 * 1000);
         }
+        // AI 상담 진입 시 종료 시간이 이미 지났거나 없으면 즉시 종료되지 않도록: 현재+1시간으로 보정
+        const now = Date.now();
+        if (!endAt || endAt.getTime() <= now) {
+          endAt = new Date(now + 60 * 60 * 1000);
+        }
         setCnslInfo({
           id: data.cnsl_id,
           stat: data.cnsl_stat || 'C',

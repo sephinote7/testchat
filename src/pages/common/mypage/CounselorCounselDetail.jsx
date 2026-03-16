@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getCnslDetail } from '../../../api/myCnslDetail';
 import useAuth from '../../../hooks/useAuth';
+import { supabase } from '../../../lib/supabase';
 
 const CounselorCounselDetail = () => {
   const { id } = useParams();
@@ -10,6 +11,7 @@ const CounselorCounselDetail = () => {
 
   // 상태 관리
   const [counselDetail, setCounselDetail] = useState(null); // 초기값 null
+  const [contentFromSupabase, setContentFromSupabase] = useState(null); // Spring에 cnsl_content 없을 때 chat_msg 요약
   const [loading, setLoading] = useState(true);
 
   // 모달 상태
@@ -36,7 +38,8 @@ const CounselorCounselDetail = () => {
   // - 상담 취소: DELETE /api/counsels/:id
   // 리뷰 작성 가능 여부 확인 (상담 완료 상태면 모두 가능)
   const canWriteReview = () => {
-    return counselDetail.cnsl_stat === '상담 완료';
+    const stat = counselDetail?.cnsl_stat ?? counselDetail?.cnslStat ?? '';
+    return stat === '상담 완료' || stat === 'D';
   };
 
   // 예약 수정/취소 가능 여부 (1일 전까지)
@@ -127,40 +130,110 @@ const CounselorCounselDetail = () => {
     setShowCannotReviewModal(false);
   };
 
-  // API 호출
+  // API 호출 (Spring 우선, 404 시 Supabase cnsl_reg + chat_msg fallback)
   useEffect(() => {
-    const fetchDetail = async () => {
-      if (!token || !id) return; // 토큰이나 ID가 없으면 중단
+    const cnslIdNum = id ? Number(id) : null;
+    if (!token || !id || !cnslIdNum) return;
 
+    const statToLabel = (s) => {
+      if (!s) return '';
+      const map = { A: '상담 예약 대기', B: '상담 예약 (완료)', C: '상담 진행 중', D: '상담 완료', E: '상담 종료 중' };
+      return map[s] || s;
+    };
+
+    const fetchDetail = async () => {
+      setLoading(true);
+      setContentFromSupabase(null);
       try {
-        setLoading(true);
-        console.log('dsfdsfds', typeof id);
-        const data = await getCnslDetail(Number(id));
-        console.log('받아온 데이터:', data); // 데이터 구조 확인용
+        const data = await getCnslDetail(cnslIdNum);
         setCounselDetail(data);
+        // Spring에 상담 내용이 비어 있으면 Supabase chat_msg 요약으로 보완
+        const content = data?.cnslContent ?? data?.cnsl_content ?? '';
+        if (!String(content).trim()) {
+          const { data: msgRow } = await supabase
+            .from('chat_msg')
+            .select('summary')
+            .eq('cnsl_id', cnslIdNum)
+            .maybeSingle();
+          if (msgRow?.summary) {
+            try {
+              const parsed = typeof msgRow.summary === 'string' ? JSON.parse(msgRow.summary) : msgRow.summary;
+              const text = parsed?.summary ?? parsed?.summary_line ?? String(msgRow.summary);
+              setContentFromSupabase(text?.trim() || null);
+            } catch {
+              setContentFromSupabase(String(msgRow.summary).trim() || null);
+            }
+          }
+        }
       } catch (error) {
-        console.error('데이터 로드 실패:', error);
-        // alert('상담 내역을 불러올 수 없습니다.');
-        // navigate('/mypage/clist');
+        console.error('데이터 로드 실패 (Spring):', error);
+        // 404 등 실패 시 Supabase에서 상담 내역 조회
+        try {
+          const { data: regRow, error: regErr } = await supabase
+            .from('cnsl_reg')
+            .select('cnsl_id, cnsl_title, cnsl_content, cnsl_stat, created_at, member_id, cnsler_id')
+            .eq('cnsl_id', cnslIdNum)
+            .maybeSingle();
+          if (regErr || !regRow) {
+            setCounselDetail(null);
+            return;
+          }
+          const { data: msgRow } = await supabase
+            .from('chat_msg')
+            .select('summary')
+            .eq('cnsl_id', cnslIdNum)
+            .maybeSingle();
+          let content = regRow.cnsl_content?.trim() ?? '';
+          if (!content && msgRow?.summary) {
+            try {
+              const parsed = typeof msgRow.summary === 'string' ? JSON.parse(msgRow.summary) : msgRow.summary;
+              content = parsed?.summary ?? parsed?.summary_line ?? String(msgRow.summary);
+            } catch {
+              content = String(msgRow.summary);
+            }
+          }
+          setCounselDetail({
+            cnsl_title: regRow.cnsl_title,
+            cnsl_content: content,
+            user_nickname: '',
+            cnsler_name: '',
+            cnsl_stat: statToLabel(regRow.cnsl_stat),
+            created_at: regRow.created_at,
+          });
+        } catch (supabaseErr) {
+          console.error('Supabase fallback 실패:', supabaseErr);
+          setCounselDetail(null);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDetail(); // <--- 이 호출 문장이 반드시 있어야 실행됩니다!
-  }, [id, token]); // id나 token이 바뀔 때마다 다시 실행
+    fetchDetail();
+  }, [id, token]);
 
   // 로딩 중 처리
   if (loading) return <div className="text-center py-20">데이터를 불러오는 중입니다...</div>;
   if (!counselDetail) return null;
 
+  // 상태 코드 → 한글 라벨 (Spring은 코드만 올 수 있음)
+  const statusLabel =
+    counselDetail.cnslStat ?? counselDetail.cnsl_stat ?? '';
+  const statusDisplay =
+    statusLabel.length === 1
+      ? { A: '상담 예약 대기', B: '상담 예약 (완료)', C: '상담 진행 중', D: '상담 완료', E: '상담 종료 중' }[
+          statusLabel
+        ] ?? statusLabel
+      : statusLabel;
+
   // 백엔드 데이터와 UI 연결 (변수 매핑, snake_case/camelCase 모두 처리)
+  const rawContent = counselDetail.cnslContent ?? counselDetail.cnsl_content ?? '';
   const displayData = {
     title: counselDetail.cnslTitle ?? counselDetail.cnsl_title,
     requester: counselDetail.userNickname ?? counselDetail.user_nickname,
-    content: counselDetail.cnslContent ?? counselDetail.cnsl_content ?? '',
+    content: (rawContent && String(rawContent).trim()) ? rawContent : (contentFromSupabase ?? ''),
     counselorName: counselDetail.cnslerName ?? counselDetail.cnsler_name,
-    status: counselDetail.cnslStat ?? counselDetail.cnsl_stat,
+    status: statusDisplay,
     date: counselDetail.cnslDt ?? (counselDetail.created_at ? new Date(counselDetail.created_at).toLocaleDateString('ko-KR') : ''),
     image: counselDetail.cnslerimgUrl ?? counselDetail.cnsler_img_url,
     tags: ((counselDetail.hashTags ?? counselDetail.hash_tags) || '')
